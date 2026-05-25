@@ -2364,10 +2364,19 @@ function askInput(opts){
 function askConfirm(title,msg,onYes){
   const mask=document.getElementById("confirm-mask");
   document.getElementById("confirm-title").textContent=title;
-  document.getElementById("confirm-msg").textContent=msg;
-  mask.classList.add("show");
+  const msgEl=document.getElementById("confirm-msg");
+  msgEl.textContent=msg;
+  // Reset any leftover state from the access modal (which hides OK and changes labels)
+  msgEl.classList.remove("access-scroll");
+  msgEl.style.textAlign="";
   const ok=document.getElementById("confirm-ok");
   const cancel=document.getElementById("confirm-cancel");
+  ok.style.display="";
+  ok.className="btn-danger";
+  ok.textContent="Confirmar";
+  cancel.className="btn-sm";
+  cancel.textContent="Cancelar";
+  mask.classList.add("show");
   const close=()=>{mask.classList.remove("show");ok.onclick=null;cancel.onclick=null;mask.onclick=null;};
   ok.onclick=()=>{close();onYes();};
   cancel.onclick=close;
