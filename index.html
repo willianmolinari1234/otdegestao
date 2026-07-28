@@ -598,6 +598,7 @@ tr:last-child td{border-bottom:none}
     <button class="nav-btn" data-view="planilhas" data-admin>📊&nbsp; Planilhas</button>
     <button class="nav-btn" data-view="equipe" data-admin>◉&nbsp; Equipe</button>
     <button class="nav-btn" data-view="relatorios">▤&nbsp; Relatórios</button>
+    <a class="nav-btn" href="relatorio-cliente.html" style="text-decoration:none">📈&nbsp; Relat. de Cliente</a>
     <button class="nav-btn" data-view="diagnostico" data-admin>🩺&nbsp; Diagnóstico</button>
   </nav>
   <div class="sidebar-footer">OTDE v1.0</div>
@@ -3621,7 +3622,7 @@ document.getElementById("logout-btn").onclick=()=>askConfirm("Sair do sistema","
 document.getElementById("new-task-btn").onclick=()=>{if(currentUser)openTaskForm(null);};
 document.getElementById("nav").addEventListener("click",e=>{
   const btn=e.target.closest(".nav-btn");
-  if(!btn||!currentUser)return;
+  if(!btn||!btn.dataset.view||!currentUser)return;
   view=btn.dataset.view;
   render();
 });
