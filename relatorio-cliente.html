@@ -14,13 +14,20 @@
     --shadow-md:0 1px 3px rgba(15,23,42,.06),0 2px 8px rgba(15,23,42,.04);
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;font-feature-settings:"cv11","ss01","ss02";letter-spacing:-0.005em;-webkit-font-smoothing:antialiased;}
   button{font-family:inherit;cursor:pointer;}
   input,select{font-family:inherit;font-size:14px;}
 
+  /* Splash (evita flash da tela de login) */
+  #splash{position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:99;}
+  #splash .logo{width:44px;height:44px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;}
+  #splash p{color:#64748b;font-size:13px;margin:0;}
+  .spin{width:22px;height:22px;border:3px solid #1e293b;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
   /* Login */
-  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
-  .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-md);padding:32px;width:100%;max-width:360px;}
+  #login{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:#0f172a;}
+  .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.35);padding:32px;width:100%;max-width:360px;}
   .login-card h1{font-size:18px;margin:0 0 4px;}
   .login-card p{color:var(--text-muted);font-size:13px;margin:0 0 20px;}
   .field{margin-bottom:12px;}
@@ -31,14 +38,20 @@
   .err{color:var(--red);font-size:13px;margin-top:8px;min-height:18px;}
 
   /* App shell */
-  #app{display:none;max-width:900px;margin:0 auto;padding:20px 16px 60px;}
-  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
-  .topbar .brand{display:flex;align-items:center;gap:10px;font-weight:600;}
-  .logo{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;}
-  .btn-ghost{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);}
-  .btn-ghost:hover{background:var(--brand-50);}
+  #app{display:none;}
+  .appbar{background:#0f172a;border-bottom:1px solid #1e293b;padding:0 22px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+  .appbar .brand{display:flex;align-items:center;gap:11px;color:#fff;font-weight:600;font-size:15px;}
+  .appbar .brand small{display:block;font-weight:400;font-size:11px;color:#64748b;line-height:1.2;}
+  .logo{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;box-shadow:0 0 0 3px rgba(234,88,12,.18);}
+  .appbar .actions{display:flex;gap:8px;align-items:center;}
+  .btn-back{color:#94a3b8;font-size:13px;text-decoration:none;padding:7px 12px;border-radius:8px;}
+  .btn-back:hover{background:rgba(255,255,255,.06);color:#e2e8f0;}
+  .btn-ghost{background:transparent;border:1px solid #334155;border-radius:8px;padding:7px 14px;font-size:13px;color:#cbd5e1;}
+  .btn-ghost:hover{background:rgba(255,255,255,.06);color:#fff;}
+  .content{max-width:900px;margin:0 auto;padding:24px 16px 60px;}
 
-  .controls{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-sm);}
+  .controls{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);}
+  .field label{font-weight:500;letter-spacing:.01em;}
   .controls-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;}
   .controls-row .field{margin:0;}
   .controls .field select,.controls .field input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;}
@@ -94,11 +107,20 @@
   .req .lbl{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
   .rep-footer{padding:12px 22px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
 
-  .empty{padding:60px 20px;text-align:center;color:var(--text-muted);}
+  .empty{padding:70px 20px;text-align:center;color:var(--text-muted);font-size:14px;}
+  .empty .ico{width:52px;height:52px;border-radius:14px;background:var(--brand-50);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px;}
+  details.form{border-radius:14px;box-shadow:var(--shadow-md);}
+  #report{border-radius:16px;}
   @media(max-width:640px){.controls-row,.form-grid,.kpis,.charts,.cmp{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
+
+<div id="splash">
+  <div class="logo">O</div>
+  <div class="spin" aria-hidden="true"></div>
+  <p>Carregando relatórios…</p>
+</div>
 
 <div id="login">
   <form class="login-card" id="loginForm">
@@ -112,11 +134,18 @@
 </div>
 
 <div id="app">
-  <div class="topbar">
-    <div class="brand"><span class="logo">O</span> Relatórios de performance</div>
-    <button class="btn-ghost" id="logoutBtn">Sair</button>
+  <div class="appbar">
+    <div class="brand">
+      <span class="logo">O</span>
+      <span>Relatórios de performance<small>OTDE Gestão de Contas</small></span>
+    </div>
+    <div class="actions">
+      <a class="btn-back" href="index.html">← Voltar ao sistema</a>
+      <button class="btn-ghost" id="logoutBtn">Sair</button>
+    </div>
   </div>
 
+  <div class="content">
   <div class="controls">
     <div class="controls-row">
       <div class="field">
@@ -159,7 +188,7 @@
   </details>
 
   <div id="report">
-    <div class="empty" id="emptyState">Selecione um cliente e um mês para ver o relatório.</div>
+    <div class="empty" id="emptyState"><div class="ico">📊</div>Selecione um cliente e um mês para ver o relatório.</div>
     <div id="reportContent" style="display:none;">
       <div class="rep-header">
         <div class="who">
@@ -216,6 +245,7 @@
       </div>
     </div>
   </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -269,6 +299,7 @@ $("loginForm").addEventListener("submit", async (e) => {
 $("logoutBtn").addEventListener("click", () => signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
+  $("splash").style.display = "none";
   if (user) {
     $("login").style.display = "none";
     $("app").style.display = "block";
