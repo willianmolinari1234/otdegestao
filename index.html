@@ -1188,7 +1188,7 @@ function rDiagnostico(){
   return `<div id="diagwrap"><div class="d-head">
     <span class="d-eyebrow">● Diagnóstico inicial</span>
     <div class="d-title">Raio-X da conta em <span class="hl">poucos minutos</span></div>
-    <div class="d-sub">Avalie cada item de Crítico a Ótimo e registre os números reais. A nota de saúde (0–100) e o plano de ação para o cliente se montam sozinhos.</div>
+    <div class="d-sub">Avalie cada item de Crítico a Ótimo e registre os números reais. A nota de saúde (0–100) se monta sozinha.</div>
     <div class="d-meta">${cliSel()}${inf('loja','Loja na Shopee')}${inf('cat','Categoria')}${inf('resp','Responsável')}${inf('data','Data','date')}</div>
     <div class="d-typewrap"><span class="d-tl">Tipo de cliente</span>
       <div class="d-seg" id="diag-seg">
@@ -1212,8 +1212,7 @@ function rDiagnostico(){
             <button type="button" class="d-btn d-btn-p" onclick="diagBuildReport()">Gerar PDF</button></div>
           <button type="button" class="d-reset" onclick="diagReset()">Limpar diagnóstico</button>
         </div>
-        <div class="d-plan"><div class="d-ph"><h3>Plano de ação</h3><p>Itens avaliados como Crítico/Ruim entram aqui. A ação que você escrever vai pro PDF.</p></div>
-          <div class="d-pb" id="diag-plan"></div></div>
+        
       </div>
     </div></div>`;
 }
@@ -1272,7 +1271,7 @@ function diagBuildReport(){
       <div class="r-mg"><div><span>Cliente:</span> <b>${diagInfo.cliente||'—'}</b></div><div><span>Tipo:</span> <b>${diagTipo}</b></div><div><span>Categoria:</span> <b>${sv('cat')}</b></div><div><span>Data:</span> <b>${sv('data')}</b></div><div><span>Responsável:</span> <b>${sv('resp')}</b></div></div>
     </div></div>
     <div class="r-score"><div><div class="r-big" style="color:${diagHex(score)}">${score}<small>NOTA DE SAÚDE / 100</small></div><span class="r-chip" style="background:${diagBg(score)};color:${diagHex(score)}">${diagName(score)}</span></div><div class="r-dims">${dimsH}</div></div>
-    ${kpH}<h2>Plano de ação</h2><div class="r-sub">Prioridades identificadas no diagnóstico inicial, em ordem de urgência.</div>${plH}
+    ${kpH}
     <div class="r-foot"><span>Relatório gerado por <b>OTDE · O Tal de Ecommerce</b></span><span>${sv('data')}</span></div>`;
   window.print();
 }
@@ -1285,8 +1284,7 @@ function diagCopy(btn){
   t+="Categoria: "+sv('cat')+" | Responsável: "+sv('resp')+" | Data: "+sv('data')+"\n\n";
   t+="NOTA GERAL: "+score+"/100 — "+diagName(score)+"\n\nNotas por dimensão:\n";
   DIAG_DIMS.forEach((d,di)=>{const p=diagDimPct(di);t+="• "+d.n+" ("+Math.round(d.w*100)+"%): "+(p===null?"—":Math.round(p)+"/100")+"\n";});
-  const weak=diagWeak();
-  if(weak.length){t+="\nPLANO DE AÇÃO:\n";weak.forEach(w=>{t+="- ["+DIAG_LABELS[w.v][0]+"] "+w.name+w.vtxt+" ("+w.dim+")"+(diagActions[w.key]?" → "+diagActions[w.key]:"")+"\n";});}
+  
   navigator.clipboard.writeText(t).then(()=>{if(btn){const o=btn.textContent;btn.textContent="Copiado ✓";setTimeout(()=>btn.textContent=o,1500);}});
 }
 function diagReset(){

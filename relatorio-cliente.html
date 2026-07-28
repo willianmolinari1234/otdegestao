@@ -49,6 +49,15 @@
   .btn-ghost{background:transparent;border:1px solid #334155;border-radius:8px;padding:7px 14px;font-size:13px;color:#cbd5e1;}
   .btn-ghost:hover{background:rgba(255,255,255,.06);color:#fff;}
   .content{max-width:900px;margin:0 auto;padding:24px 16px 60px;}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .tab{padding:9px 18px;border-radius:10px;font-size:14px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-weight:500;}
+  .tab.active{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:var(--shadow-brand,0 4px 14px rgba(234,88,12,.25));}
+  .tab:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
+  .dtable{width:100%;border-collapse:collapse;font-size:13px;}
+  .dtable th{text-align:left;padding:9px 12px;background:var(--bg);color:var(--text-muted);font-weight:500;white-space:nowrap;}
+  .dtable th.num,.dtable td.num{text-align:right;}
+  .dtable td{padding:9px 12px;border-top:1px solid var(--border);}
+  .dtable tr:hover td{background:var(--brand-50);}
 
   .controls{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);}
   .field label{font-weight:500;letter-spacing:.01em;}
@@ -146,6 +155,13 @@
   </div>
 
   <div class="content">
+
+  <div class="tabs">
+    <button class="tab active" id="tabCliente">Relatório por cliente</button>
+    <button class="tab" id="tabVendas">Vendas do mês · todas as lojas</button>
+  </div>
+
+  <div id="viewCliente">
   <div class="controls">
     <div class="controls-row">
       <div class="field">
@@ -245,6 +261,72 @@
       </div>
     </div>
   </div>
+  </div><!-- /viewCliente -->
+
+  <div id="viewVendas" style="display:none;">
+    <div class="controls">
+      <div class="controls-row" style="grid-template-columns:1fr 2fr;">
+        <div class="field">
+          <label>Mês</label>
+          <input type="month" id="dashMonth" />
+        </div>
+        <div class="field" style="align-self:end;font-size:12px;color:var(--text-muted);">Soma automática de todos os clientes com dados salvos no mês.</div>
+      </div>
+    </div>
+
+    <div id="dashReport" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-md);">
+      <div class="rep-header">
+        <div class="who">
+          <div class="avatar">Σ</div>
+          <div>
+            <div class="cli-name">Vendas do mês — todas as lojas</div>
+            <div class="cli-sub" id="dashSub">Consolidado OTDE</div>
+          </div>
+        </div>
+        <button id="dashPdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar PDF</button>
+      </div>
+      <div class="rep-body">
+        <div class="empty" id="dashEmpty"><div class="ico">Σ</div>Nenhum dado salvo neste mês ainda.</div>
+        <div id="dashContent" style="display:none;">
+          <div class="cmp">
+            <div class="cmp-card cmp-up" id="dashTotCard">
+              <div class="lbl">Faturamento total do mês</div>
+              <div class="val" id="dashTot">–</div>
+              <div class="cap" id="dashTotCap">todas as lojas somadas</div>
+            </div>
+            <div class="cmp-card" id="dashVarCard" style="background:var(--bg);">
+              <div class="lbl" style="color:var(--text-muted);">vs. mês anterior</div>
+              <div class="val" id="dashVar" style="color:var(--text);">–</div>
+              <div class="cap" id="dashVarCap" style="color:var(--text-muted);">—</div>
+            </div>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><div class="lbl">Custo de Ads total</div><div class="val" id="dashCusto">–</div></div>
+            <div class="kpi"><div class="lbl">ROAS geral</div><div class="val good" id="dashRoas">–</div></div>
+            <div class="kpi"><div class="lbl">TACOS geral</div><div class="val" id="dashTacos">–</div></div>
+            <div class="kpi"><div class="lbl">Lojas com dados</div><div class="val" id="dashLojas">–</div></div>
+            <div class="kpi"><div class="lbl">Anúncios novos (soma)</div><div class="val" id="dashAds">–</div></div>
+            <div class="kpi"><div class="lbl">Comissões (soma)</div><div class="val" id="dashCom">–</div></div>
+          </div>
+          <div style="margin-bottom:18px;">
+            <div class="chart-title">Faturamento por loja</div>
+            <div style="position:relative;width:100%;" id="dashChartWrap"><canvas id="chDash"></canvas></div>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <table class="dtable" id="dashTable">
+              <thead><tr><th>Loja</th><th class="num">Faturamento</th><th class="num">Custo Ads</th><th class="num">ROAS</th><th class="num">TACOS</th><th class="num">Comissão</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="rep-footer">
+        <span id="dashPeriodo">Período —</span>
+        <span id="dashGerado">Gerado em —</span>
+      </div>
+    </div>
+  </div><!-- /viewVendas -->
+
   </div>
 </div>
 
@@ -255,7 +337,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDQ1-LndQtPvZ6zkO6CAt1fD4LQkZeI95A",
@@ -492,6 +574,126 @@ function drawCharts(custo, fat, va, vb) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => (c.parsed.y > 0 ? "+" : "") + c.parsed.y + "%" } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#e5e7eb" }, ticks: { color: muted, callback: (v) => v + "%" } } } }
   });
 }
+
+// ---------- Abas ----------
+let chDash = null;
+function switchTab(v) {
+  const cli = v === "cliente";
+  $("tabCliente").classList.toggle("active", cli);
+  $("tabVendas").classList.toggle("active", !cli);
+  $("viewCliente").style.display = cli ? "block" : "none";
+  $("viewVendas").style.display = cli ? "none" : "block";
+  if (!cli) {
+    if (!$("dashMonth").value) $("dashMonth").value = $("monthSel").value || "";
+    loadDash();
+  }
+}
+$("tabCliente").addEventListener("click", () => switchTab("cliente"));
+$("tabVendas").addEventListener("click", () => switchTab("vendas"));
+$("dashMonth").addEventListener("change", loadDash);
+
+async function fetchPeriodo(mon) {
+  const snap = await getDocs(query(collection(db, "performance"), where("periodo", "==", mon)));
+  return snap.docs.map((d) => d.data());
+}
+
+async function loadDash() {
+  const mon = $("dashMonth").value;
+  if (!mon) return;
+  let rows = [], prevRows = [];
+  try {
+    [rows, prevRows] = await Promise.all([fetchPeriodo(mon), fetchPeriodo(prevMonth(mon))]);
+  } catch (err) { console.error(err); }
+
+  $("dashSub").textContent = "Consolidado OTDE · " + monthLabel(mon);
+  $("dashPeriodo").textContent = "Período: " + monthLabel(mon);
+  $("dashGerado").textContent = "Gerado em " + new Date().toLocaleDateString("pt-BR");
+
+  if (!rows.length) {
+    $("dashEmpty").style.display = "block";
+    $("dashContent").style.display = "none";
+    return;
+  }
+  $("dashEmpty").style.display = "none";
+  $("dashContent").style.display = "block";
+
+  const sum = (arr, f) => arr.reduce((a, r) => a + num(r[f]), 0);
+  const totFat = sum(rows, "faturamento");
+  const totCusto = sum(rows, "custoAds");
+  const totRec = sum(rows, "receitaAds");
+  const totAds = rows.reduce((a, r) => a + Math.round(num(r.anunciosNovos)), 0);
+  const totCom = rows.reduce((a, r) => a + num(r.faturamento) * num(r.percentFatura) / 100, 0);
+  const roasG = totCusto > 0 ? totRec / totCusto : 0;
+  const tacosG = totFat > 0 ? totCusto / totFat * 100 : 0;
+  const prevTot = sum(prevRows, "faturamento");
+
+  $("dashTot").textContent = brl(totFat);
+  $("dashCusto").textContent = brl(totCusto);
+  $("dashRoas").textContent = roasG.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  $("dashTacos").textContent = pct(tacosG);
+  $("dashLojas").textContent = rows.length;
+  $("dashAds").textContent = totAds;
+  $("dashCom").textContent = brl(totCom);
+
+  const varCard = $("dashVarCard");
+  if (prevTot > 0) {
+    const v = (totFat - prevTot) / prevTot * 100;
+    const up = v >= 0;
+    varCard.className = "cmp-card " + (up ? "cmp-up" : "cmp-down");
+    varCard.removeAttribute("style");
+    $("dashVar").removeAttribute("style");
+    $("dashVarCap").removeAttribute("style");
+    $("dashVar").textContent = (up ? "▲ " : "▼ ") + Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+    $("dashVarCap").textContent = brl(prevTot) + " em " + monthLabel(prevMonth(mon));
+  } else {
+    $("dashVar").textContent = "—";
+    $("dashVarCap").textContent = "sem dados de " + monthLabel(prevMonth(mon));
+  }
+
+  // nomes das lojas + ordenação por faturamento
+  const nameOf = (id) => (clients.find((c) => c.id === id) || {}).name || id || "(loja)";
+  const ordered = rows.slice().sort((a, b) => num(b.faturamento) - num(a.faturamento));
+
+  // tabela
+  const tb = $("dashTable").querySelector("tbody");
+  tb.innerHTML = ordered.map((r) => {
+    const f = num(r.faturamento), cst = num(r.custoAds), rec = num(r.receitaAds);
+    const ro = r.roasManual != null && r.roasManual !== "" ? num(r.roasManual) : (cst > 0 ? rec / cst : 0);
+    const ta = f > 0 ? cst / f * 100 : 0;
+    const com = f * num(r.percentFatura) / 100;
+    return `<tr><td>${escapeHtml(nameOf(r.cliente))}</td><td class="num">${brl(f)}</td><td class="num">${brl(cst)}</td><td class="num">${ro.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td class="num">${pct(ta)}</td><td class="num">${brl(com)}</td></tr>`;
+  }).join("") + `<tr style="font-weight:600;background:var(--brand-50);"><td>Total</td><td class="num">${brl(totFat)}</td><td class="num">${brl(totCusto)}</td><td class="num">${roasG.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td class="num">${pct(tacosG)}</td><td class="num">${brl(totCom)}</td></tr>`;
+
+  // gráfico
+  if (chDash) chDash.destroy();
+  $("dashChartWrap").style.height = Math.max(160, ordered.length * 34 + 60) + "px";
+  chDash = new Chart($("chDash"), {
+    type: "bar",
+    data: { labels: ordered.map((r) => nameOf(r.cliente)), datasets: [{ data: ordered.map((r) => num(r.faturamento)), backgroundColor: "#ea580c", borderRadius: 4, barThickness: 20 }] },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.x) } } }, scales: { x: { grid: { color: "#e5e7eb" }, ticks: { color: "#64748b", callback: (v) => "R$ " + (v / 1000) + "k" } }, y: { grid: { display: false }, ticks: { color: "#64748b" } } } }
+  });
+}
+
+$("dashPdfBtn").addEventListener("click", async () => {
+  const mon = $("dashMonth").value;
+  if (!mon || $("dashContent").style.display === "none") { alert("Escolha um mês com dados antes de baixar o PDF."); return; }
+  const el = $("dashReport");
+  const canvas = await html2canvas(el, {
+    scale: 2, backgroundColor: "#ffffff", useCORS: true,
+    onclone: (docc) => {
+      const rep = docc.getElementById("dashReport");
+      if (rep) { rep.style.borderRadius = "0"; rep.style.border = "none"; rep.style.boxShadow = "none"; }
+      const b = docc.getElementById("dashPdfBtn"); if (b) b.style.visibility = "hidden";
+    }
+  });
+  const img = canvas.toDataURL("image/png");
+  const { jsPDF } = window.jspdf;
+  const iw = 210;
+  const ih = (canvas.height * iw) / canvas.width;
+  const pdf = new jsPDF({ orientation: ih >= iw ? "portrait" : "landscape", unit: "mm", format: [iw, ih] });
+  pdf.addImage(img, "PNG", 0, 0, iw, ih);
+  pdf.save(`Vendas-Mensais-OTDE-${mon}.pdf`);
+});
 
 // live preview dos cálculos enquanto digita
 function updateChips() {
