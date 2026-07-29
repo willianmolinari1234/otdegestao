@@ -49,6 +49,8 @@ export const debugKey = onRequest({ secrets }, (req, res) => {
     keyIsAlnum: /^[0-9a-zA-Z]+$/.test(k),
     keyHasWhitespace: /\s/.test(k),
     caracteresEstranhos: estranhos,
+    inicio4: k.slice(0, 4),
+    fim4: k.slice(-4),
   });
 });
 
