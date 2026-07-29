@@ -35,13 +35,20 @@ const secrets = [PARTNER_KEY];
 
 // ---------- Diagnóstico (temporário, não expõe a chave) ----------
 export const debugKey = onRequest({ secrets }, (req, res) => {
-  const k = (PARTNER_KEY.value() || "").trim();
+  const raw = PARTNER_KEY.value() || "";
+  const k = raw.trim();
+  const estranhos = [...k]
+    .map((c, i) => (/[0-9a-zA-Z]/.test(c) ? null : { i, code: c.charCodeAt(0) }))
+    .filter(Boolean)
+    .slice(0, 15);
   res.json({
     partnerId: (process.env.SHOPEE_PARTNER_ID || "").trim(),
     base: process.env.SHOPEE_BASE,
+    rawLength: raw.length,
     keyLength: k.length,
-    keyIsHex: /^[0-9a-fA-F]+$/.test(k),
-    keyHasAsterisk: k.includes("*"),
+    keyIsAlnum: /^[0-9a-zA-Z]+$/.test(k),
+    keyHasWhitespace: /\s/.test(k),
+    caracteresEstranhos: estranhos,
   });
 });
 
