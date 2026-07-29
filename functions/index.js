@@ -26,7 +26,10 @@ const db = getFirestore();
 // Só a chave é segredo. partner_id, callback e base ficam no functions/.env (não sensíveis).
 const PARTNER_KEY = defineSecret("SHOPEE_PARTNER_KEY");
 
-const cfg = () => ({ partnerId: process.env.SHOPEE_PARTNER_ID, partnerKey: PARTNER_KEY.value() });
+const cfg = () => ({
+  partnerId: (process.env.SHOPEE_PARTNER_ID || "").trim(),
+  partnerKey: (PARTNER_KEY.value() || "").trim(),
+});
 const callbackUrl = () => process.env.SHOPEE_CALLBACK_URL;
 const secrets = [PARTNER_KEY];
 
