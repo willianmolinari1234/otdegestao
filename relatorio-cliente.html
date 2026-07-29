@@ -58,6 +58,16 @@
   .dtable th.num,.dtable td.num{text-align:right;}
   .dtable td{padding:9px 12px;border-top:1px solid var(--border);}
   .dtable tr:hover td{background:var(--brand-50);}
+  .tool-store{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);margin-bottom:14px;overflow:hidden;}
+  .tool-store h3{margin:0;padding:12px 16px;font-size:14px;font-weight:600;background:var(--bg);border-bottom:1px solid var(--border);}
+  .tool-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--border);}
+  .tool-row:first-of-type{border-top:none;}
+  .tool-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--brand-50);color:var(--brand-tint);white-space:nowrap;}
+  .tool-name{font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tool-time{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .tool-time.soon{color:var(--red-tint);}
+  .tool-time.ok{color:var(--green-tint);}
+  .tool-time.ended{color:var(--text-muted);font-weight:400;}
 
   .controls{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);}
   .field label{font-weight:500;letter-spacing:.01em;}
@@ -159,6 +169,7 @@
   <div class="tabs">
     <button class="tab active" id="tabCliente">Relatório por cliente</button>
     <button class="tab" id="tabVendas">Vendas do mês · todas as lojas</button>
+    <button class="tab" id="tabFerramentas">Ferramentas</button>
   </div>
 
   <div id="viewCliente">
@@ -264,6 +275,22 @@
   </div><!-- /viewCliente -->
 
   <div id="viewVendas" style="display:none;">
+
+    <div id="rtCard" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(22,163,74,.15);"></span>
+        <span style="font-size:14px;font-weight:600;">Vendas em tempo real · hoje</span>
+        <span id="rtDate" style="font-size:12px;color:var(--text-muted);margin-left:auto;"></span>
+      </div>
+      <div id="rtEmpty" style="font-size:13px;color:var(--text-muted);padding:8px 0;">Aguardando a integração com a Shopee. Assim que as lojas forem conectadas, o faturamento do dia aparece aqui automaticamente.</div>
+      <div id="rtGrid" style="display:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
+        <div class="kpi hl"><div class="lbl">Faturamento hoje</div><div class="val" id="rtGmv">–</div></div>
+        <div class="kpi"><div class="lbl">Pedidos hoje</div><div class="val" id="rtPed">–</div></div>
+        <div class="kpi"><div class="lbl">Ticket médio</div><div class="val" id="rtTicket">–</div></div>
+        <div class="kpi"><div class="lbl">Lojas reportando</div><div class="val" id="rtLojas">–</div></div>
+      </div>
+    </div>
+
     <div class="controls">
       <div class="controls-row" style="grid-template-columns:1fr 2fr;">
         <div class="field">
@@ -326,6 +353,15 @@
       </div>
     </div>
   </div><!-- /viewVendas -->
+
+  <div id="viewFerramentas" style="display:none;">
+    <div class="controls" style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:14px;font-weight:600;">Ferramentas ativas por loja</span>
+      <span style="font-size:12px;color:var(--text-muted);margin-left:auto;">Contagem regressiva até acabar cada promoção.</span>
+    </div>
+    <div class="empty" id="toolsEmpty"><div class="ico">🧰</div>Aguardando a integração com a Shopee. Depois de conectar as lojas, as promoções ativas (desconto, leve mais por menos, flash sale, cupons) aparecem aqui com o tempo restante.</div>
+    <div id="toolsList" style="display:none;"></div>
+  </div><!-- /viewFerramentas -->
 
   </div>
 </div>
@@ -578,19 +614,93 @@ function drawCharts(custo, fat, va, vb) {
 // ---------- Abas ----------
 let chDash = null;
 function switchTab(v) {
-  const cli = v === "cliente";
-  $("tabCliente").classList.toggle("active", cli);
-  $("tabVendas").classList.toggle("active", !cli);
-  $("viewCliente").style.display = cli ? "block" : "none";
-  $("viewVendas").style.display = cli ? "none" : "block";
-  if (!cli) {
+  $("tabCliente").classList.toggle("active", v === "cliente");
+  $("tabVendas").classList.toggle("active", v === "vendas");
+  $("tabFerramentas").classList.toggle("active", v === "ferramentas");
+  $("viewCliente").style.display = v === "cliente" ? "block" : "none";
+  $("viewVendas").style.display = v === "vendas" ? "block" : "none";
+  $("viewFerramentas").style.display = v === "ferramentas" ? "block" : "none";
+  if (v === "vendas") {
     if (!$("dashMonth").value) $("dashMonth").value = $("monthSel").value || "";
     loadDash();
+    loadRealtime();
   }
+  if (v === "ferramentas") loadFerramentas();
 }
 $("tabCliente").addEventListener("click", () => switchTab("cliente"));
 $("tabVendas").addEventListener("click", () => switchTab("vendas"));
+$("tabFerramentas").addEventListener("click", () => switchTab("ferramentas"));
 $("dashMonth").addEventListener("change", loadDash);
+
+// ---------- Vendas em tempo real (coleção sales) ----------
+async function loadRealtime() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  $("rtDate").textContent = new Date().toLocaleDateString("pt-BR");
+  let rows = [];
+  try {
+    const snap = await getDocs(query(collection(db, "sales"), where("data", "==", hoje)));
+    rows = snap.docs.map((d) => d.data());
+  } catch (err) { console.error(err); }
+  if (!rows.length) {
+    $("rtEmpty").style.display = "block";
+    $("rtGrid").style.display = "none";
+    return;
+  }
+  $("rtEmpty").style.display = "none";
+  $("rtGrid").style.display = "grid";
+  const gmv = rows.reduce((a, r) => a + num(r.gmv), 0);
+  const ped = rows.reduce((a, r) => a + Math.round(num(r.pedidos)), 0);
+  $("rtGmv").textContent = brl(gmv);
+  $("rtPed").textContent = ped;
+  $("rtTicket").textContent = brl(ped ? gmv / ped : 0);
+  $("rtLojas").textContent = rows.length;
+}
+
+// ---------- Ferramentas (coleção tools) ----------
+const TOOL_LABEL = { desconto: "Desconto", leve_mais: "Leve mais por menos", combo: "Combo", flash_sale: "Flash sale", cupom: "Cupom" };
+
+function fmtRemaining(fimSec) {
+  const diff = Number(fimSec) * 1000 - Date.now();
+  if (!fimSec || diff <= 0) return { txt: "Encerrada", cls: "ended" };
+  const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000);
+  const txt = d > 0 ? `${d}d ${h}h` : (h > 0 ? `${h}h ${m}min` : `${m}min`);
+  return { txt, cls: diff < 48 * 3600000 ? "soon" : "ok" };
+}
+
+function updateCountdowns() {
+  document.querySelectorAll(".tool-time[data-fim]").forEach((el) => {
+    const r = fmtRemaining(el.getAttribute("data-fim"));
+    el.textContent = r.txt;
+    el.className = "tool-time " + r.cls;
+  });
+}
+setInterval(updateCountdowns, 30000);
+
+async function loadFerramentas() {
+  let docs = [];
+  try {
+    const snap = await getDocs(collection(db, "tools"));
+    docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) { console.error(err); }
+  const withPromos = docs.filter((d) => (d.promocoes || []).length);
+  if (!withPromos.length) {
+    $("toolsEmpty").style.display = "block";
+    $("toolsList").style.display = "none";
+    return;
+  }
+  $("toolsEmpty").style.display = "none";
+  $("toolsList").style.display = "block";
+  const nameOf = (id) => (clients.find((c) => c.id === id) || {}).name || id;
+  $("toolsList").innerHTML = withPromos.map((d) => {
+    const rows = (d.promocoes || [])
+      .slice()
+      .sort((a, b) => Number(a.fim || 0) - Number(b.fim || 0))
+      .map((p) => `<div class="tool-row"><span class="tool-badge">${TOOL_LABEL[p.tipo] || p.tipo}</span><span class="tool-name">${escapeHtml(p.nome || "")}</span><span class="tool-time" data-fim="${p.fim || 0}">–</span></div>`)
+      .join("");
+    return `<div class="tool-store"><h3>${escapeHtml(nameOf(d.id))}</h3>${rows}</div>`;
+  }).join("");
+  updateCountdowns();
+}
 
 async function fetchPeriodo(mon) {
   const snap = await getDocs(query(collection(db, "performance"), where("periodo", "==", mon)));
