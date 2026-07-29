@@ -33,6 +33,18 @@ const cfg = () => ({
 const callbackUrl = () => process.env.SHOPEE_CALLBACK_URL;
 const secrets = [PARTNER_KEY];
 
+// ---------- Diagnóstico (temporário, não expõe a chave) ----------
+export const debugKey = onRequest({ secrets }, (req, res) => {
+  const k = (PARTNER_KEY.value() || "").trim();
+  res.json({
+    partnerId: (process.env.SHOPEE_PARTNER_ID || "").trim(),
+    base: process.env.SHOPEE_BASE,
+    keyLength: k.length,
+    keyIsHex: /^[0-9a-fA-F]+$/.test(k),
+    keyHasAsterisk: k.includes("*"),
+  });
+});
+
 // ---------- 1) Link de autorização ----------
 export const shopeeAuthLink = onRequest({ secrets }, (req, res) => {
   const cliente = req.query.cliente;
