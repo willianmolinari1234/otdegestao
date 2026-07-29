@@ -23,18 +23,18 @@ import {
 initializeApp();
 const db = getFirestore();
 
-const PARTNER_ID = defineSecret("SHOPEE_PARTNER_ID");
+// Só a chave é segredo. partner_id, callback e base ficam no functions/.env (não sensíveis).
 const PARTNER_KEY = defineSecret("SHOPEE_PARTNER_KEY");
-const CALLBACK_URL = defineSecret("SHOPEE_CALLBACK_URL");
 
-const cfg = () => ({ partnerId: PARTNER_ID.value(), partnerKey: PARTNER_KEY.value() });
-const secrets = [PARTNER_ID, PARTNER_KEY, CALLBACK_URL];
+const cfg = () => ({ partnerId: process.env.SHOPEE_PARTNER_ID, partnerKey: PARTNER_KEY.value() });
+const callbackUrl = () => process.env.SHOPEE_CALLBACK_URL;
+const secrets = [PARTNER_KEY];
 
 // ---------- 1) Link de autorização ----------
 export const shopeeAuthLink = onRequest({ secrets }, (req, res) => {
   const cliente = req.query.cliente;
   if (!cliente) { res.status(400).send("Falta ?cliente=ID"); return; }
-  const redirectUri = `${CALLBACK_URL.value()}?cliente=${encodeURIComponent(cliente)}`;
+  const redirectUri = `${callbackUrl()}?cliente=${encodeURIComponent(cliente)}`;
   const url = buildAuthUrl({ ...cfg(), redirectUri });
   res.redirect(url);
 });
