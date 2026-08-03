@@ -34,40 +34,115 @@ const cfg = () => ({
 const callbackUrl = () => process.env.SHOPEE_CALLBACK_URL;
 const secrets = [PARTNER_KEY];
 
-// ---------- Diagnóstico (temporário, não expõe a chave) ----------
-export const debugKey = onRequest({ secrets }, (req, res) => {
-  const raw = PARTNER_KEY.value() || "";
-  const k = raw.trim();
-  const estranhos = [...k]
-    .map((c, i) => (/[0-9a-zA-Z]/.test(c) ? null : { i, code: c.charCodeAt(0) }))
-    .filter(Boolean)
-    .slice(0, 15);
-  res.json({
-    partnerId: (process.env.SHOPEE_PARTNER_ID || "").trim(),
-    base: process.env.SHOPEE_BASE,
-    rawLength: raw.length,
-    keyLength: k.length,
-    keyIsAlnum: /^[0-9a-zA-Z]+$/.test(k),
-    keyHasWhitespace: /\s/.test(k),
-    caracteresEstranhos: estranhos,
-    inicio4: k.slice(0, 4),
-    fim4: k.slice(-4),
-  });
+// (debugKey removido: era um diagnóstico temporário SEM autenticação que
+//  expunha o partner_id e o início/fim da chave — informação que ajuda ataques.)
+
+// ---------- Gestão de funcionários (só admin, validado no servidor) ----------
+// Substitui o fluxo antigo do front, que criava o usuário pelo navegador e
+// trocava de sessão — e que dependia de regras frouxas para funcionar.
+async function exigirAdmin(req) {
+  const authz = req.headers.authorization || "";
+  const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+  if (!idToken) return null;
+  const decoded = await getAuth().verifyIdToken(idToken);
+  const emp = await db.collection("employees").doc(decoded.uid).get();
+  if (!emp.exists || emp.data().role !== "admin") return null;
+  return decoded;
+}
+
+export const criarFuncionario = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
+  try {
+    const admin = await exigirAdmin(req);
+    if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+    const { nome, email, senha, cor, papel } = req.body || {};
+    if (!nome || !email || !senha) { res.status(400).json({ erro: "nome, email e senha são obrigatórios" }); return; }
+    if (String(senha).length < 8) { res.status(400).json({ erro: "a senha precisa de pelo menos 8 caracteres" }); return; }
+    const role = papel === "admin" ? "admin" : "emp";
+    const user = await getAuth().createUser({ email: String(email), password: String(senha), displayName: String(nome) });
+    const ini = String(nome).split(" ").slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
+    await db.collection("employees").doc(user.uid).set({
+      id: user.uid, name: String(nome), ini, color: cor || "#ea580c", email: String(email), role,
+    });
+    res.json({ ok: true, uid: user.uid });
+  } catch (e) {
+    logger.error("criarFuncionario", e);
+    const msg = e.code === "auth/email-already-exists" ? "Este e-mail já está em uso." : e.message;
+    res.status(500).json({ erro: msg });
+  }
 });
 
-// ---------- 1) Link de autorização ----------
-export const shopeeAuthLink = onRequest({ secrets }, (req, res) => {
-  const cliente = req.query.cliente;
-  if (!cliente) { res.status(400).send("Falta ?cliente=ID"); return; }
-  const redirectUri = `${callbackUrl()}?cliente=${encodeURIComponent(cliente)}`;
-  const url = buildAuthUrl({ ...cfg(), redirectUri });
-  res.redirect(url);
+export const removerFuncionario = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
+  try {
+    const admin = await exigirAdmin(req);
+    if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+    // Aceita uid OU email — o email cobre contas órfãs do Auth que nunca
+    // tiveram cadastro de funcionário (ex.: contas de teste antigas).
+    let uid = String(req.query.uid || req.body?.uid || "");
+    const email = String(req.query.email || req.body?.email || "");
+    if (!uid && email) {
+      const u = await getAuth().getUserByEmail(email).catch(() => null);
+      if (!u) { res.status(404).json({ erro: "e-mail não encontrado no Auth" }); return; }
+      uid = u.uid;
+    }
+    if (!uid) { res.status(400).json({ erro: "falta uid ou email" }); return; }
+    if (uid === admin.uid) { res.status(400).json({ erro: "não é possível remover a si mesmo" }); return; }
+    await db.collection("employees").doc(uid).delete().catch(() => {});
+    await getAuth().deleteUser(uid).catch(() => {});
+    res.json({ ok: true, uid });
+  } catch (e) {
+    logger.error("removerFuncionario", e);
+    res.status(500).json({ erro: e.message });
+  }
 });
+
+// ---------- 1) Link de autorização (só admin, com estado assinado) ----------
+// O antigo shopeeAuthLink era público: qualquer pessoa podia gerar um link
+// válido para QUALQUER cliente e autorizar a própria loja no lugar dele
+// (sequestro do OAuth / poluição de dados). Agora:
+//   1. só um admin logado gera o link;
+//   2. o link carrega um "st" = HMAC(cliente), que o callback confere.
+// Sem o st correto, o callback rejeita — links não podem ser forjados.
+import crypto from "node:crypto";
+
+function assinarEstado(cliente) {
+  const chave = (process.env.SYNC_TOKEN || "").trim();
+  return crypto.createHmac("sha256", chave).update(String(cliente)).digest("hex").slice(0, 32);
+}
+function estadoValido(cliente, st) {
+  const esperado = assinarEstado(cliente);
+  const a = Buffer.from(String(st || ""));
+  const b = Buffer.from(esperado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export const linkAutorizacao = onRequest(
+  { secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"], maxInstances: 5 },
+  async (req, res) => {
+    try {
+      const admin = await exigirAdmin(req);
+      if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+      const cliente = String(req.query.cliente || "");
+      if (!cliente) { res.status(400).json({ erro: "falta cliente" }); return; }
+      const st = assinarEstado(cliente);
+      const redirectUri = `${callbackUrl()}?cliente=${encodeURIComponent(cliente)}&st=${st}`;
+      res.json({ url: buildAuthUrl({ ...cfg(), redirectUri }) });
+    } catch (e) {
+      logger.error("linkAutorizacao", e);
+      res.status(500).json({ erro: e.message });
+    }
+  }
+);
 
 // ---------- 2) Callback do OAuth ----------
-export const shopeeCallback = onRequest({ secrets }, async (req, res) => {
-  const { code, shop_id: shopId, cliente } = req.query;
+export const shopeeCallback = onRequest({ secrets, maxInstances: 10 }, async (req, res) => {
+  const { code, shop_id: shopId, cliente, st } = req.query;
   if (!code || !shopId || !cliente) { res.status(400).send("Parâmetros ausentes."); return; }
+  // Só aceita callbacks de links emitidos por um admin (estado assinado).
+  if (!estadoValido(cliente, st)) {
+    logger.warn("callback com estado inválido", { cliente });
+    res.status(403).send("Link de autorização inválido ou expirado. Gere um novo na tela Integrações.");
+    return;
+  }
   try {
     const tok = await getAccessToken(cfg(), { code, shopId });
     if (tok.error) throw new Error(`${tok.error}: ${tok.message}`);
@@ -916,7 +991,7 @@ export const recuperarHistorico = onRequest({ secrets, timeoutSeconds: 540 }, as
 // ---------- Sincronizar agora (botão da dashboard) ----------
 // Igual ao syncAgora, mas autenticado pelo login do sistema em vez de token —
 // assim o botão pode viver no front sem expor o SYNC_TOKEN.
-export const syncPeloApp = onRequest({ secrets, cors: true, timeoutSeconds: 540 }, async (req, res) => {
+export const syncPeloApp = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"], timeoutSeconds: 540 }, async (req, res) => {
   try {
     const authz = req.headers.authorization || "";
     const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";
@@ -944,7 +1019,7 @@ export const syncPeloApp = onRequest({ secrets, cors: true, timeoutSeconds: 540 
 // ---------- Desconectar uma loja ----------
 // Chamado pela dashboard (usuário admin logado). Remove os tokens e marca o
 // espelho como desconectado. Exige um ID token válido do Firebase Auth.
-export const shopeeDesconectar = onRequest({ secrets, cors: true }, async (req, res) => {
+export const shopeeDesconectar = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
   try {
     const authz = req.headers.authorization || "";
     const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";

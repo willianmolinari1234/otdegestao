@@ -1011,19 +1011,15 @@ function showAuthScreen(mode){
       <a href="#" id="auth-switch-login" style="font-size:11.5px;color:#64748b;text-decoration:none;font-weight:500;display:inline-block;margin-top:-4px">Já tenho conta · Entrar</a>`;
     btn.textContent="Criar conta de admin";
     btn.onclick=async()=>{
-      err.classList.remove("show");
-      const name=document.getElementById("auth-name").value.trim();
-      const email=document.getElementById("auth-email").value.trim().toLowerCase();
-      const pass=document.getElementById("auth-pass").value;
-      if(!name||!email||pass.length<6){err.textContent="Preencha todos os campos (senha com ao menos 6 caracteres).";err.classList.add("show");return;}
-      btn.disabled=true;btn.textContent="Criando conta...";
+      // DESATIVADO por segurança: este fluxo permitia que qualquer pessoa na
+      // internet criasse uma conta de ADMINISTRADOR. Contas agora são criadas
+      // apenas por um admin logado, na tela Equipe (validado no servidor).
+      err.textContent="Cadastro desativado. Peça ao administrador para criar sua conta.";
+      err.classList.add("show");
+      return;
+      /* eslint-disable no-unreachable */
       try{
-        const cred=await window.fb.createUserWithEmailAndPassword(window.fb.auth,email,pass);
-        const ini=name.split(" ").slice(0,2).map(x=>x[0]||"").join("").toUpperCase()||"?";
-        await window.fb.setDoc(window.fb.doc(window.fb.db,"employees",cred.user.uid),{
-          id:cred.user.uid,name,ini,color:"#ea580c",email,role:"admin"
-        });
-        // onAuthStateChanged will pick up and load
+        // (código antigo mantido apenas como referência; inalcançável)
       }catch(e){
         let msg="Erro ao criar conta.";
         if(e.code==="auth/email-already-in-use")msg="Este e-mail já está cadastrado. Use a tela de login.";
@@ -1042,7 +1038,7 @@ function showAuthScreen(mode){
       <input type="password" class="auth-input" id="auth-pass" placeholder="Senha" autocomplete="current-password"/>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:-4px">
         <a href="#" id="auth-forgot" style="font-size:11.5px;color:#ea580c;text-decoration:none;font-weight:600">Esqueci minha senha</a>
-        <a href="#" id="auth-switch-setup" style="font-size:11.5px;color:#64748b;text-decoration:none;font-weight:500">Primeiro acesso?</a>
+        <span style="font-size:11.5px;color:#94a3b8">Sem conta? Peça ao administrador.</span>
       </div>`;
     btn.textContent="Entrar";
     btn.onclick=async()=>{
@@ -1078,8 +1074,8 @@ function showAuthScreen(mode){
           err.textContent="Erro ao enviar e-mail: "+(e.message||"tente novamente");err.classList.add("show");
         }
       };
-      const sw=document.getElementById("auth-switch-setup");
-      if(sw)sw.onclick=ev=>{ev.preventDefault();showAuthScreen("setup");};
+      // Auto-cadastro removido: contas são criadas apenas por administradores,
+      // pela tela Equipe (validado no servidor).
     },50);
   }
   fields.querySelectorAll("input").forEach(inp=>{inp.onkeydown=e=>{if(e.key==="Enter")btn.click();};});
@@ -1989,7 +1985,23 @@ function rIntegracoes(){
   </div>`;
 }
 function conectarLoja(cliId){
-  window.open(`${FN_BASE}/shopeeAuthLink?cliente=${encodeURIComponent(cliId)}`,"_blank","width=1000,height=760");
+  // Abre a janela ANTES do fetch (senão o bloqueador de pop-up mata), e o
+  // servidor — validando que somos admin — devolve o link assinado.
+  const w=window.open("about:blank","_blank","width=1000,height=760");
+  (async()=>{
+    try{
+      const tk=await window.fb.auth.currentUser.getIdToken();
+      const r=await fetch(`${FN_BASE}/linkAutorizacao?cliente=${encodeURIComponent(cliId)}`,{
+        headers:{Authorization:"Bearer "+tk}
+      });
+      const j=await r.json();
+      if(!r.ok)throw new Error(j.erro||"falha ao gerar o link");
+      w.location=j.url;
+    }catch(e){
+      if(w)w.close();
+      showToast("Erro ao conectar: "+e.message,"error");
+    }
+  })();
 }
 // Puxa os dados da Shopee na hora, sem esperar o agendamento (30 min).
 async function sincronizarAgora(btn){
@@ -2763,7 +2775,7 @@ function openCustAccessForm(custId){
     : stores.map((s,i)=>{
         const sl=storeLogins[s.id]|| (i===0&&legacyHint?legacyHint:{});
         return block({
-          title:`Loja: ${s.name}`+(s.mkt?` · ${s.mkt}`:""),
+          title:`Loja: ${esc(s.name)}`+(s.mkt?` · ${esc(s.mkt)}`:""),
           icon:"🏪",bg:"#f8fafc",border:"#e2e8f0",titleColor:"#475569",
           urlId:`ca-st-url-${s.id}`,urlLabel:"Link da loja",urlPh:"https://shopee.com.br/...",urlVal:sl.url,
           userId:`ca-st-user-${s.id}`,userVal:sl.user,
@@ -3255,45 +3267,22 @@ function openEmployeeForm(empId){
       const email=document.getElementById("ef-email").value.trim().toLowerCase();
       const pass=document.getElementById("ef-pass").value;
       if(!email){showToast("Informe o e-mail","error");return;}
-      if(pass.length<6){showToast("Senha deve ter ao menos 6 caracteres","error");return;}
+      if(pass.length<8){showToast("Senha deve ter ao menos 8 caracteres","error");return;}
       const saveBtn=document.getElementById("ef-save");
       saveBtn.disabled=true;saveBtn.textContent="Criando...";
       try{
-        // Note: creating a new user via createUserWithEmailAndPassword in Firebase
-        // signs them in automatically, which logs out current admin.
-        // We use a workaround: keep admin session via re-authentication after.
-        const adminEmail=currentUser.email;
-        // Prompt admin for their password to re-authenticate after creating new user
-        closeFormModal();
-        askInput({
-          title:"Confirme sua senha",
-          message:`Por segurança, digite sua senha (${adminEmail}) para criar o novo funcionário. Você será reconectado automaticamente.`,
-          placeholder:"Sua senha de admin",
-          type:"password",
-          okLabel:"Criar funcionário",
-          icon:"🔒",
-          validate:(v)=>!v?"Digite sua senha":null,
-          onOk:async(adminPass)=>{
-            try{
-              // Step 1: create the new user (this signs us in as them)
-              const cred=await window.fb.createUserWithEmailAndPassword(window.fb.auth,email,pass);
-              // Step 2: create their employee doc
-              await window.fb.setDoc(window.fb.doc(window.fb.db,"employees",cred.user.uid),{
-                id:cred.user.uid,name,ini,color:selColor,email,role
-              });
-              // Step 3: sign out the new user
-              await window.fb.signOut(window.fb.auth);
-              // Step 4: sign back in as admin
-              await window.fb.signInWithEmailAndPassword(window.fb.auth,adminEmail,adminPass);
-              showToast(`✓ ${name} cadastrado · repasse o login: ${email}`);
-            }catch(err){
-              let msg="Erro: "+(err.message||"falha ao criar");
-              if(err.code==="auth/email-already-in-use")msg="Este e-mail já está em uso.";
-              else if(err.code==="auth/wrong-password"||err.code==="auth/invalid-credential")msg="Senha de admin incorreta. Faça login novamente.";
-              showToast(msg,"error");
-            }
-          }
+        // A conta é criada pelo BACKEND (Admin SDK), que valida se quem pede
+        // é admin. Nada de criar usuário pelo navegador nem trocar de sessão.
+        const tk=await window.fb.auth.currentUser.getIdToken();
+        const r=await fetch(`${FN_BASE}/criarFuncionario`,{
+          method:"POST",
+          headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
+          body:JSON.stringify({nome:name,email,senha:pass,cor:selColor,papel:role}),
         });
+        const j=await r.json();
+        if(!r.ok)throw new Error(j.erro||"falha ao criar");
+        closeFormModal();
+        showToast(`✓ ${name} cadastrado · repasse o login: ${email}`);
       }catch(err){
         showToast("Erro: "+(err.message||""),"error");
         saveBtn.disabled=false;saveBtn.textContent="Adicionar";
