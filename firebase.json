@@ -2,5 +2,25 @@
   "functions": {
     "source": "functions",
     "runtime": "nodejs22"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**",
+      "functions/**",
+      "*.command",
+      "README*",
+      "*.md",
+      "index.html"
+    ],
+    "rewrites": [
+      { "source": "**", "destination": "/app.html" }
+    ]
   }
 }

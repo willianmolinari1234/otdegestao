@@ -16,6 +16,7 @@ import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import {
   buildAuthUrl, getAccessToken, refreshAccessToken, shopCall,
 } from "./shopee.js";
@@ -78,7 +79,19 @@ export const shopeeCallback = onRequest({ secrets }, async (req, res) => {
       expiraEm: Date.now() + (tok.expire_in || 14400) * 1000,
       atualizadoEm: FieldValue.serverTimestamp(),
     }, { merge: true });
-    res.send("<h2>Loja conectada com sucesso ✓</h2><p>Pode fechar esta janela.</p>");
+    // Espelho SEM tokens, para a dashboard poder mostrar o status da conexão.
+    await db.collection("integracoes").doc(String(cliente)).set({
+      cliente: String(cliente),
+      shopId: Number(shopId),
+      conectado: true,
+      conectadoEm: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.send(`<!doctype html><meta charset="utf-8">
+      <div style="font-family:system-ui;text-align:center;margin-top:80px">
+        <h2 style="color:#16a34a">Loja conectada com sucesso ✓</h2>
+        <p style="color:#475569">Pode fechar esta janela e voltar ao sistema.</p>
+        <script>setTimeout(()=>window.close(),2500)<\/script>
+      </div>`);
   } catch (e) {
     logger.error("callback", e);
     res.status(500).send("Erro ao conectar a loja: " + e.message);
@@ -114,14 +127,38 @@ async function forEachShop(fn) {
 // ---------- 3) Vendas do dia ----------
 // order.get_order_list -> order_sn; order.get_order_detail -> total_amount (GMV).
 // Confirmar os nomes dos campos na "API List" do App 1 depois de criado.
-async function fetchVendasDoDia(c, shopId, token) {
-  const end = Math.floor(Date.now() / 1000);
-  const start = end - 24 * 3600;
+// Fuso de operação das lojas. O Brasil não usa mais horário de verão (desde
+// 2019), então o deslocamento -03:00 é fixo e seguro.
+const TZ_OFFSET = "-03:00";
+
+// Data de hoje (YYYY-MM-DD) no fuso de Brasília — não em UTC.
+function dataLocal(d = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
+// Início e fim (epoch em segundos) de um dia do calendário local.
+function limitesDoDia(dia) {
+  const inicio = Math.floor(Date.parse(`${dia}T00:00:00${TZ_OFFSET}`) / 1000);
+  const fimDoDia = Math.floor(Date.parse(`${dia}T23:59:59${TZ_OFFSET}`) / 1000);
+  const agora = Math.floor(Date.now() / 1000);
+  return { inicio, fim: Math.min(fimDoDia, agora) };
+}
+
+// Pedidos que NÃO contam como venda: não pagos e cancelados.
+const STATUS_IGNORADOS = new Set(["UNPAID", "CANCELLED", "INVOICE_PENDING"]);
+
+// Faturamento de um dia do calendário, para uma loja.
+async function fetchVendasDoDia(dia, shopId, token) {
+  const { inicio, fim } = limitesDoDia(dia);
+  if (fim <= inicio) return { gmv: 0, pedidos: 0 };
+
   let cursor = "", orderSns = [];
   do {
     const r = await shopCall(cfg(), {
       path: "/api/v2/order/get_order_list", accessToken: token, shopId,
-      params: { time_range_field: "create_time", time_from: start, time_to: end, page_size: 100, cursor },
+      params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 100, cursor },
     });
     const list = r.response?.order_list || [];
     orderSns.push(...list.map((o) => o.order_sn));
@@ -129,69 +166,198 @@ async function fetchVendasDoDia(c, shopId, token) {
     if (!r.response?.more) break;
   } while (cursor);
 
-  let gmv = 0;
+  let gmv = 0, pedidos = 0;
   for (let i = 0; i < orderSns.length; i += 50) {
     const lote = orderSns.slice(i, i + 50).join(",");
     const d = await shopCall(cfg(), {
       path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
-      params: { order_sn_list: lote, response_optional_fields: "total_amount" },
+      params: { order_sn_list: lote, response_optional_fields: "total_amount,order_status" },
     });
-    (d.response?.order_list || []).forEach((o) => { gmv += Number(o.total_amount || 0); });
+    (d.response?.order_list || []).forEach((o) => {
+      if (STATUS_IGNORADOS.has(String(o.order_status || "").toUpperCase())) return;
+      gmv += Number(o.total_amount || 0);
+      pedidos += 1;
+    });
   }
-  return { gmv, pedidos: orderSns.length };
+  return { gmv, pedidos };
+}
+
+// Lógica compartilhada entre o agendamento e o disparo manual.
+async function rodarSyncVendas() {
+  const hoje = dataLocal();
+  // Também refaz o dia anterior: a última sincronização do dia acontece antes
+  // da meia-noite, então sem isso as últimas vendas do dia ficariam de fora.
+  const ontem = dataLocal(new Date(Date.now() - 24 * 3600 * 1000));
+  const resultado = [];
+  await forEachShop(async ({ cliente, shopId, token }) => {
+    for (const dia of [ontem, hoje]) {
+      const { gmv, pedidos } = await fetchVendasDoDia(dia, shopId, token);
+      await db.collection("sales").doc(`${cliente}_${dia}`).set({
+        cliente, data: dia, gmv, pedidos,
+        ticketMedio: pedidos ? gmv / pedidos : 0,
+        atualizadoEm: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (dia === hoje) resultado.push({ cliente, shopId, gmv, pedidos });
+    }
+  });
+  return { dia: hoje, lojas: resultado };
 }
 
 export const syncVendas = onSchedule({ schedule: "every 30 minutes", secrets, timeoutSeconds: 540 }, async () => {
-  const dia = new Date().toISOString().slice(0, 10);
-  await forEachShop(async ({ cliente, shopId, token }) => {
-    const { gmv, pedidos } = await fetchVendasDoDia(cliente, shopId, token);
-    await db.collection("sales").doc(`${cliente}_${dia}`).set({
-      cliente, data: dia, gmv, pedidos,
-      ticketMedio: pedidos ? gmv / pedidos : 0,
-      atualizadoEm: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
+  await rodarSyncVendas();
 });
 
 // ---------- 4) Ferramentas (promoções ativas) ----------
-// Cada tipo tem seu endpoint; todos trazem end_time. Confirmar campos na API List.
+// IMPORTANTE: cada endpoint da Shopee usa um parâmetro DIFERENTE para filtrar
+// as promoções em andamento. Usar "promotion_status" em todos faz os endpoints
+// de desconto, cupom e flash sale devolverem erro (ou lista vazia).
+const AGORA = () => Math.floor(Date.now() / 1000);
+
+// "04/08 10h" no fuso de Brasília, a partir de um epoch em segundos.
+function rotuloHorario(epochSeg) {
+  if (!epochSeg) return "sem data";
+  const d = new Date(epochSeg * 1000);
+  const p = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", hour12: false,
+  }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  return `${p.day}/${p.month} ${p.hour}h`;
+}
+const emAndamento = (inicio, fim) => {
+  const agora = AGORA();
+  return inicio && fim && inicio <= agora && agora <= fim;
+};
 const PROMO_ENDPOINTS = [
-  { tipo: "desconto", path: "/api/v2/discount/get_discount_list", listKey: "discount_list", nameKey: "discount_name", startKey: "start_time", endKey: "end_time" },
-  { tipo: "leve_mais", path: "/api/v2/add_on_deal/get_add_on_deal_list", listKey: "add_on_deal_list", nameKey: "add_on_deal_name", startKey: "start_time", endKey: "end_time" },
-  { tipo: "combo", path: "/api/v2/bundle_deal/get_bundle_deal_list", listKey: "bundle_deal_list", nameKey: "name", startKey: "start_time", endKey: "end_time" },
-  { tipo: "flash_sale", path: "/api/v2/shop_flash_sale/get_shop_flash_sale_list", listKey: "flash_sale_list", nameKey: "timeslot_id", startKey: "start_time", endKey: "end_time" },
-  { tipo: "cupom", path: "/api/v2/voucher/get_voucher_list", listKey: "voucher_list", nameKey: "voucher_name", startKey: "start_time", endKey: "end_time" },
+  {
+    tipo: "desconto", path: "/api/v2/discount/get_discount_list",
+    listKey: "discount_list", nameKey: "discount_name",
+    params: () => ({ discount_status: "ongoing", page_no: 1, page_size: 100 }),
+  },
+  {
+    tipo: "leve_mais", path: "/api/v2/add_on_deal/get_add_on_deal_list",
+    listKey: "add_on_deal_list", nameKey: "add_on_deal_name",
+    params: () => ({ promotion_status: "ongoing", page_no: 1, page_size: 100 }),
+  },
+  {
+    tipo: "combo", path: "/api/v2/bundle_deal/get_bundle_deal_list",
+    listKey: "bundle_deal_list", nameKey: "name",
+    params: () => ({ time_status: 3, page_no: 1, page_size: 100 }), // 3 = ongoing
+  },
+  {
+    tipo: "flash_sale", path: "/api/v2/shop_flash_sale/get_shop_flash_sale_list",
+    listKey: "flash_sale_list", nameKey: "timeslot_id",
+    params: () => ({ type: 2, start_time: AGORA() - 86400, end_time: AGORA() + 30 * 86400, offset: 0, limit: 100 }),
+  },
+  {
+    tipo: "cupom", path: "/api/v2/voucher/get_voucher_list",
+    listKey: "voucher_list", nameKey: "voucher_name",
+    params: () => ({ status: "ongoing", page_no: 1, page_size: 100 }),
+  },
 ];
 
+// Retorna { promocoes, erros } — os erros ajudam a diagnosticar cada endpoint.
 async function fetchFerramentas(shopId, token) {
-  const promocoes = [];
+  const promocoes = [], erros = {};
   for (const ep of PROMO_ENDPOINTS) {
     try {
       const r = await shopCall(cfg(), {
-        path: ep.path, accessToken: token, shopId,
-        params: { promotion_status: "ongoing", page_no: 1, page_size: 100 },
+        path: ep.path, accessToken: token, shopId, params: ep.params(),
       });
       const list = r.response?.[ep.listKey] || [];
       list.forEach((p) => {
-        promocoes.push({
-          tipo: ep.tipo,
-          nome: String(p[ep.nameKey] ?? ep.tipo),
-          inicio: Number(p[ep.startKey] || 0),
-          fim: Number(p[ep.endKey] || 0),
-        });
+        const inicio = Number(p.start_time || 0);
+        const fim = Number(p.end_time || 0);
+        // A Shopee não dá nome às ofertas relâmpago — só o ID do horário.
+        // Monta um rótulo legível a partir da data/hora de início.
+        const nome = ep.tipo === "flash_sale"
+          ? `Oferta relâmpago · ${rotuloHorario(inicio)}${emAndamento(inicio, fim) ? " · em andamento" : ""}`
+          : String(p[ep.nameKey] ?? ep.tipo);
+        promocoes.push({ tipo: ep.tipo, nome, inicio, fim });
       });
     } catch (e) {
-      logger.warn(`${ep.tipo}: ${e.message}`);
+      erros[ep.tipo] = e.message;
+      logger.warn(`ferramenta ${ep.tipo}: ${e.message}`);
     }
   }
-  return promocoes;
+  return { promocoes, erros };
 }
 
-export const syncFerramentas = onSchedule({ schedule: "every 6 hours", secrets, timeoutSeconds: 540 }, async () => {
+async function rodarSyncFerramentas() {
+  const resultado = [];
   await forEachShop(async ({ cliente, shopId, token }) => {
-    const promocoes = await fetchFerramentas(shopId, token);
+    const { promocoes, erros } = await fetchFerramentas(shopId, token);
     await db.collection("tools").doc(cliente).set({
       cliente, promocoes, atualizadoEm: FieldValue.serverTimestamp(),
     }, { merge: true });
+    const porTipo = promocoes.reduce((a, p) => { a[p.tipo] = (a[p.tipo] || 0) + 1; return a; }, {});
+    resultado.push({ cliente, total: promocoes.length, porTipo, erros });
+  });
+  return { lojas: resultado };
+}
+
+export const syncFerramentas = onSchedule({ schedule: "every 6 hours", secrets, timeoutSeconds: 540 }, async () => {
+  await rodarSyncFerramentas();
+});
+
+// ---------- 5) Disparo manual dos syncs (protegido por token) ----------
+// Uso: /syncAgora?token=SEU_TOKEN            -> roda vendas + ferramentas
+//      /syncAgora?token=SEU_TOKEN&o=vendas   -> só vendas
+//      /syncAgora?token=SEU_TOKEN&o=tools    -> só ferramentas
+export const syncAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const only = String(req.query.o || "");
+  try {
+    const out = {};
+    if (only !== "tools") out.vendas = await rodarSyncVendas();
+    if (only !== "vendas") out.ferramentas = await rodarSyncFerramentas();
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    logger.error("syncAgora", e);
+    res.status(500).json({ ok: false, erro: e.message });
+  }
+});
+
+// ---------- Desconectar uma loja ----------
+// Chamado pela dashboard (usuário admin logado). Remove os tokens e marca o
+// espelho como desconectado. Exige um ID token válido do Firebase Auth.
+export const shopeeDesconectar = onRequest({ secrets, cors: true }, async (req, res) => {
+  try {
+    const authz = req.headers.authorization || "";
+    const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+    if (!idToken) { res.status(401).json({ erro: "não autenticado" }); return; }
+    const decoded = await getAuth().verifyIdToken(idToken);
+    const emp = await db.collection("employees").doc(decoded.uid).get();
+    if (!emp.exists || emp.data().role !== "admin") {
+      res.status(403).json({ erro: "apenas administradores" }); return;
+    }
+    const cliente = String(req.query.cliente || req.body?.cliente || "");
+    if (!cliente) { res.status(400).json({ erro: "falta cliente" }); return; }
+    await db.collection("shopee_auth").doc(cliente).delete();
+    await db.collection("integracoes").doc(cliente).set({
+      cliente, conectado: false, desconectadoEm: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.json({ ok: true, cliente });
+  } catch (e) {
+    logger.error("desconectar", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Diagnóstico das lojas conectadas ----------
+export const lojasConectadas = onRequest({ secrets }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const snap = await db.collection("shopee_auth").get();
+  res.json({
+    total: snap.size,
+    lojas: snap.docs.map((d) => {
+      const v = d.data();
+      return {
+        cliente: d.id,
+        shopId: v.shopId,
+        tokenExpiraEm: v.expiraEm ? new Date(v.expiraEm).toISOString() : null,
+        temRefresh: Boolean(v.refreshToken),
+      };
+    }),
   });
 });

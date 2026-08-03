@@ -53,6 +53,14 @@
   .tab{padding:9px 18px;border-radius:10px;font-size:14px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-weight:500;}
   .tab.active{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:var(--shadow-brand,0 4px 14px rgba(234,88,12,.25));}
   .tab:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
+  /* Pílulas de período das vendas da Shopee */
+  .rt-pill{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;
+           border:1px solid var(--border);background:var(--surface);color:var(--text-muted);}
+  .rt-pill.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .rt-pill:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
+  /* Quando embutido no sistema (?embed=1), esconde a barra de topo própria */
+  body.embed .appbar{display:none;}
+  body.embed .content{padding-top:14px;}
   .dtable{width:100%;border-collapse:collapse;font-size:13px;}
   .dtable th{text-align:left;padding:9px 12px;background:var(--bg);color:var(--text-muted);font-weight:500;white-space:nowrap;}
   .dtable th.num,.dtable td.num{text-align:right;}
@@ -159,7 +167,7 @@
       <span>Relatórios de performance<small>OTDE Gestão de Contas</small></span>
     </div>
     <div class="actions">
-      <a class="btn-back" href="index.html">← Voltar ao sistema</a>
+      <a class="btn-back" href="/">← Voltar ao sistema</a>
       <button class="btn-ghost" id="logoutBtn">Sair</button>
     </div>
   </div>
@@ -277,15 +285,20 @@
   <div id="viewVendas" style="display:none;">
 
     <div id="rtCard" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-md);">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(22,163,74,.15);"></span>
-        <span style="font-size:14px;font-weight:600;">Vendas em tempo real · hoje</span>
+        <span style="font-size:14px;font-weight:600;">Vendas da Shopee</span>
+        <div id="rtTabs" style="display:flex;gap:6px;margin-left:10px;">
+          <button class="rt-pill active" data-rt="dia">Hoje</button>
+          <button class="rt-pill" data-rt="semana">Últimos 7 dias</button>
+          <button class="rt-pill" data-rt="mes">Este mês</button>
+        </div>
         <span id="rtDate" style="font-size:12px;color:var(--text-muted);margin-left:auto;"></span>
       </div>
-      <div id="rtEmpty" style="font-size:13px;color:var(--text-muted);padding:8px 0;">Aguardando a integração com a Shopee. Assim que as lojas forem conectadas, o faturamento do dia aparece aqui automaticamente.</div>
+      <div id="rtEmpty" style="font-size:13px;color:var(--text-muted);padding:8px 0;">Aguardando a integração com a Shopee. Assim que as lojas forem conectadas, o faturamento aparece aqui automaticamente.</div>
       <div id="rtGrid" style="display:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
-        <div class="kpi hl"><div class="lbl">Faturamento hoje</div><div class="val" id="rtGmv">–</div></div>
-        <div class="kpi"><div class="lbl">Pedidos hoje</div><div class="val" id="rtPed">–</div></div>
+        <div class="kpi hl"><div class="lbl" id="rtLblGmv">Faturamento hoje</div><div class="val" id="rtGmv">–</div></div>
+        <div class="kpi"><div class="lbl" id="rtLblPed">Pedidos hoje</div><div class="val" id="rtPed">–</div></div>
         <div class="kpi"><div class="lbl">Ticket médio</div><div class="val" id="rtTicket">–</div></div>
         <div class="kpi"><div class="lbl">Lojas reportando</div><div class="val" id="rtLojas">–</div></div>
       </div>
@@ -633,14 +646,44 @@ $("tabFerramentas").addEventListener("click", () => switchTab("ferramentas"));
 $("dashMonth").addEventListener("change", loadDash);
 
 // ---------- Vendas em tempo real (coleção sales) ----------
+// Modo embutido (dentro do sistema, via iframe): esconde a barra de topo própria.
+if (new URLSearchParams(location.search).get("embed") === "1") {
+  document.body.classList.add("embed");
+}
+
+// Período selecionado nas vendas da Shopee: "dia" | "semana" | "mes".
+let rtPeriodo = "dia";
+
+// Datas (YYYY-MM-DD) que compõem o período escolhido.
+function rtIntervalo(p) {
+  const hoje = new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  if (p === "dia") return { de: iso(hoje), ate: iso(hoje) };
+  if (p === "semana") {
+    const de = new Date(hoje); de.setDate(de.getDate() - 6);
+    return { de: iso(de), ate: iso(hoje) };
+  }
+  const de = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  return { de: iso(de), ate: iso(hoje) };
+}
+
 async function loadRealtime() {
-  const hoje = new Date().toISOString().slice(0, 10);
-  $("rtDate").textContent = new Date().toLocaleDateString("pt-BR");
+  const { de, ate } = rtIntervalo(rtPeriodo);
+  const rotulo = { dia: "hoje", semana: "últimos 7 dias", mes: "este mês" }[rtPeriodo];
+  $("rtLblGmv").textContent = "Faturamento · " + rotulo;
+  $("rtLblPed").textContent = "Pedidos · " + rotulo;
+  $("rtDate").textContent = de === ate
+    ? new Date().toLocaleDateString("pt-BR")
+    : `${de.split("-").reverse().join("/")} — ${ate.split("-").reverse().join("/")}`;
+
   let rows = [];
   try {
-    const snap = await getDocs(query(collection(db, "sales"), where("data", "==", hoje)));
+    const snap = de === ate
+      ? await getDocs(query(collection(db, "sales"), where("data", "==", de)))
+      : await getDocs(query(collection(db, "sales"), where("data", ">=", de), where("data", "<=", ate)));
     rows = snap.docs.map((d) => d.data());
   } catch (err) { console.error(err); }
+
   if (!rows.length) {
     $("rtEmpty").style.display = "block";
     $("rtGrid").style.display = "none";
@@ -650,14 +693,25 @@ async function loadRealtime() {
   $("rtGrid").style.display = "grid";
   const gmv = rows.reduce((a, r) => a + num(r.gmv), 0);
   const ped = rows.reduce((a, r) => a + Math.round(num(r.pedidos)), 0);
+  // Lojas distintas no período (cada loja pode ter vários dias).
+  const lojas = new Set(rows.map((r) => r.cliente)).size;
   $("rtGmv").textContent = brl(gmv);
   $("rtPed").textContent = ped;
   $("rtTicket").textContent = brl(ped ? gmv / ped : 0);
-  $("rtLojas").textContent = rows.length;
+  $("rtLojas").textContent = lojas;
 }
 
+// Troca de período
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-rt]");
+  if (!b) return;
+  rtPeriodo = b.dataset.rt;
+  document.querySelectorAll("[data-rt]").forEach((x) => x.classList.toggle("active", x === b));
+  loadRealtime();
+});
+
 // ---------- Ferramentas (coleção tools) ----------
-const TOOL_LABEL = { desconto: "Desconto", leve_mais: "Leve mais por menos", combo: "Combo", flash_sale: "Flash sale", cupom: "Cupom" };
+const TOOL_LABEL = { desconto: "Desconto", leve_mais: "Leve mais por menos", combo: "Combo", flash_sale: "Oferta relâmpago", cupom: "Cupom" };
 
 function fmtRemaining(fimSec) {
   const diff = Number(fimSec) * 1000 - Date.now();
