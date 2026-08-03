@@ -317,6 +317,91 @@ export const syncAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (req,
   }
 });
 
+// ---------- Preencher histórico de vendas ----------
+// Busca na Shopee cada dia do intervalo e grava em "sales". Serve para
+// recuperar os dias anteriores ao início da integração.
+// Uso: /preencherHistorico?token=SEU_TOKEN&de=2026-07-01&ate=2026-07-31
+export const preencherHistorico = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const de = String(req.query.de || ""), ate = String(req.query.ate || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
+    res.status(400).json({ erro: "informe de=YYYY-MM-DD e ate=YYYY-MM-DD" }); return;
+  }
+  // Lista de dias do intervalo (máx. 31 por chamada, para não estourar o tempo).
+  const dias = [];
+  for (let t = Date.parse(`${de}T12:00:00${TZ_OFFSET}`); t <= Date.parse(`${ate}T12:00:00${TZ_OFFSET}`); t += 86400000) {
+    dias.push(dataLocal(new Date(t)));
+    if (dias.length > 31) { res.status(400).json({ erro: "intervalo máximo de 31 dias por chamada" }); return; }
+  }
+  try {
+    const gravados = [];
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      for (const dia of dias) {
+        const { gmv, pedidos } = await fetchVendasDoDia(dia, shopId, token);
+        await db.collection("sales").doc(`${cliente}_${dia}`).set({
+          cliente, data: dia, gmv, pedidos,
+          ticketMedio: pedidos ? gmv / pedidos : 0,
+          atualizadoEm: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        if (pedidos > 0) gravados.push({ cliente, dia, gmv: Number(gmv.toFixed(2)), pedidos });
+      }
+    });
+    res.json({
+      ok: true,
+      intervalo: { de, ate, dias: dias.length },
+      diasComVenda: gravados.length,
+      totalGmv: Number(gravados.reduce((a, x) => a + x.gmv, 0).toFixed(2)),
+      detalhe: gravados,
+    });
+  } catch (e) {
+    logger.error("preencherHistorico", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Auditoria: recalcula N dias direto na API e compara ----------
+// Uso: /auditarVendas?token=SEU_TOKEN&dias=7
+// Busca de novo na Shopee cada um dos últimos N dias e compara com o que está
+// salvo no Firestore, para confirmar que os números batem.
+export const auditarVendas = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const dias = Math.min(Number(req.query.dias || 7), 15);
+  try {
+    const saida = [];
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      for (let i = 0; i < dias; i++) {
+        const dia = dataLocal(new Date(Date.now() - i * 86400000));
+        const viaApi = await fetchVendasDoDia(dia, shopId, token);
+        const doc = await db.collection("sales").doc(`${cliente}_${dia}`).get();
+        const salvo = doc.exists ? doc.data() : null;
+        saida.push({
+          cliente, dia,
+          api: { gmv: Number(viaApi.gmv.toFixed(2)), pedidos: viaApi.pedidos },
+          salvo: salvo ? { gmv: Number(Number(salvo.gmv || 0).toFixed(2)), pedidos: Number(salvo.pedidos || 0) } : null,
+          confere: salvo
+            ? Math.abs(Number(salvo.gmv || 0) - viaApi.gmv) < 0.01 && Number(salvo.pedidos || 0) === viaApi.pedidos
+            : viaApi.pedidos === 0,
+        });
+      }
+    });
+    const totalApi = saida.reduce((a, x) => a + x.api.gmv, 0);
+    res.json({
+      ok: true,
+      resumo: {
+        diasAnalisados: dias,
+        totalApi: Number(totalApi.toFixed(2)),
+        divergencias: saida.filter((x) => !x.confere).length,
+      },
+      detalhe: saida,
+    });
+  } catch (e) {
+    logger.error("auditarVendas", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ---------- Desconectar uma loja ----------
 // Chamado pela dashboard (usuário admin logado). Remove os tokens e marca o
 // espelho como desconectado. Exige um ID token válido do Firebase Auth.

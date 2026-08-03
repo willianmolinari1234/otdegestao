@@ -290,6 +290,7 @@
         <span style="font-size:14px;font-weight:600;">Vendas da Shopee</span>
         <div id="rtTabs" style="display:flex;gap:6px;margin-left:10px;">
           <button class="rt-pill active" data-rt="dia">Hoje</button>
+          <button class="rt-pill" data-rt="ontem">Ontem</button>
           <button class="rt-pill" data-rt="semana">Últimos 7 dias</button>
           <button class="rt-pill" data-rt="mes">Este mês</button>
         </div>
@@ -301,6 +302,10 @@
         <div class="kpi"><div class="lbl" id="rtLblPed">Pedidos hoje</div><div class="val" id="rtPed">–</div></div>
         <div class="kpi"><div class="lbl">Ticket médio</div><div class="val" id="rtTicket">–</div></div>
         <div class="kpi"><div class="lbl">Lojas reportando</div><div class="val" id="rtLojas">–</div></div>
+      </div>
+      <div id="rtRank" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">De onde vem o faturamento</div>
+        <div id="rtRankList"></div>
       </div>
     </div>
 
@@ -373,6 +378,7 @@
       <span style="font-size:12px;color:var(--text-muted);margin-left:auto;">Contagem regressiva até acabar cada promoção.</span>
     </div>
     <div class="empty" id="toolsEmpty"><div class="ico">🧰</div>Aguardando a integração com a Shopee. Depois de conectar as lojas, as promoções ativas (desconto, leve mais por menos, flash sale, cupons) aparecem aqui com o tempo restante.</div>
+    <div id="toolsAlertas"></div>
     <div id="toolsList" style="display:none;"></div>
   </div><!-- /viewFerramentas -->
 
@@ -659,6 +665,10 @@ function rtIntervalo(p) {
   const hoje = new Date();
   const iso = (d) => d.toISOString().slice(0, 10);
   if (p === "dia") return { de: iso(hoje), ate: iso(hoje) };
+  if (p === "ontem") {
+    const d = new Date(hoje); d.setDate(d.getDate() - 1);
+    return { de: iso(d), ate: iso(d) };
+  }
   if (p === "semana") {
     const de = new Date(hoje); de.setDate(de.getDate() - 6);
     return { de: iso(de), ate: iso(hoje) };
@@ -669,12 +679,11 @@ function rtIntervalo(p) {
 
 async function loadRealtime() {
   const { de, ate } = rtIntervalo(rtPeriodo);
-  const rotulo = { dia: "hoje", semana: "últimos 7 dias", mes: "este mês" }[rtPeriodo];
+  const rotulo = { dia: "hoje", ontem: "ontem", semana: "últimos 7 dias", mes: "este mês" }[rtPeriodo];
   $("rtLblGmv").textContent = "Faturamento · " + rotulo;
   $("rtLblPed").textContent = "Pedidos · " + rotulo;
-  $("rtDate").textContent = de === ate
-    ? new Date().toLocaleDateString("pt-BR")
-    : `${de.split("-").reverse().join("/")} — ${ate.split("-").reverse().join("/")}`;
+  const ptBR = (iso) => iso.split("-").reverse().join("/");
+  $("rtDate").textContent = de === ate ? ptBR(de) : `${ptBR(de)} — ${ptBR(ate)}`;
 
   let rows = [];
   try {
@@ -687,6 +696,7 @@ async function loadRealtime() {
   if (!rows.length) {
     $("rtEmpty").style.display = "block";
     $("rtGrid").style.display = "none";
+    $("rtRank").style.display = "none";
     return;
   }
   $("rtEmpty").style.display = "none";
@@ -699,6 +709,43 @@ async function loadRealtime() {
   $("rtPed").textContent = ped;
   $("rtTicket").textContent = brl(ped ? gmv / ped : 0);
   $("rtLojas").textContent = lojas;
+  renderRankingLojas(rows, gmv);
+}
+
+// Ranking das lojas que compõem o faturamento do período.
+function renderRankingLojas(rows, totalGmv) {
+  const porLoja = {};
+  rows.forEach((r) => {
+    const k = r.cliente || "?";
+    if (!porLoja[k]) porLoja[k] = { gmv: 0, pedidos: 0 };
+    porLoja[k].gmv += num(r.gmv);
+    porLoja[k].pedidos += Math.round(num(r.pedidos));
+  });
+  const nomeDe = (id) => (clients.find((c) => c.id === id) || {}).name || id;
+  const lista = Object.entries(porLoja)
+    .map(([id, v]) => ({ nome: nomeDe(id), ...v }))
+    .filter((v) => v.gmv > 0 || v.pedidos > 0)
+    .sort((a, b) => b.gmv - a.gmv);
+
+  if (!lista.length) { $("rtRank").style.display = "none"; return; }
+  $("rtRank").style.display = "block";
+  $("rtRankList").innerHTML = lista.map((v, i) => {
+    const perc = totalGmv ? Math.round((v.gmv / totalGmv) * 100) : 0;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="width:22px;height:22px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+        font-size:11px;font-weight:800;background:${i === 0 ? "var(--brand)" : "var(--bg)"};color:${i === 0 ? "#fff" : "var(--text-muted)"};">${i + 1}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(v.nome)}</div>
+        <div style="height:4px;background:var(--bg);border-radius:3px;margin-top:5px;overflow:hidden;">
+          <div style="height:100%;width:${perc}%;background:var(--brand);border-radius:3px;"></div>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:700;">${brl(v.gmv)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${v.pedidos} ${v.pedidos === 1 ? "pedido" : "pedidos"} · ${perc}%</div>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // Troca de período
@@ -712,6 +759,8 @@ document.addEventListener("click", (ev) => {
 
 // ---------- Ferramentas (coleção tools) ----------
 const TOOL_LABEL = { desconto: "Desconto", leve_mais: "Leve mais por menos", combo: "Combo", flash_sale: "Oferta relâmpago", cupom: "Cupom" };
+// Ordem dos grupos na listagem de ferramentas.
+const TOOL_ORDER = { flash_sale: 0, cupom: 1, desconto: 2, combo: 3, leve_mais: 4 };
 
 function fmtRemaining(fimSec) {
   const diff = Number(fimSec) * 1000 - Date.now();
@@ -736,24 +785,87 @@ async function loadFerramentas() {
     const snap = await getDocs(collection(db, "tools"));
     docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) { console.error(err); }
+  const nameOf = (id) => (clients.find((c) => c.id === id) || {}).name || id;
   const withPromos = docs.filter((d) => (d.promocoes || []).length);
   if (!withPromos.length) {
     $("toolsEmpty").style.display = "block";
     $("toolsList").style.display = "none";
+    // Ainda assim mostra os alertas: "sem oferta relâmpago" vale mesmo quando
+    // a loja não tem nenhuma promoção ativa.
+    renderAlertasFerramentas(docs, nameOf);
     return;
   }
   $("toolsEmpty").style.display = "none";
   $("toolsList").style.display = "block";
-  const nameOf = (id) => (clients.find((c) => c.id === id) || {}).name || id;
   $("toolsList").innerHTML = withPromos.map((d) => {
     const rows = (d.promocoes || [])
       .slice()
-      .sort((a, b) => Number(a.fim || 0) - Number(b.fim || 0))
+      // Agrupa por tipo (cupons juntos, etc.) e, dentro do grupo, do que
+      // acaba antes para o que acaba depois.
+      .sort((a, b) => {
+        const g = (TOOL_ORDER[a.tipo] ?? 99) - (TOOL_ORDER[b.tipo] ?? 99);
+        if (g !== 0) return g;
+        return Number(a.fim || 0) - Number(b.fim || 0);
+      })
       .map((p) => `<div class="tool-row"><span class="tool-badge">${TOOL_LABEL[p.tipo] || p.tipo}</span><span class="tool-name">${escapeHtml(p.nome || "")}</span><span class="tool-time" data-fim="${p.fim || 0}">–</span></div>`)
       .join("");
     return `<div class="tool-store"><h3>${escapeHtml(nameOf(d.id))}</h3>${rows}</div>`;
   }).join("");
+  renderAlertasFerramentas(docs, nameOf);
   updateCountdowns();
+}
+
+// Alertas da aba Ferramentas.
+//  1) Lojas SEM oferta relâmpago ativa (a relâmpago é curta e deve estar sempre
+//     rodando — por isso avisamos a ausência, não o fim dela).
+//  2) Promoções que acabam em menos de 24 h, exceto as relâmpago (que expiram
+//     o tempo todo e gerariam alarme constante).
+function renderAlertasFerramentas(docs, nameOf) {
+  const agora = Date.now() / 1000, limite = agora + 86400;
+  const ativa = (p) => Number(p.fim || 0) > agora;
+
+  const semRelampago = docs
+    .filter((d) => !(d.promocoes || []).some((p) => p.tipo === "flash_sale" && ativa(p)))
+    .map((d) => nameOf(d.id));
+
+  const vencendo = [];
+  docs.forEach((d) => (d.promocoes || []).forEach((p) => {
+    const fim = Number(p.fim || 0);
+    if (p.tipo !== "flash_sale" && fim > agora && fim <= limite) {
+      vencendo.push({ loja: nameOf(d.id), ...p, fim });
+    }
+  }));
+  vencendo.sort((a, b) => a.fim - b.fim);
+
+  const restante = (fim) => {
+    const s = fim - Date.now() / 1000;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
+  };
+
+  let html = "";
+  if (semRelampago.length) {
+    html += `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:13px 16px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:#b45309;margin-bottom:${semRelampago.length ? "6px" : "0"};">
+        ⚡ ${semRelampago.length === 1 ? "1 loja está sem" : `${semRelampago.length} lojas estão sem`} oferta relâmpago
+      </div>
+      <div style="font-size:12.5px;color:#92400e;line-height:1.7;">${semRelampago.map(escapeHtml).join(" · ")}</div>
+    </div>`;
+  }
+  if (vencendo.length) {
+    html += `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:13px 16px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:#b91c1c;margin-bottom:6px;">
+        ⏰ ${vencendo.length === 1 ? "1 promoção acaba" : `${vencendo.length} promoções acabam`} em menos de 24 h
+      </div>
+      ${vencendo.map((p) => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #fee2e2;">
+        <span style="background:#fff;border:1px solid #fecaca;color:#b91c1c;border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:700;flex-shrink:0;">${TOOL_LABEL[p.tipo] || p.tipo}</span>
+        <span style="font-size:12.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.nome || "")}</span>
+        <span style="font-size:11.5px;color:var(--text-muted);flex-shrink:0;">${escapeHtml(p.loja)}</span>
+        <span style="font-size:12px;font-weight:700;color:#dc2626;flex-shrink:0;min-width:62px;text-align:right;">${restante(p.fim)}</span>
+      </div>`).join("")}
+    </div>`;
+  }
+  $("toolsAlertas").innerHTML = html;
 }
 
 async function fetchPeriodo(mon) {

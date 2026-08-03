@@ -21,6 +21,21 @@
     ],
     "rewrites": [
       { "source": "**", "destination": "/app.html" }
+    ],
+    "headers": [
+      {
+        "//": "Sem cache no HTML: senão o time continua vendo a versão antiga por até 1 hora após cada publicação.",
+        "source": "**/*.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      }
     ]
   }
 }
