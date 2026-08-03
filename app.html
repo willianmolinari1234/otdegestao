@@ -1942,7 +1942,14 @@ function rIntegracoes(){
     const badge=st
       ?`<span style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">● Conectada</span>`
       :`<span style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">○ Não conectada</span>`;
-    const info=st?`<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">Shop ID ${esc(String(st.shopId||"—"))}</div>`:"";
+    // Andamento da recuperação do histórico (roda sozinha depois de conectar).
+    let hist="";
+    if(st&&st.historicoCompleto===false&&st.historicoProximo){
+      hist=`<span style="color:#b45309"> · recuperando histórico… já em ${esc(String(st.historicoProximo).split("-").reverse().join("/"))}</span>`;
+    }else if(st&&st.historicoCompleto===true){
+      hist=`<span style="color:#16a34a"> · histórico completo</span>`;
+    }
+    const info=st?`<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">Shop ID ${esc(String(st.shopId||"—"))}${hist}</div>`:"";
     const acao=st
       ?`<button class="btn-ghost" data-reconn="${c.id}" style="font-size:12px">Reconectar</button>
          <button class="btn-ghost" data-desconn="${c.id}" style="font-size:12px;color:#dc2626">Desconectar</button>`
@@ -1968,6 +1975,7 @@ function rIntegracoes(){
   </div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
     <div style="font-size:13px;color:#475569"><strong>${conectadas}</strong> de <strong>${total}</strong> lojas Shopee conectadas</div>
+    <button class="btn-ghost" id="sync-agora" style="font-size:12.5px">↻ Sincronizar agora</button>
     <div style="flex:1"></div>
     <input id="integ-busca" class="finput" placeholder="Buscar loja…" value="${esc(fIntegBusca)}" style="max-width:220px">
     <select id="integ-filtro" class="finput" style="max-width:180px">
@@ -1983,6 +1991,24 @@ function rIntegracoes(){
 function conectarLoja(cliId){
   window.open(`${FN_BASE}/shopeeAuthLink?cliente=${encodeURIComponent(cliId)}`,"_blank","width=1000,height=760");
 }
+// Puxa os dados da Shopee na hora, sem esperar o agendamento (30 min).
+async function sincronizarAgora(btn){
+  const txt=btn.textContent;
+  btn.disabled=true;btn.textContent="Sincronizando…";
+  try{
+    const tk=await window.fb.auth.currentUser.getIdToken();
+    const r=await fetch(`${FN_BASE}/syncPeloApp`,{method:"POST",headers:{Authorization:"Bearer "+tk}});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.erro||"falha");
+    const v=Number(j.faturamento||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+    showToast(`${j.lojas} loja(s) · ${j.pedidos} pedidos · ${v} hoje`,"success");
+  }catch(e){
+    showToast("Erro ao sincronizar: "+e.message,"error");
+  }finally{
+    btn.disabled=false;btn.textContent=txt;
+  }
+}
+
 async function desconectarLoja(cliId){
   const nome=(clis.find(c=>c.id===cliId)||{}).name||"esta loja";
   askConfirm("Desconectar loja",`Desconectar ${nome} da API da Shopee? O sistema para de buscar vendas dessa loja até você conectar de novo.`,async()=>{
@@ -3603,6 +3629,8 @@ function bindAll(){
   if(ib)ib.oninput=e=>{fIntegBusca=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById("integ-busca");if(n){n.focus();n.setSelectionRange(p,p);}};
   const ifl=C.querySelector("#integ-filtro");
   if(ifl)ifl.onchange=e=>{fIntegFiltro=e.target.value;render();};
+  const sa=C.querySelector("#sync-agora");
+  if(sa)sa.onclick=()=>sincronizarAgora(sa);
   // New buttons
   const nc=C.querySelector("#new-cli-btn");if(nc)nc.onclick=()=>openClientForm(null);
   const ne=C.querySelector("#new-emp-btn");if(ne)ne.onclick=()=>openEmployeeForm();

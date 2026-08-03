@@ -80,11 +80,16 @@ export const shopeeCallback = onRequest({ secrets }, async (req, res) => {
       atualizadoEm: FieldValue.serverTimestamp(),
     }, { merge: true });
     // Espelho SEM tokens, para a dashboard poder mostrar o status da conexão.
+    // Também agenda a recuperação do histórico: sem isso a loja só teria os
+    // dados de hoje, e os períodos longos apareceriam errados.
     await db.collection("integracoes").doc(String(cliente)).set({
       cliente: String(cliente),
       shopId: Number(shopId),
       conectado: true,
       conectadoEm: FieldValue.serverTimestamp(),
+      historicoDe: INICIO_HISTORICO(),   // até onde voltar
+      historicoProximo: dataLocal(),     // por onde a recuperação continua
+      historicoCompleto: false,
     }, { merge: true });
     res.send(`<!doctype html><meta charset="utf-8">
       <div style="font-family:system-ui;text-align:center;margin-top:80px">
@@ -111,17 +116,34 @@ async function ensureToken(docRef, data) {
   return r.access_token;
 }
 
-async function forEachShop(fn) {
+// Processa as lojas em paralelo, com limite de simultaneidade.
+// Sequencial não escala: com 54 lojas o sync levaria ~13 min e estouraria o
+// limite de 9 min da função. Com 6 de cada vez, cai para ~2 min.
+// O limite existe para não sobrecarregar a API da Shopee (rate limit).
+const SIMULTANEAS = 6;
+
+// Aceita filtrar uma loja específica (útil para reprocessar só a nova).
+async function forEachShop(fn, { cliente = null } = {}) {
   const snap = await db.collection("shopee_auth").get();
-  for (const doc of snap.docs) {
-    try {
-      const data = doc.data();
-      const token = await ensureToken(doc.ref, data);
-      await fn({ cliente: doc.id, shopId: data.shopId, token });
-    } catch (e) {
-      logger.error("shop " + doc.id, e);
+  const docs = cliente ? snap.docs.filter((d) => d.id === cliente) : snap.docs;
+
+  const fila = [...docs];
+  const trabalhador = async () => {
+    while (fila.length) {
+      const doc = fila.shift();
+      if (!doc) return;
+      try {
+        const data = doc.data();
+        const token = await ensureToken(doc.ref, data);
+        await fn({ cliente: doc.id, shopId: data.shopId, token });
+      } catch (e) {
+        logger.error("shop " + doc.id, e);
+      }
     }
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(SIMULTANEAS, docs.length) }, trabalhador)
+  );
 }
 
 // ---------- 3) Vendas do dia ----------
@@ -166,7 +188,10 @@ async function fetchVendasDoDia(dia, shopId, token) {
     if (!r.response?.more) break;
   } while (cursor);
 
-  // Contagem de pedidos: exclui cancelados/não pagos (via status do pedido).
+  // Status de cada pedido. Guardamos por order_sn porque o faturamento (vindo
+  // do escrow) precisa ignorar os NÃO PAGOS: a Shopee só conta "pedidos pagos"
+  // no Vendas, mas o escrow devolve o pedido mesmo antes do pagamento.
+  const statusPorSn = new Map();
   let pedidos = 0, totalPago = 0;
   for (let i = 0; i < orderSns.length; i += 50) {
     const d = await shopCall(cfg(), {
@@ -174,7 +199,9 @@ async function fetchVendasDoDia(dia, shopId, token) {
       params: { order_sn_list: orderSns.slice(i, i + 50).join(","), response_optional_fields: "total_amount,order_status" },
     });
     (d.response?.order_list || []).forEach((o) => {
-      if (STATUS_IGNORADOS.has(String(o.order_status || "").toUpperCase())) return;
+      const st = String(o.order_status || "").toUpperCase();
+      statusPorSn.set(o.order_sn, st);
+      if (STATUS_IGNORADOS.has(st)) return;
       pedidos += 1;
       totalPago += n(o.total_amount);
     });
@@ -187,7 +214,7 @@ async function fetchVendasDoDia(dia, shopId, token) {
   // pelo vendedor (dois campos distintos: um cupom comum cai em
   // voucher_from_seller, um cupom de cashback cai em seller_coin_cash_back).
   // Pedidos cancelados vêm zerados no escrow, então saem naturalmente.
-  let gmv = 0, comissao = 0, taxaServico = 0, liquido = 0, cupons = 0, cashback = 0;
+  let gmv = 0, comissao = 0, taxaServico = 0, liquido = 0, cupons = 0, cashback = 0, freteComprador = 0;
   for (let i = 0; i < orderSns.length; i += 50) {
     const r = await shopPost(cfg(), {
       path: "/api/v2/payment/get_escrow_detail_batch", accessToken: token, shopId,
@@ -196,8 +223,11 @@ async function fetchVendasDoDia(dia, shopId, token) {
     (r.response || []).forEach((item) => {
       const inc = item?.escrow_detail?.order_income;
       if (!inc) return;
+      // Pedido ainda não pago não entra no faturamento (a Shopee também não conta).
+      if (statusPorSn.get(item.order_sn) === "UNPAID") return;
       const desconto = n(inc.voucher_from_seller) + n(inc.seller_coin_cash_back);
       gmv += n(inc.order_selling_price) - desconto;
+      freteComprador += n(inc.buyer_paid_shipping_fee);
       cupons += n(inc.voucher_from_seller);
       cashback += n(inc.seller_coin_cash_back);
       comissao += n(inc.commission_fee);
@@ -210,7 +240,9 @@ async function fetchVendasDoDia(dia, shopId, token) {
   return {
     gmv: r2(gmv),                       // igual ao "Vendas" do Seller Centre
     totalPago: r2(totalPago),           // total pago pelo comprador (com frete)
-    frete: r2(totalPago - gmv - cupons - cashback),
+    // Frete vem direto do escrow. Antes era deduzido por subtração e dava
+    // negativo quando havia moedas/descontos que não entram nessa conta.
+    frete: r2(freteComprador),
     cupons: r2(cupons),
     cashback: r2(cashback),
     comissao: r2(comissao),
@@ -471,6 +503,7 @@ export const financeiroDia = onRequest({ secrets, timeoutSeconds: 540 }, async (
 export const syncFinanceiro = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();
   if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtroCliente = req.query.cliente ? String(req.query.cliente) : null;
   const de = String(req.query.de || dataLocal()), ate = String(req.query.ate || de);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
     res.status(400).json({ erro: "informe de=YYYY-MM-DD e ate=YYYY-MM-DD" }); return;
@@ -491,7 +524,7 @@ export const syncFinanceiro = onRequest({ secrets, timeoutSeconds: 540 }, async 
         }, { merge: true });
         if (f.pedidos > 0) gravados.push({ cliente, dia, bruto: f.bruto, liquido: f.liquido, pedidos: f.pedidos });
       }
-    });
+    }, { cliente: filtroCliente });
     res.json({ ok: true, intervalo: { de, ate, dias: dias.length }, gravados });
   } catch (e) {
     logger.error("syncFinanceiro", e);
@@ -695,6 +728,7 @@ export const inspecionarPedidos = onRequest({ secrets, timeoutSeconds: 540 }, as
 export const preencherHistorico = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();
   if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtroCliente = req.query.cliente ? String(req.query.cliente) : null;
   const de = String(req.query.de || ""), ate = String(req.query.ate || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
     res.status(400).json({ erro: "informe de=YYYY-MM-DD e ate=YYYY-MM-DD" }); return;
@@ -707,17 +741,25 @@ export const preencherHistorico = onRequest({ secrets, timeoutSeconds: 540 }, as
   }
   try {
     const gravados = [];
+    // ?cliente=ID processa só aquela loja (ex.: uma recém-conectada).
     await forEachShop(async ({ cliente, shopId, token }) => {
       for (const dia of dias) {
         const v = await fetchVendasDoDia(dia, shopId, token);
-        await db.collection("sales").doc(`${cliente}_${dia}`).set({
+        const ref = db.collection("sales").doc(`${cliente}_${dia}`);
+        if (v.pedidos === 0) {
+          // Dia sem vendas não vira documento — evita encher a coleção de
+          // zeros ao sondar períodos anteriores à existência da loja.
+          await ref.delete().catch(() => {});
+          continue;
+        }
+        await ref.set({
           cliente, data: dia, ...v,
-          ticketMedio: v.pedidos ? v.gmv / v.pedidos : 0,
+          ticketMedio: v.gmv / v.pedidos,
           atualizadoEm: FieldValue.serverTimestamp(),
         }, { merge: true });
-        if (v.pedidos > 0) gravados.push({ cliente, dia, gmv: v.gmv, liquido: v.liquido, pedidos: v.pedidos });
+        gravados.push({ cliente, dia, gmv: v.gmv, liquido: v.liquido, pedidos: v.pedidos });
       }
-    });
+    }, { cliente: filtroCliente });
     res.json({
       ok: true,
       intervalo: { de, ate, dias: dias.length },
@@ -769,6 +811,132 @@ export const auditarVendas = onRequest({ secrets, timeoutSeconds: 540 }, async (
     });
   } catch (e) {
     logger.error("auditarVendas", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Recuperação automática do histórico ----------
+// Toda loja recém-conectada só teria os dados de hoje. Esta rotina volta no
+// tempo, dia a dia, até 1º de junho do ano corrente.
+// Roda em blocos pequenos para nunca estourar o tempo da função: cada execução
+// processa alguns dias por loja e guarda por onde parou.
+const INICIO_HISTORICO = () => `${new Date().getFullYear()}-06-01`;
+// 4 dias × 5 lojas = 20 buscas por execução (~2,5 min), com folga no limite de 9.
+const DIAS_POR_EXECUCAO = 4;
+const LOJAS_POR_EXECUCAO = 5;
+
+async function recuperarHistoricoPendente() {
+  const pend = await db.collection("integracoes")
+    .where("historicoCompleto", "==", false).limit(LOJAS_POR_EXECUCAO).get();
+  if (pend.empty) return { lojas: 0, dias: 0 };
+
+  let totalDias = 0;
+  const resumo = [];
+  for (const docInt of pend.docs) {
+    const info = docInt.data();
+    const cliente = docInt.id;
+    const limite = info.historicoDe || INICIO_HISTORICO();
+    let cursor = info.historicoProximo || dataLocal();
+
+    // Monta os próximos dias a processar, andando para trás.
+    const dias = [];
+    while (dias.length < DIAS_POR_EXECUCAO && cursor >= limite) {
+      dias.push(cursor);
+      const d = new Date(`${cursor}T12:00:00${TZ_OFFSET}`);
+      d.setDate(d.getDate() - 1);
+      cursor = dataLocal(d);
+    }
+    if (!dias.length) {
+      await docInt.ref.set({ historicoCompleto: true }, { merge: true });
+      continue;
+    }
+
+    let gravados = 0;
+    await forEachShop(async ({ shopId, token }) => {
+      for (const dia of dias) {
+        try {
+          const v = await fetchVendasDoDia(dia, shopId, token);
+          const ref = db.collection("sales").doc(`${cliente}_${dia}`);
+          if (v.pedidos === 0) { await ref.delete().catch(() => {}); continue; }
+          await ref.set({
+            cliente, data: dia, ...v,
+            ticketMedio: v.gmv / v.pedidos,
+            atualizadoEm: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          gravados += 1;
+        } catch (e) {
+          logger.warn(`historico ${cliente} ${dia}: ${e.message}`);
+        }
+      }
+    }, { cliente });
+
+    totalDias += dias.length;
+    await docInt.ref.set({
+      historicoProximo: cursor,
+      historicoCompleto: cursor < limite,
+      historicoAtualizadoEm: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    resumo.push({ cliente, dias: dias.length, comVenda: gravados, proximo: cursor, completo: cursor < limite });
+  }
+  return { lojas: pend.size, dias: totalDias, resumo };
+}
+
+// A cada 5 minutos, avança um pouco na recuperação de quem ainda tem pendência.
+export const syncHistorico = onSchedule(
+  { schedule: "every 5 minutes", secrets, timeoutSeconds: 540 },
+  async () => { await recuperarHistoricoPendente(); }
+);
+
+// Disparo manual / enfileirar lojas já conectadas:
+//   /recuperarHistorico?token=SEU_TOKEN            -> processa um bloco agora
+//   /recuperarHistorico?token=SEU_TOKEN&reiniciar=1 -> reagenda TODAS as lojas
+export const recuperarHistorico = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  try {
+    if (req.query.reiniciar === "1") {
+      const auth = await db.collection("shopee_auth").get();
+      for (const d of auth.docs) {
+        await db.collection("integracoes").doc(d.id).set({
+          cliente: d.id, conectado: true,
+          historicoDe: INICIO_HISTORICO(),
+          historicoProximo: dataLocal(),
+          historicoCompleto: false,
+        }, { merge: true });
+      }
+    }
+    const r = await recuperarHistoricoPendente();
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    logger.error("recuperarHistorico", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Sincronizar agora (botão da dashboard) ----------
+// Igual ao syncAgora, mas autenticado pelo login do sistema em vez de token —
+// assim o botão pode viver no front sem expor o SYNC_TOKEN.
+export const syncPeloApp = onRequest({ secrets, cors: true, timeoutSeconds: 540 }, async (req, res) => {
+  try {
+    const authz = req.headers.authorization || "";
+    const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+    if (!idToken) { res.status(401).json({ erro: "não autenticado" }); return; }
+    const decoded = await getAuth().verifyIdToken(idToken);
+    const emp = await db.collection("employees").doc(decoded.uid).get();
+    if (!emp.exists || emp.data().role !== "admin") {
+      res.status(403).json({ erro: "apenas administradores" }); return;
+    }
+    const vendas = await rodarSyncVendas();
+    const ferramentas = await rodarSyncFerramentas();
+    res.json({
+      ok: true,
+      lojas: vendas.lojas.length,
+      pedidos: vendas.lojas.reduce((a, l) => a + (l.pedidos || 0), 0),
+      faturamento: Number(vendas.lojas.reduce((a, l) => a + (l.gmv || 0), 0).toFixed(2)),
+      promocoes: ferramentas.lojas.reduce((a, l) => a + (l.total || 0), 0),
+    });
+  } catch (e) {
+    logger.error("syncPeloApp", e);
     res.status(500).json({ erro: e.message });
   }
 });
