@@ -180,11 +180,14 @@ async function fetchVendasDoDia(dia, shopId, token) {
     });
   }
 
-  // Faturamento: usa a API financeira (escrow), que é a única que expõe os
-  // cupons da loja. Fórmula idêntica à do Seller Centre:
-  //   Vendas = preço de venda dos itens − cupom do vendedor
+  // Faturamento: usa a API financeira (escrow), única que expõe os descontos
+  // custeados pelo vendedor. Fórmula idêntica à do Seller Centre:
+  //   Vendas = preço de venda − desconto do vendedor
+  // onde "desconto do vendedor" = cupom da loja + cashback em moedas custeado
+  // pelo vendedor (dois campos distintos: um cupom comum cai em
+  // voucher_from_seller, um cupom de cashback cai em seller_coin_cash_back).
   // Pedidos cancelados vêm zerados no escrow, então saem naturalmente.
-  let gmv = 0, comissao = 0, taxaServico = 0, liquido = 0, cupons = 0;
+  let gmv = 0, comissao = 0, taxaServico = 0, liquido = 0, cupons = 0, cashback = 0;
   for (let i = 0; i < orderSns.length; i += 50) {
     const r = await shopPost(cfg(), {
       path: "/api/v2/payment/get_escrow_detail_batch", accessToken: token, shopId,
@@ -193,8 +196,10 @@ async function fetchVendasDoDia(dia, shopId, token) {
     (r.response || []).forEach((item) => {
       const inc = item?.escrow_detail?.order_income;
       if (!inc) return;
-      gmv += n(inc.order_selling_price) - n(inc.voucher_from_seller);
+      const desconto = n(inc.voucher_from_seller) + n(inc.seller_coin_cash_back);
+      gmv += n(inc.order_selling_price) - desconto;
       cupons += n(inc.voucher_from_seller);
+      cashback += n(inc.seller_coin_cash_back);
       comissao += n(inc.commission_fee);
       taxaServico += n(inc.service_fee);
       liquido += n(inc.escrow_amount);
@@ -205,8 +210,9 @@ async function fetchVendasDoDia(dia, shopId, token) {
   return {
     gmv: r2(gmv),                       // igual ao "Vendas" do Seller Centre
     totalPago: r2(totalPago),           // total pago pelo comprador (com frete)
-    frete: r2(totalPago - gmv - cupons),
+    frete: r2(totalPago - gmv - cupons - cashback),
     cupons: r2(cupons),
+    cashback: r2(cashback),
     comissao: r2(comissao),
     taxaServico: r2(taxaServico),
     liquido: r2(liquido),               // escrow: o que cai na conta
@@ -412,7 +418,21 @@ async function fetchFinanceiroDoDia(dia, shopId, token) {
       tot.descontoVendedor += n(inc.seller_discount);
       tot.descontoShopee += n(inc.shopee_discount);
       tot.liquido += n(inc.escrow_amount);
-      if (amostra.length < 3) amostra.push({ sn: item.order_sn, income: inc });
+      tot.cupomVendedor = n(tot.cupomVendedor) + n(inc.voucher_from_seller);
+      // Uma linha por pedido: o suficiente para conferir cupom a cupom.
+      const it = inc.items || [];
+      const somaIt = (campo) => it.reduce((a, x) => a + n(x[campo]), 0);
+      amostra.push({
+        sn: item.order_sn,
+        venda: n(inc.order_selling_price),
+        cupomPedido: n(inc.voucher_from_seller),
+        cupomItens: Number(somaIt("discount_from_voucher_seller").toFixed(2)),
+        moedas: Number(somaIt("discount_from_coin").toFixed(2)),
+        coins: n(inc.coins),
+        cashback: n(inc.seller_coin_cash_back),
+        codigo: (inc.seller_voucher_code || []).join(","),
+        liquido: n(inc.escrow_amount),
+      });
     });
   }
   Object.keys(tot).forEach((k) => { if (k !== "pedidos") tot[k] = Number(tot[k].toFixed(2)); });

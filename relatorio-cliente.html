@@ -719,7 +719,7 @@ async function loadRealtime() {
   // Repasse: comissões, taxas e o líquido que cai na conta (API de escrow).
   const soma = (campo) => rows.reduce((a, r) => a + num(r[campo]), 0);
   const comissao = soma("comissao"), taxaServico = soma("taxaServico");
-  const liquido = soma("liquido"), cupons = soma("cupons"), frete = soma("frete");
+  const liquido = soma("liquido"), cupons = soma("cupons") + soma("cashback"), frete = soma("frete");
   const nota = $("rtNota");
   if (liquido > 0 || comissao > 0) {
     const pctTaxas = gmv ? ((comissao + taxaServico) / gmv * 100) : 0;
@@ -728,7 +728,7 @@ async function loadRealtime() {
       <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;">
         <span>Comissão Shopee: <strong style="color:#dc2626;">${brl(comissao)}</strong></span>
         <span>Taxa de serviço: <strong style="color:#dc2626;">${brl(taxaServico)}</strong></span>
-        <span>Cupons da loja: <strong style="color:#dc2626;">${brl(cupons)}</strong></span>
+        <span>Cupons e cashback da loja: <strong style="color:#dc2626;">${brl(cupons)}</strong></span>
         <span>Frete dos compradores: <strong>${brl(frete)}</strong></span>
         <span style="margin-left:auto;">Líquido a receber:
           <strong style="color:var(--green);font-size:14px;">${brl(liquido)}</strong></span>
