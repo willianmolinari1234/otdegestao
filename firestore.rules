@@ -25,6 +25,9 @@ service cloud.firestore {
     // Status das integrações (sem tokens) — a dashboard lê para exibir "Conectado".
     match /integracoes/{id} { allow read: if request.auth != null; allow write: if false; }
 
+    // Repasse financeiro (escrow) — preenchido pelo backend, só leitura no app.
+    match /financeiro/{id}  { allow read: if request.auth != null; allow write: if false; }
+
     // Tokens da Shopee — só o backend. Nenhum acesso pelo navegador.
     match /shopee_auth/{id} { allow read, write: if false; }
   }

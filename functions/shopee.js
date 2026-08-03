@@ -62,6 +62,32 @@ export function refreshAccessToken(cfg, { refreshToken, shopId }) {
   });
 }
 
+// Chamada autenticada a um endpoint de loja via POST (corpo em JSON).
+// Alguns endpoints — como payment/get_escrow_detail_batch — exigem POST e
+// parâmetros em array, que não cabem na query string.
+export async function shopPost(cfg, { path, accessToken, shopId, body = {} }) {
+  const ts = now();
+  const base = `${cfg.partnerId}${path}${ts}${accessToken}${shopId}`;
+  const s = sign(cfg.partnerKey, base);
+  const qs = new URLSearchParams({
+    partner_id: String(cfg.partnerId),
+    timestamp: String(ts),
+    access_token: accessToken,
+    shop_id: String(shopId),
+    sign: s,
+  });
+  const res = await fetch(`${SHOPEE_BASE}${path}?${qs.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (json.error) {
+    throw new Error(`Shopee ${path} -> ${json.error}: ${json.message || ""}`);
+  }
+  return json;
+}
+
 // Chamada autenticada a um endpoint de loja (GET com query string assinada).
 export async function shopCall(cfg, { path, accessToken, shopId, params = {} }) {
   const ts = now();
