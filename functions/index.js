@@ -852,6 +852,69 @@ export const conferirAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (
   }
 });
 
+// ---------- Sondagem: que SKU a Shopee devolve? ----------
+// Existe para responder UMA pergunta antes de construir o cálculo de lucro:
+// o código que a Shopee devolve em cada item é o mesmo que o cliente usa na
+// planilha de custo? Se não for, cruzar custo com venda vira trabalho manual
+// loja por loja, e a funcionalidade muda de tamanho.
+//
+// Só lê. Não grava nada. Uso: /amostraSku?token=...&cliente=ID (opcional)
+export const amostraSku = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtro = req.query.cliente || null;
+  const porLoja = [];
+  try {
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      if (porLoja.length >= 4) return; // amostra: não precisa varrer tudo
+      const { inicio, fim } = limitesDoDia(dataLocal(new Date(Date.now() - 86400000)));
+      const r = await shopCall(cfg(), {
+        path: "/api/v2/order/get_order_list", accessToken: token, shopId,
+        params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 10, cursor: "" },
+      });
+      const sns = (r.response?.order_list || []).map((o) => o.order_sn).slice(0, 5);
+      if (!sns.length) { porLoja.push({ cliente, semPedidos: true }); return; }
+
+      const d = await shopCall(cfg(), {
+        path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
+        params: { order_sn_list: sns.join(","), response_optional_fields: "item_list" },
+      });
+      const itens = [];
+      for (const o of (d.response?.order_list || [])) {
+        for (const it of (o.item_list || [])) {
+          itens.push({
+            item_id: it.item_id,
+            item_sku: it.item_sku ?? null,
+            model_sku: it.model_sku ?? null,
+            nome: String(it.item_name || "").slice(0, 60),
+            modelo: String(it.model_name || "").slice(0, 40),
+            qtd: it.model_quantity_purchased,
+          });
+        }
+      }
+      porLoja.push({
+        cliente,
+        itens: itens.slice(0, 12),
+        comItemSku: itens.filter((i) => i.item_sku).length,
+        comModelSku: itens.filter((i) => i.model_sku).length,
+        total: itens.length,
+      });
+    }, { cliente: filtro });
+
+    const tot = porLoja.reduce((a, l) => a + (l.total || 0), 0);
+    const comSku = porLoja.reduce((a, l) => a + (l.comItemSku || 0), 0);
+    res.json({
+      ok: true,
+      veredito: tot === 0 ? "sem itens na amostra"
+        : `${comSku} de ${tot} itens têm item_sku preenchido`,
+      porLoja,
+    });
+  } catch (e) {
+    logger.error("amostraSku", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ---------- Diagnóstico das lojas conectadas ----------
 export const lojasConectadas = onRequest({ secrets }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();
