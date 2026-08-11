@@ -34,6 +34,9 @@ done
 [ $erro -eq 1 ] && { echo "  Publicacao cancelada."; read -p "Enter..."; exit 1; }
 echo "   OK"
 
+echo ">> Carimbando versão dos scripts..."
+node ferramentas/carimbar-versao.js || { echo "  !! falhou."; read -p "Enter..."; exit 1; }
+
 echo ""
 npx --yes firebase-tools@latest deploy --project otdegestao-homolog --only hosting,firestore:rules
 CODIGO=$?

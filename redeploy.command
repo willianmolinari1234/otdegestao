@@ -43,6 +43,14 @@ if [ $erro -eq 1 ]; then
 fi
 echo "   OK — $(ls js/*.js | wc -l | tr -d ' ') arquivos"
 
+echo ">> Carimbando versão dos scripts..."
+if ! node ferramentas/carimbar-versao.js; then
+  echo "  !! Falhou ao carimbar — publicação cancelada."
+  echo "     Sem carimbo, o navegador poderia servir a versão antiga."
+  read -p "Pressione Enter para fechar..."
+  exit 1
+fi
+
 echo ""
 echo "=================================================="
 echo "  PUBLICANDO EM: otdegestao (PRODUCAO)"

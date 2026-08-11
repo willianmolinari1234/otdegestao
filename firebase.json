@@ -14,26 +14,40 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
+      "testes/**",
       "*.command",
       "README*",
       "*.md",
-      "index.html"
+      "index.html",
+      "backup-*.html",
+      "app-modular-quebrado.html"
     ],
     "rewrites": [
-      { "source": "**", "destination": "/app.html" }
+      {
+        "//": "SÓ a raiz abre o sistema. Antes havia um catch-all ** que devolvia o app inteiro (154 KB) para QUALQUER endereço — inclusive /wp-login.php e afins de robô. Endereço desconhecido agora cai no 404.html, de ~1 KB.",
+        "source": "/",
+        "destination": "/app.html"
+      }
     ],
     "headers": [
       {
-        "//": "Sem cache no HTML: senão o time continua vendo a versão antiga por até 1 hora após cada publicação.",
+        "//": "HTML sempre revalidado, mas SEM no-store. Com no-store o navegador é proibido de guardar, então cada abertura rebaixava os 154 KB inteiros. Com no-cache ele guarda e pergunta 'mudou?': se não mudou, a resposta é 304 com ~0 byte. A frescura é a mesma; a conta é outra.",
         "source": "**/*.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
         ]
       },
       {
         "source": "/",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        ]
+      },
+      {
+        "//": "JS carimbado com ?v= a cada publicação (ver redeploy.command), então pode ficar guardado por muito tempo sem risco de versão velha.",
+        "source": "**/*.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=604800" }
         ]
       },
       {
