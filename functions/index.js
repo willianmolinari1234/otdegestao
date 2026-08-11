@@ -10,6 +10,7 @@
 //   syncVendas      (30 min) -> vendas do dia em sales/{cliente}_{data}
 //   syncFerramentas (6 h)    -> promoções ativas em tools/{cliente}
 //   syncHistorico   (5 min)  -> recupera o histórico de lojas novas
+//   conferirVendas  (7h BRT) -> reconfere com a Shopee e acusa divergência
 //
 // Segredos (definir com: firebase functions:secrets:set NOME):
 //   SHOPEE_PARTNER_KEY   (o resto fica em functions/.env)
@@ -24,6 +25,7 @@ import { getAuth } from "firebase-admin/auth";
 import {
   buildAuthUrl, getAccessToken, refreshAccessToken, shopCall, shopPost,
 } from "./shopee.js";
+import { compararDia, detectarQuedas, montarResumo } from "./conferencia.js";
 
 initializeApp();
 const db = getFirestore();
@@ -748,6 +750,97 @@ export const shopeeDesconectar = onRequest({ secrets, cors: ["https://otdegestao
     res.json({ ok: true, cliente });
   } catch (e) {
     logger.error("desconectar", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Conferência diária ----------
+// A OTDE cobra % sobre o faturamento bruto. Um número errado no sistema vira
+// fatura errada, e erro de fatura só aparece quando o cliente reclama.
+// Esta rotina faz o sistema desconfiar de si mesmo todo dia:
+//
+//   1) recalcula os últimos dias direto na Shopee e compara com o salvo;
+//   2) compara o total do mês de cada loja com a medição do dia anterior —
+//      venda que já aconteceu não some, então queda é sinal de problema.
+//
+// O resultado fica em conferencias/{data} e aparece no painel.
+
+const DIAS_CONFERIDOS = 3; // dias recentes ainda mudam (cancelamento, repasse)
+
+/** Total do mês corrente por loja, lido do que está salvo. */
+async function totaisDoMesPorLoja() {
+  const mes = dataLocal().slice(0, 7); // "2026-08"
+  const snap = await db.collection("sales").where("data", ">=", `${mes}-01`).get();
+  const totais = {};
+  for (const doc of snap.docs) {
+    const v = doc.data();
+    if (String(v.data || "").slice(0, 7) !== mes) continue;
+    totais[v.cliente] = (totais[v.cliente] || 0) + Number(v.gmv || 0);
+  }
+  return totais;
+}
+
+async function rodarConferencia() {
+  const hoje = dataLocal();
+  const comparacoes = [];
+
+  await forEachShop(async ({ cliente, shopId, token }) => {
+    for (let i = 0; i < DIAS_CONFERIDOS; i++) {
+      const dia = dataLocal(new Date(Date.now() - i * 86400000));
+      const api = await fetchVendasDoDia(dia, shopId, token);
+      const doc = await db.collection("sales").doc(`${cliente}_${dia}`).get();
+      const salvo = doc.exists ? doc.data() : null;
+      const r = compararDia(api, salvo);
+      comparacoes.push({
+        cliente, dia,
+        api: { gmv: Number(api.gmv.toFixed(2)), pedidos: api.pedidos },
+        salvo: salvo ? { gmv: Number(Number(salvo.gmv || 0).toFixed(2)), pedidos: Number(salvo.pedidos || 0) } : null,
+        confere: r.confere,
+        tipo: r.tipo,
+        diferenca: Number(r.diferenca.toFixed(2)),
+      });
+    }
+  });
+
+  // Queda no mês: compara com a medição da última conferência.
+  const totaisHoje = await totaisDoMesPorLoja();
+  const anterior = await db.collection("conferencias")
+    .orderBy("data", "desc").limit(1).get();
+  const totaisAntes = anterior.empty ? {} : (anterior.docs[0].data().totaisDoMes || {});
+
+  // Só compara dentro do mesmo mês: na virada, o total zera legitimamente.
+  const mesmoMes = !anterior.empty
+    && String(anterior.docs[0].data().data || "").slice(0, 7) === hoje.slice(0, 7);
+  const quedas = mesmoMes ? detectarQuedas(totaisHoje, totaisAntes) : [];
+
+  const resumo = montarResumo({ dia: hoje, comparacoes, quedas });
+  await db.collection("conferencias").doc(hoje).set({
+    ...resumo,
+    totaisDoMes: totaisHoje,
+    geradoEm: FieldValue.serverTimestamp(),
+  });
+
+  if (!resumo.tudoCerto) {
+    logger.error("conferencia: problemas encontrados", {
+      divergencias: resumo.divergencias, quedas: resumo.quedas,
+    });
+  }
+  return resumo;
+}
+
+export const conferirVendas = onSchedule(
+  { schedule: "0 7 * * *", timeZone: "America/Sao_Paulo", secrets, timeoutSeconds: 540 },
+  async () => { await rodarConferencia(); }
+);
+
+// Mesma conferência sob demanda, para não precisar esperar o horário.
+export const conferirAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  try {
+    res.json({ ok: true, ...(await rodarConferencia()) });
+  } catch (e) {
+    logger.error("conferirAgora", e);
     res.status(500).json({ erro: e.message });
   }
 });

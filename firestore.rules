@@ -44,6 +44,9 @@ service cloud.firestore {
     match /sales/{id}       { allow read: if ehFuncionario(); allow write: if false; }
     match /tools/{id}       { allow read: if ehFuncionario(); allow write: if false; }
     match /integracoes/{id} { allow read: if ehFuncionario(); allow write: if false; }
+    // Conferência diária. Escrita bloqueada de propósito: se o navegador
+    // pudesse gravar aqui, daria para "apagar" um alerta de divergência.
+    match /conferencias/{id} { allow read: if ehFuncionario(); allow write: if false; }
 
     // ── Tokens da Shopee: nenhum acesso pelo navegador ─────────────────
     match /shopee_auth/{id} { allow read, write: if false; }

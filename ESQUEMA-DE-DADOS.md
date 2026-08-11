@@ -24,6 +24,7 @@ Levantado a partir dos dados reais em produção (05/08/2026).
 | `integracoes` | 26 | **API Shopee** | backend |
 | `performance` | 22 | misto | site |
 | `financeiro` | 0 | **API Shopee** | backend |
+| `conferencias` | 1/dia | **API Shopee** | backend (site só lê) |
 | `shopee_auth` | 17 | **API Shopee** | backend (ninguém lê pelo site) |
 
 ---
@@ -91,6 +92,14 @@ ID = clienteId. `promocoes[]` com `tipo`, `nome`, `inicio`, `fim`.
 ### `integracoes` — status da conexão (sem tokens)
 ID = clienteId. `conectado`, `shopId`, `conectadoEm`,
 `historicoDe`, `historicoProximo`, `historicoCompleto` (recuperação do histórico).
+
+### `conferencias` — resultado da conferência diária
+ID = data (`2026-08-11`). Gravada às 7h por `conferirVendas`.
+`divergencias`, `quedas`, `tudoCerto`, `detalheDivergencias[]`, `detalheQuedas[]`,
+`totaisDoMes` (total por loja, usado como base de comparação no dia seguinte).
+
+**Escrita bloqueada para o navegador de propósito:** se a tela pudesse gravar
+aqui, daria para apagar um alerta de divergência em vez de resolvê-lo.
 
 ### `shopee_auth` — tokens de acesso ⚠️
 ID = clienteId. Guarda `accessToken` e `refreshToken`.

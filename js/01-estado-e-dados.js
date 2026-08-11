@@ -70,6 +70,7 @@ let prods=[];let prodCfg={imposto:7.5,gestao:2,meta:15};let plStore="";let plEdi
 let tsks=[];
 let proms=[];
 let integs=[];
+let conferencia=null; // último resultado da conferência diária (só admin)
 let fIntegBusca="",fIntegFiltro="all";
 // Base das Cloud Functions (backend da integração Shopee).
 // Aponta para o backend do MESMO ambiente em que a página está rodando.
@@ -193,6 +194,15 @@ function startListeners(){
       prods=all.filter(d=>d.id!=="_config");
       if(currentUser)render();
     },err=>console.error("prods listener:",err)));
+  }
+  // Conferência diária: o backend recompara com a Shopee e grava o resultado.
+  // Só admin vê — é informação de fechamento, não de operação.
+  if(isAdmin()){
+    listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"conferencias"),snap=>{
+      const todas=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.data||"").localeCompare(String(a.data||"")));
+      conferencia=todas[0]||null;
+      if(currentUser&&view==="dashboard")render();
+    },err=>{console.error("conferencias listener:",err);conferencia=null;}));
   }
   listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"config"),snap=>{
     const g=snap.docs.map(d=>d.data()).find(d=>d.id==="repgoals");

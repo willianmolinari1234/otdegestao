@@ -673,6 +673,41 @@ document.addEventListener("keydown",e=>{
 });
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────
+// Aviso da conferência diária.
+// Só aparece quando há problema. Um aviso que fica sempre na tela vira
+// paisagem e para de ser lido — por isso o silêncio é o estado normal.
+function avisoConferenciaHTML(){
+  if(!isAdmin()||!conferencia||conferencia.tudoCerto)return "";
+  const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
+  const money=(v)=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  const itens=[];
+
+  for(const q of (conferencia.detalheQuedas||[]).slice(0,5)){
+    itens.push(`<li><b>${esc(nomeLoja(q.loja))}</b>: o total do mês caiu de
+      ${money(q.antes)} para ${money(q.agora)} — ${money(q.caiu)} a menos.</li>`);
+  }
+  for(const d of (conferencia.detalheDivergencias||[]).slice(0,5)){
+    const rotulo=d.tipo==="faltando"
+      ? `a Shopee tem ${money(d.api&&d.api.gmv)} em ${fmtDate(d.dia)} e o sistema não registrou nada`
+      : d.tipo==="pedidos"
+      ? `o valor bate em ${fmtDate(d.dia)}, mas a contagem de pedidos não`
+      : `em ${fmtDate(d.dia)} o sistema mostra ${money(d.diferenca)} ${Number(d.diferenca)>0?"a mais":"a menos"} que a Shopee`;
+    itens.push(`<li><b>${esc(nomeLoja(d.cliente))}</b>: ${rotulo}.</li>`);
+  }
+  const sobra=(conferencia.divergencias||0)+(conferencia.quedas||0)-itens.length;
+
+  return`<div style="background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:13.5px;color:#9a3412;margin-bottom:6px">
+      Conferência de ${fmtDate(conferencia.data)}: os números não fecham com a Shopee
+    </div>
+    <ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${itens.join("")}</ul>
+    ${sobra>0?`<div style="font-size:11.5px;color:#9a3412">…e mais ${sobra} ocorrência(s).</div>`:""}
+    <div style="font-size:11.5px;color:#9a3412;margin-top:6px">
+      Confira antes de fechar a cobrança dessas lojas.
+    </div>
+  </div>`;
+}
+
 function rDash(){
   const ts=visibleTasks().filter(t=>inRange(t.date));
   const tot=ts.length,td=ts.filter(t=>t.status==="todo").length,
@@ -731,6 +766,7 @@ function rDash(){
     }).join("");
 
   return`
+    ${avisoConferenciaHTML()}
     ${rangeBarHTML()}
     <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" style="color:#0f172a">${tot}</div></div>
