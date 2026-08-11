@@ -48,7 +48,9 @@ function openTaskForm(taskId){
   // Non-admin can only assign tasks to themselves
   const empList=isAdmin()?emps:emps.filter(e=>currentUser&&e.id===currentUser.id);
   const eOpts=empList.map(e=>`<option value="${e.id}"${(t&&t.emp===e.id)||(!t&&currentUser&&e.id===currentUser.id)?" selected":""}>${esc(e.name)}</option>`).join("");
-  const cOpts=`<option value="all"${(t&&t.cli==="all")||!t?" selected":""}>🏪 Todas as lojas</option>`+clis.map(c=>`<option value="${c.id}"${t&&t.cli===c.id?" selected":""}>${esc(c.name)}</option>`).join("");
+  // Marketplace no rótulo: sem isso, a Shopee e a Shein da mesma marca ficam
+  // com o nome idêntico e a tarefa acaba lançada na loja errada.
+  const cOpts=`<option value="all"${(t&&t.cli==="all")||!t?" selected":""}>🏪 Todas as lojas</option>`+clis.map(c=>`<option value="${c.id}"${t&&t.cli===c.id?" selected":""}>${esc(c.name)}${c.mkt?" · "+esc(c.mkt):""}</option>`).join("");
   const tplHTML=!t?`<div class="templates">
     <div class="tpl-label">⚡ Modelos rápidos · clique para preencher</div>
     ${TPL.map((tp,i)=>`<button class="tpl-btn" data-tpl="${i}">${esc(tp.title)}</button>`).join("")}

@@ -306,10 +306,25 @@ function plBack(){plStore="";render();}
 function plTog(id){const r=document.getElementById("pl-d-"+id),b=document.getElementById("pl-t-"+id);if(r)r.classList.toggle("open");if(b)b.classList.toggle("open");}
 function plInitials(n){return (n||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();}
 function rPlanilhas(){ return plStore?plStoreView():plCardsView(); }
+// Selo do marketplace ao lado do nome da loja, em versão miúda.
+// Motivo: o mesmo cliente costuma ter a MESMA marca na Shopee e na Shein.
+// Sem o selo, as duas aparecem como linhas idênticas e parecem cadastro
+// repetido — o que quase me levou a apagar uma loja real.
+// Usa mktStyle, as mesmas cores do selo grande da tela de Clientes, para o
+// mesmo marketplace não ter duas aparências no sistema.
+function mktTag(mkt){
+  const m=String(mkt||"").trim();
+  if(!m)return "";
+  const s=mktStyle(m);
+  return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:800;
+    background:${s.bg};color:${s.fg};border:1px solid ${s.border};border-radius:999px;
+    padding:1px 8px;letter-spacing:.02em;vertical-align:middle;margin-left:6px">${esc(m)}</span>`;
+}
 function plCardsGrid(){
   const q=plSearch.trim().toLowerCase();
   let stores=clis.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-  if(q)stores=stores.filter(c=>{const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";return (c.name+" "+own).toLowerCase().includes(q);});
+  // Busca também pelo marketplace: "casulo shein" tem que achar a loja certa.
+  if(q)stores=stores.filter(c=>{const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";return (c.name+" "+own+" "+(c.mkt||"")).toLowerCase().includes(q);});
   if(!stores.length)return `<div class="pl-cards-empty">${q?`Nenhuma loja encontrada para "<b>${esc(plSearch)}</b>".`:'Nenhuma loja cadastrada ainda. Cadastre em <b>Clientes</b> primeiro.'}</div>`;
   return stores.map(c=>{
     const list=prods.filter(p=>p.cli===c.id);
@@ -319,7 +334,7 @@ function plCardsGrid(){
     const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";
     return `<div class="pl-clicard" onclick="plOpenStore('${c.id}')">
       <div class="pl-av">${plInitials(c.name)}</div>
-      <div class="pl-ci"><div class="pl-cn">${esc(c.name)}</div><div class="pl-cc">${own&&own!==c.name?esc(own):"&nbsp;"}</div></div>
+      <div class="pl-ci"><div class="pl-cn">${esc(c.name)} ${mktTag(c.mkt)}</div><div class="pl-cc">${own&&own!==c.name?esc(own):"&nbsp;"}</div></div>
       ${unp>0?`<span class="pl-cp" style="color:#B07A0A">${unp} sem preço</span>`:''}
       <span class="pl-cp">${n} produto${n===1?"":"s"}</span>
       ${np?`<span class="pl-mb" style="background:${plMBg(avg)};color:${plMColor(avg)}">${avg.toFixed(1)}%</span>`:'<span class="pl-mb" style="background:#F0F1F5;color:#9AA1AE">—</span>'}
@@ -407,7 +422,7 @@ function plStoreView(){
   return `<div id="plwrap">
     <div class="pl-bar">
       <button class="pl-back" onclick="plBack()">← Lojas</button>
-      <div class="pl-title">${esc(store.name)}${own&&own!==store.name?`<small>${esc(own)}</small>`:""}</div>
+      <div class="pl-title">${esc(store.name)} ${mktTag(store.mkt)}${own&&own!==store.name?`<small>${esc(own)}</small>`:""}</div>
       <span style="font-size:11px;font-weight:800;color:#C73E22;background:#FCEADF;padding:5px 12px;border-radius:30px;letter-spacing:.03em">Gestão: ${plGestaoPct(plStore)}% · Imposto: ${plImpostoPct(plStore)}%</span>
       <div style="flex:1"></div>
       <button class="pl-cfgbtn" onclick="document.getElementById('pl-cfg').classList.toggle('open')">⚙ Taxas</button>
@@ -985,7 +1000,9 @@ function rKanban(){
     return 0;
   });
   const empOpts=emps.map(e=>`<option value="${e.id}"${fEmp===e.id?" selected":""}>${esc(e.name)}</option>`).join("");
-  const cliOpts=clis.map(c=>`<option value="${c.id}"${fCli===c.id?" selected":""}>${esc(c.name)}</option>`).join("");
+  // Nome + marketplace: há marcas com loja na Shopee E na Shein, e num
+  // <option> não dá para usar selo colorido — então vai em texto mesmo.
+  const cliOpts=clis.map(c=>`<option value="${c.id}"${fCli===c.id?" selected":""}>${esc(c.name)}${c.mkt?" · "+esc(c.mkt):""}</option>`).join("");
   const cols=["todo","doing","done"].map(st=>{
     const items=filtered.filter(t=>t.status===st);
     const nextSt={todo:"doing",doing:"done",done:"todo"}[st];
