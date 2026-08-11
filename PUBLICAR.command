@@ -35,7 +35,10 @@ echo ""
 echo "=================================================="
 echo "  1 de 2 — AMBIENTE DE TESTE"
 echo "=================================================="
-npx --yes firebase-tools@latest deploy --project otdegestao-homolog --only hosting,firestore:rules
+# O "< /dev/null" é precaução, não conserto de bug observado: impede que o
+# firebase consuma a entrada do teclado e a pergunta logo abaixo receba vazio
+# sem ninguém ter digitado. Nunca vimos isso acontecer aqui.
+npx --yes firebase-tools@latest deploy --project otdegestao-homolog --only hosting,firestore:rules < /dev/null
 if [ $? -ne 0 ]; then
   echo ""
   echo "  !! Falhou em homologação. PRODUÇÃO NÃO FOI TOCADA."
