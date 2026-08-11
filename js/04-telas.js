@@ -266,7 +266,7 @@ function plCompute(p){
   // Preço: o praticado no marketplace manda. É o que o comprador pagou de
   // fato e acompanha promoção sozinho — o digitado à mão envelhece calado.
   // O manual continua valendo para produto que ainda não vendeu.
-  const real=plPrecoReal(p.sku);
+  const real=plPrecoReal(p);
   const valor=real?real.preco:plNum(p.valor),custo=plNum(p.custo);
   const tier=plTier(valor);
   const gesPct=plGestaoPct(p.cli),impPct=plImpostoPct(p.cli);
@@ -283,7 +283,7 @@ function plComputeProd(p){
     return{vars:null,base:r,priced:r.priced,pricedVars:r.priced?1:0,unpricedVars:r.priced?0:1,minM:r.margem,maxM:r.margem,avgM:r.margem,avgL:r.lucro,minV:r.valor,maxV:r.valor,minC:r.custo,maxC:r.custo,minL:r.lucro,maxL:r.lucro,anyBelow:r.priced&&r.margem<meta};
   }
   // A variação usa o próprio SKU; sem ele, herda o do produto.
-  const rs=p.vars.map(v=>({v,r:plCompute({cli:p.cli,sku:v.sku||p.sku,valor:v.valor,custo:v.custo})}));
+  const rs=p.vars.map(v=>({v,r:plCompute({cli:p.cli,sku:v.sku||p.sku,anuncioId:p.anuncioId,link:p.link,valor:v.valor,custo:v.custo})}));
   const pr=rs.filter(x=>x.r.priced);
   const cs=rs.map(x=>x.r.custo);
   const out={vars:rs,base:null,priced:pr.length>0,pricedVars:pr.length,unpricedVars:rs.length-pr.length,minC:Math.min(...cs),maxC:Math.max(...cs),minM:0,maxM:0,avgM:0,avgL:0,minV:0,maxV:0,minL:0,maxL:0,anyBelow:false};
@@ -325,17 +325,17 @@ async function plCarregarPrecos(cli){
       if(String(v.data||"")<limite)return;
       if(!Array.isArray(v.itens))return;
       dias.add(v.data);
-      v.itens.forEach(i=>itens.push({item_sku:i.s,model_sku:i.m,qtd:i.q,valor:i.v}));
+      v.itens.forEach(i=>itens.push({item_sku:i.s,model_sku:i.m,item_id:i.i,qtd:i.q,valor:i.v}));
     });
     plPrecosDias=dias.size;
     plPrecos=window.custos?window.custos.precosPraticados(itens):null;
   }catch(e){console.error("precos:",e);plPrecos=null;}
   if(view==="planilhas")render();
 }
-/** Preço de um SKU vindo do marketplace, ou null se ele ainda não vendeu. */
-function plPrecoReal(sku){
+/** Preço vindo do marketplace, por SKU ou pelo ID do anúncio. Null se não vendeu. */
+function plPrecoReal(p){
   if(!plPrecos||!window.custos)return null;
-  return window.custos.precoDoSku(plPrecos,sku);
+  return window.custos.precoDoProduto(plPrecos,typeof p==="string"?{sku:p}:(p||{}));
 }
 function plOpenStore(id){plStore=id;plCarregarPrecos(id);render();}
 function plBack(){plStore="";render();}
@@ -541,7 +541,10 @@ function plImportOpen(){
     <div class="pl-mh"><b>Importar planilha — ${esc(loja?loja.name:"")}</b><button onclick="plClose()">✕</button></div>
     <div class="pl-mbody">
       <p style="font-size:12.5px;color:#5A6270;line-height:1.6;margin:0 0 10px">
-        <b>Link não funciona</b> — a planilha é privada, o sistema não consegue abrir sozinho.
+        Precisa da coluna de <b>CUSTO</b> e de uma forma de identificar o produto:
+        <b>SKU</b> ou o <b>link do anúncio</b> — o ID sai do link sozinho, então
+        cliente sem SKU também funciona.<br><br>
+        <b>O link da planilha inteira não serve</b> — ela é privada, o sistema não abre sozinho.
         Precisa ser o conteúdo. Dois caminhos:
       </p>
       <ol style="font-size:12.5px;color:#5A6270;line-height:1.7;margin:0 0 12px;padding-left:20px">
@@ -660,13 +663,20 @@ async function plImportSalvar(){
   let novos=0,atualizados=0;
   try{
     for(const p of _plImport.produtos){
-      const ja=existentes.find(x=>window.custos.normalizarSku(x.sku)===p.sku);
+      // Casa pelo SKU quando existe; senão pelo ID do anúncio. Sem isso, uma
+      // planilha sem SKU criaria produto novo a cada importação.
+      const ja=existentes.find(x=>
+        (p.sku && window.custos.normalizarSku(x.sku)===p.sku) ||
+        (p.anuncioId && (x.anuncioId||window.custos.idDoAnuncio(x.link))===p.anuncioId));
       if(ja){
-        await fbSet("products",ja.id,{...ja,custo:p.custo,valor:p.valor!==null?p.valor:ja.valor});
+        await fbSet("products",ja.id,{...ja,custo:p.custo,
+          sku:p.sku||ja.sku||"",anuncioId:p.anuncioId||ja.anuncioId||"",
+          valor:p.valor!==null?p.valor:ja.valor});
         atualizados++;
       }else{
         const id=("p"+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
-        await fbSet("products",id,{id,cli:plStore,sku:p.sku,nome:p.nome,custo:p.custo,valor:p.valor!==null?p.valor:""});
+        await fbSet("products",id,{id,cli:plStore,sku:p.sku||"",anuncioId:p.anuncioId||"",
+          nome:p.nome,custo:p.custo,valor:p.valor!==null?p.valor:""});
         novos++;
       }
     }

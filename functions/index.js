@@ -337,9 +337,13 @@ async function fetchVendasDoDia(dia, shopId, token) {
       for (const it of (o.item_list || [])) {
         const s = String(it.item_sku || "").trim();
         const m = String(it.model_sku || "").trim();
+        // O ID do anúncio vem SEMPRE, com ou sem SKU. É a chave reserva para
+        // a maioria dos clientes, que não preenche SKU mas identifica o
+        // produto pelo link do anúncio na planilha.
+        const i = String(it.item_id || "").trim();
         const q = n(it.model_quantity_purchased) || 1;
-        const chave = `${s}|${m}`;
-        const reg = porSku.get(chave) || { s, m, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
+        const chave = `${s}|${m}|${i}`;
+        const reg = porSku.get(chave) || { s, m, i, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
         reg.q += q;
         reg.v += n(it.model_discounted_price) * q;
         porSku.set(chave, reg);

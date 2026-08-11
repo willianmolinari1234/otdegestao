@@ -6,7 +6,111 @@ import assert from "node:assert/strict";
 import {
   normalizarSku, indexarCustos, custoDoItem, apurarCustos,
   numeroBR, interpretarPlanilha, precosPraticados, precoDoSku,
+  idDoAnuncio, precoDoProduto,
 } from "../js/custos.js";
+
+// ─── idDoAnuncio ──────────────────────────────────────────────────────
+// A maioria dos clientes NÃO usa SKU, mas identifica o anúncio pelo link.
+// O último número do link é o item_id, que a API devolve em todo item.
+
+test("extrai o ID do formato /product/loja/anuncio", () => {
+  assert.equal(idDoAnuncio("https://shopee.com.br/product/1441293057/58253222559/"), "58253222559");
+});
+
+test("extrai o ID do formato -i.loja.anuncio", () => {
+  assert.equal(idDoAnuncio("https://shopee.com.br/Vestido-Longo-i.1441293057.58253222559"), "58253222559");
+});
+
+test("pega o do ANÚNCIO, não o da loja", () => {
+  // Trocar os dois casaria o custo de um produto com o de outro.
+  assert.notEqual(idDoAnuncio("https://shopee.com.br/product/1441293057/58253222559/"), "1441293057");
+});
+
+test("aceita o número colado direto numa coluna", () => {
+  assert.equal(idDoAnuncio("58253222559"), "58253222559");
+});
+
+test("texto que não é link nem ID devolve vazio", () => {
+  for (const v of ["", "vestido", "12", null, undefined]) assert.equal(idDoAnuncio(v), "");
+});
+
+// ─── planilha sem SKU, só com link ────────────────────────────────────
+
+const CAB_LINK = "PRODUTO VENDIDO\tCUSTO PRODUTO\tLINK DO ANUNCIO";
+
+test("importa planilha que não tem coluna de SKU", () => {
+  const r = interpretarPlanilha([CAB_LINK,
+    "Vestido Virginia\tR$ 31,00\thttps://shopee.com.br/product/1441293057/58253222559/",
+    "Manta infantil\tR$ 13,50\thttps://shopee.com.br/product/1441293057/58252122529/",
+  ].join("\n"));
+  assert.equal(r.produtos.length, 2);
+  assert.equal(r.produtos[0].anuncioId, "58253222559");
+  assert.equal(r.produtos[0].sku, "");
+  assert.equal(r.produtos[0].custo, 31);
+});
+
+test("linha sem SKU e sem link é ignorada", () => {
+  const r = interpretarPlanilha([CAB_LINK, "Produto solto\tR$ 10,00\t"].join("\n"));
+  assert.equal(r.produtos.length, 0);
+  assert.equal(r.ignoradas, 1);
+});
+
+test("mesmo anúncio com custos diferentes vira conflito", () => {
+  const L = "https://shopee.com.br/product/1441293057/58253222559/";
+  const r = interpretarPlanilha([CAB_LINK,
+    `Vestido\tR$ 31,00\t${L}`, `Vestido\tR$ 44,00\t${L}`].join("\n"));
+  assert.equal(r.produtos.length, 0);
+  assert.equal(r.conflitos.length, 1);
+});
+
+test("mesmo anúncio repetido com o mesmo custo vira uma linha", () => {
+  const L = "https://shopee.com.br/product/1441293057/58253222559/";
+  const r = interpretarPlanilha([CAB_LINK,
+    `Vestido\tR$ 31,00\t${L}`, `Vestido\tR$ 31,00\t${L}`].join("\n"));
+  assert.equal(r.produtos.length, 1);
+});
+
+// ─── custo e preço pelo ID do anúncio ─────────────────────────────────
+
+test("acha o custo pelo ID quando o item não tem SKU", () => {
+  const { indice, porAnuncio } = indexarCustos([
+    { cli: "A", link: "https://shopee.com.br/product/1441293057/58253222559/", custo: 31, nome: "Virginia" },
+  ], "A");
+  const r = custoDoItem(indice, { item_sku: "", model_sku: "", item_id: "58253222559" }, porAnuncio);
+  assert.equal(r.custo, 31);
+  assert.equal(r.achadoPor, "item_id");
+});
+
+test("o SKU tem prioridade sobre o ID do anúncio", () => {
+  // O ID agrupa todas as variações; o SKU é mais preciso e deve vencer.
+  const { indice, porAnuncio } = indexarCustos([
+    { cli: "A", sku: "8", custo: 49, link: "https://shopee.com.br/product/1/58253222559/" },
+  ], "A");
+  const r = custoDoItem(indice, { item_sku: "8", item_id: "58253222559" }, porAnuncio);
+  assert.equal(r.custo, 49);
+  assert.equal(r.achadoPor, "item_sku");
+});
+
+test("apuração conta quanto veio de cada chave", () => {
+  const { indice, porAnuncio } = indexarCustos([
+    { cli: "A", sku: "8", custo: 40 },
+    { cli: "A", link: "https://shopee.com.br/product/1/999888777/", custo: 10 },
+  ], "A");
+  const r = apurarCustos([
+    { item_sku: "8", qtd: 1, valor: 100 },
+    { item_sku: "", item_id: "999888777", qtd: 1, valor: 50 },
+  ], indice, porAnuncio);
+  assert.equal(r.cobertura, 1);
+  assert.equal(r.custoTotal, 50);
+  assert.equal(r.achadoPor.item_sku, 100);
+  assert.equal(r.achadoPor.item_id, 50);
+});
+
+test("preço praticado também sai pelo ID do anúncio", () => {
+  const p = precosPraticados([{ item_sku: "", model_sku: "", item_id: "58253222559", qtd: 2, valor: 109.8 }]);
+  const r = precoDoProduto(p, { link: "https://shopee.com.br/product/1/58253222559/" });
+  assert.equal(r.preco, 54.9);
+});
 
 // ─── precosPraticados ─────────────────────────────────────────────────
 
@@ -80,7 +184,7 @@ test("lê a planilha real do cliente", () => {
     "8\tvestido ombro a ombro\tR$ 129,90\tR$ 18,19\tR$ 11,69\tR$ 20,00\t2,598\tR$ 49,00\tR$ 28,43\t21,9",
   ].join("\n"));
   assert.equal(r.produtos.length, 2);
-  assert.deepEqual(r.produtos[1], { sku: "8", nome: "vestido ombro a ombro", valor: 129.9, custo: 49 });
+  assert.deepEqual(r.produtos[1], { sku: "8", anuncioId: "", nome: "vestido ombro a ombro", valor: 129.9, custo: 49 });
 });
 
 test("SKU repetido com o mesmo custo vira uma linha só", () => {

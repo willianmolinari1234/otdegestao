@@ -36,11 +36,37 @@ export function numeroBR(v) {
   return isFinite(n) ? n : null;
 }
 
+/**
+ * Extrai o ID do anúncio de um link da Shopee.
+ *
+ * Existe porque a maioria dos clientes NÃO preenche SKU, mas todo anúncio
+ * tem ID — e esse ID vem em todo item que a API devolve, sempre. Como as
+ * planilhas identificam o anúncio pelo link, dá para cruzar custo com venda
+ * mesmo sem SKU nenhum.
+ *
+ * Dois formatos em uso:
+ *   https://shopee.com.br/product/1441293057/58253222559/   (loja/anúncio)
+ *   https://shopee.com.br/Nome-do-Produto-i.1441293057.58253222559
+ * Em ambos o ÚLTIMO número é o anúncio; o anterior é a loja.
+ */
+export function idDoAnuncio(texto) {
+  const s = String(texto ?? "").trim();
+  if (!s) return "";
+  let m = s.match(/\/product\/(\d+)\/(\d+)/);
+  if (m) return m[2];
+  m = s.match(/-i\.(\d+)\.(\d+)/);
+  if (m) return m[2];
+  // Alguém pode colar só o número numa coluna própria.
+  if (/^\d{6,}$/.test(s)) return s;
+  return "";
+}
+
 const SINONIMOS = {
   sku: ["sku", "codigo", "código", "cod", "ref", "referencia", "referência"],
   nome: ["produto", "produtovendido", "descricao", "descrição", "nome", "item"],
   valor: ["valordavenda", "valorvenda", "preco", "preço", "precodevenda", "venda"],
   custo: ["custoproduto", "custodoproduto", "custo", "customercadoria"],
+  link: ["link", "linkdoanuncio", "anuncio", "anúncio", "url", "iddoanuncio", "idanuncio"],
 };
 const limpaCabecalho = (s) =>
   String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -92,7 +118,9 @@ export function interpretarPlanilha(texto) {
     return out;
   };
 
-  // Cabeçalho: primeira linha que contenha pelo menos SKU e CUSTO.
+  // Cabeçalho: precisa de CUSTO e de pelo menos uma forma de identificar o
+  // produto — SKU ou link do anúncio. A maioria dos clientes não usa SKU,
+  // então exigir SKU deixaria essas planilhas de fora.
   let idxCab = -1, mapa = null;
   for (let i = 0; i < Math.min(linhas.length, 5); i++) {
     const cels = separa(linhas[i]).map(limpaCabecalho);
@@ -101,7 +129,8 @@ export function interpretarPlanilha(texto) {
       const pos = cels.findIndex((c) => c && nomes.includes(c));
       if (pos >= 0) m[campo] = pos;
     }
-    if (m.sku !== undefined && m.custo !== undefined) { idxCab = i; mapa = m; break; }
+    const temChave = m.sku !== undefined || m.link !== undefined;
+    if (temChave && m.custo !== undefined) { idxCab = i; mapa = m; break; }
   }
   if (!mapa) return { produtos: [], conflitos: [], ignoradas: linhas.length, colunas: null };
 
@@ -111,25 +140,33 @@ export function interpretarPlanilha(texto) {
 
   for (let i = idxCab + 1; i < linhas.length; i++) {
     const c = separa(linhas[i]);
-    const sku = normalizarSku(c[mapa.sku]);
+    const sku = mapa.sku !== undefined ? normalizarSku(c[mapa.sku]) : "";
+    const anuncioId = mapa.link !== undefined ? idDoAnuncio(c[mapa.link]) : "";
     const custo = numeroBR(c[mapa.custo]);
-    if (!sku || custo === null) { ignoradas++; continue; }
+    // Sem custo, ou sem NENHUMA forma de identificar o produto, a linha não
+    // entra. Importar com identificação vazia criaria produto que nunca casa.
+    if ((!sku && !anuncioId) || custo === null) { ignoradas++; continue; }
 
+    // A chave de deduplicação é o SKU quando existe; senão, o anúncio.
+    const chave = sku || ("A:" + anuncioId);
     const novo = {
-      sku,
+      sku, anuncioId,
       nome: mapa.nome !== undefined ? String(c[mapa.nome] || "").trim() : "",
       valor: mapa.valor !== undefined ? numeroBR(c[mapa.valor]) : null,
       custo,
     };
-    const antigo = porSku.get(sku);
-    if (!antigo) { porSku.set(sku, novo); continue; }
+    const antigo = porSku.get(chave);
+    if (!antigo) { porSku.set(chave, novo); continue; }
     if (Number(antigo.custo) !== Number(custo)) {
-      conflitos.push({ sku, custos: [antigo.custo, custo], nome: antigo.nome || novo.nome });
-      porSku.delete(sku); // não importa nenhum dos dois: o humano decide
+      conflitos.push({
+        sku: sku || anuncioId, chave,
+        custos: [antigo.custo, custo], nome: antigo.nome || novo.nome,
+      });
+      porSku.delete(chave); // não importa nenhum dos dois: o humano decide
     }
   }
-  // Conflito remove o SKU; se ele reaparecer depois, não deve voltar sozinho.
-  for (const cf of conflitos) porSku.delete(cf.sku);
+  // Conflito remove a linha; se a chave reaparecer depois, não volta sozinha.
+  for (const cf of conflitos) porSku.delete(cf.chave);
 
   return {
     produtos: [...porSku.values()],
@@ -167,6 +204,11 @@ export function indexarCustos(produtos, cli) {
     if (!jaTem) indice.set(k, dado);
   };
 
+  // Índice separado para o ID do anúncio. Fica separado do de SKU porque um
+  // ID de anúncio é um número grande e poderia colidir com um SKU numérico
+  // de outro produto — misturar os dois abriria porta para custo errado.
+  const porAnuncio = new Map();
+
   for (const p of produtos || []) {
     if (cli && p.cli !== cli) continue;
     const temVars = Array.isArray(p.vars) && p.vars.length > 0;
@@ -179,8 +221,20 @@ export function indexarCustos(produtos, cli) {
     } else {
       por(p.sku, { custo: Number(p.custo || 0), nome: p.nome || "", nivel: "produto" });
     }
+
+    // O anúncio serve de reserva quando não há SKU — o caso da maioria dos
+    // clientes. Aceita o campo próprio ou o ID extraído do link do anúncio.
+    const idAnuncio = p.anuncioId || idDoAnuncio(p.link);
+    if (idAnuncio) {
+      const custoBase = temVars
+        ? Number((p.vars.find((v) => Number(v.custo) > 0) || {}).custo || 0)
+        : Number(p.custo || 0);
+      if (!porAnuncio.has(idAnuncio)) {
+        porAnuncio.set(idAnuncio, { custo: custoBase, nome: p.nome || "", nivel: "anuncio" });
+      }
+    }
   }
-  return { indice, conflitos };
+  return { indice, porAnuncio, conflitos };
 }
 
 /**
@@ -190,11 +244,18 @@ export function indexarCustos(produtos, cli) {
  * realmente muda (P, M, G custam diferente). Só cai para o código do anúncio
  * quando a variação não resolve.
  */
-export function custoDoItem(indice, item) {
-  const porModelo = indice.get(normalizarSku(item?.model_sku));
-  if (porModelo) return { custo: porModelo.custo, achadoPor: "model_sku", nome: porModelo.nome };
-  const porAnuncio = indice.get(normalizarSku(item?.item_sku));
-  if (porAnuncio) return { custo: porAnuncio.custo, achadoPor: "item_sku", nome: porAnuncio.nome };
+export function custoDoItem(indice, item, porAnuncio) {
+  // Ordem do mais específico para o mais genérico:
+  //   variação → anúncio (SKU) → ID do anúncio
+  // O ID fica por último porque agrupa todas as variações do mesmo anúncio:
+  // se P e G custam diferente, ele devolve um custo só. É melhor que nada,
+  // mas perde precisão — então só entra quando o SKU não resolveu.
+  const m = indice?.get(normalizarSku(item?.model_sku));
+  if (m) return { custo: m.custo, achadoPor: "model_sku", nome: m.nome };
+  const s = indice?.get(normalizarSku(item?.item_sku));
+  if (s) return { custo: s.custo, achadoPor: "item_sku", nome: s.nome };
+  const a = porAnuncio?.get(String(item?.item_id || "").trim());
+  if (a) return { custo: a.custo, achadoPor: "item_id", nome: a.nome };
   return { custo: null, achadoPor: null, nome: null };
 }
 
@@ -221,10 +282,12 @@ export function precosPraticados(itens) {
     r.qtd += Number(it?.qtd || 0);
     mapa.set(k, r);
   };
-  const porVariacao = new Map(), porAnuncio = new Map();
+  const porVariacao = new Map(), porAnuncio = new Map(), porAnuncioId = new Map();
   for (const it of itens || []) {
     somar(porVariacao, it?.model_sku, it);
     somar(porAnuncio, it?.item_sku, it);
+    // Pelo ID do anúncio: funciona mesmo sem SKU nenhum.
+    somar(porAnuncioId, it?.item_id, it);
   }
   const fechar = (m) => {
     const out = new Map();
@@ -233,7 +296,11 @@ export function precosPraticados(itens) {
     }
     return out;
   };
-  return { porVariacao: fechar(porVariacao), porAnuncio: fechar(porAnuncio) };
+  return {
+    porVariacao: fechar(porVariacao),
+    porAnuncio: fechar(porAnuncio),
+    porAnuncioId: fechar(porAnuncioId),
+  };
 }
 
 /** Preço praticado de um SKU, variação na frente do anúncio. */
@@ -241,6 +308,18 @@ export function precoDoSku(precos, sku) {
   const k = normalizarSku(sku);
   if (!k || !precos) return null;
   return precos.porVariacao.get(k) || precos.porAnuncio.get(k) || null;
+}
+
+/**
+ * Preço de um produto da planilha: tenta pelo SKU e, se ele não tiver ou não
+ * casar, pelo ID do anúncio (extraído do link). Mesma ordem do custo.
+ */
+export function precoDoProduto(precos, produto) {
+  const porSku = precoDoSku(precos, produto?.sku);
+  if (porSku) return porSku;
+  const id = produto?.anuncioId || idDoAnuncio(produto?.link);
+  if (id && precos) return precos.porAnuncioId.get(id) || null;
+  return null;
 }
 
 /**
@@ -252,19 +331,23 @@ export function precoDoSku(precos, sku) {
  *
  * @param {Array} itens  [{item_sku, model_sku, qtd, valor, nome}]
  */
-export function apurarCustos(itens, indice) {
+export function apurarCustos(itens, indice, porAnuncio) {
   let receita = 0, receitaComCusto = 0, custoTotal = 0, itensSemCusto = 0;
   const semCusto = new Map();
+  const achadoPor = { model_sku: 0, item_sku: 0, item_id: 0 };
 
   for (const it of itens || []) {
     const qtd = Number(it?.qtd || 0);
     const valor = Number(it?.valor || 0);
     receita += valor;
 
-    const { custo } = custoDoItem(indice, it);
+    const r = custoDoItem(indice, it, porAnuncio);
+    const custo = r.custo;
+    if (r.achadoPor) achadoPor[r.achadoPor] += valor;
     if (custo === null || !isFinite(custo)) {
       itensSemCusto += qtd;
-      const chave = normalizarSku(it?.model_sku) || normalizarSku(it?.item_sku) || "(sem código)";
+      const chave = normalizarSku(it?.model_sku) || normalizarSku(it?.item_sku)
+        || (it?.item_id ? "anúncio " + it.item_id : "") || "(sem código)";
       const reg = semCusto.get(chave) || { sku: chave, nome: it?.nome || "", qtd: 0, valor: 0 };
       reg.qtd += qtd; reg.valor += valor;
       semCusto.set(chave, reg);
@@ -283,6 +366,13 @@ export function apurarCustos(itens, indice) {
     // daria um número que parece completo e não é.
     margemBruta: r2(receitaComCusto - custoTotal),
     cobertura: receita > 0 ? Number((receitaComCusto / receita).toFixed(4)) : 0,
+    // Quanto da receita foi casado por cada chave. Útil para saber se a loja
+    // depende do ID do anúncio (menos preciso) ou tem SKU de verdade.
+    achadoPor: {
+      model_sku: r2(achadoPor.model_sku),
+      item_sku: r2(achadoPor.item_sku),
+      item_id: r2(achadoPor.item_id),
+    },
     itensSemCusto,
     semCusto: [...semCusto.values()].sort((a, b) => b.valor - a.valor).slice(0, 30),
   };
