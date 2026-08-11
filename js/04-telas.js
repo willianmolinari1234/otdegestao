@@ -483,11 +483,17 @@ function plImportOpen(){
     <div class="pl-mh"><b>Importar planilha — ${esc(loja?loja.name:"")}</b><button onclick="plClose()">✕</button></div>
     <div class="pl-mbody">
       <p style="font-size:12.5px;color:#5A6270;line-height:1.6;margin:0 0 10px">
-        No Google Sheets, selecione as linhas <b>com o cabeçalho</b> e copie (Ctrl+C).
-        Cole abaixo. O sistema procura as colunas <b>SKU</b> e <b>CUSTO PRODUTO</b> —
-        a ordem não importa.
+        <b>Link não funciona</b> — a planilha é privada, o sistema não consegue abrir sozinho.
+        Precisa ser o conteúdo. Dois caminhos:
       </p>
-      <textarea id="pl-imp-txt" rows="9" placeholder="Cole aqui..." style="width:100%;border:1.5px solid var(--p-line);border-radius:9px;padding:10px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
+      <ol style="font-size:12.5px;color:#5A6270;line-height:1.7;margin:0 0 12px;padding-left:20px">
+        <li>Na planilha aberta, clique na célula do cabeçalho <b>SKU</b>, aperte
+            <b>Ctrl+Shift+↓</b> e depois <b>Ctrl+Shift+→</b> para pegar tudo. <b>Ctrl+C</b> e cole abaixo.</li>
+        <li>Ou <b>Arquivo → Fazer download → CSV</b> e escolha o arquivo aqui:
+            <input type="file" id="pl-imp-file" accept=".csv,.tsv,.txt" style="font-size:12px;margin-top:4px">
+        </li>
+      </ol>
+      <textarea id="pl-imp-txt" rows="8" placeholder="Cole o conteúdo aqui (não o link)..." style="width:100%;border:1.5px solid var(--p-line);border-radius:9px;padding:10px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
       <div id="pl-imp-prev" style="margin-top:12px"></div>
     </div>
     <div class="pl-mf">
@@ -497,6 +503,13 @@ function plImportOpen(){
   </div>`;
   document.getElementById("pl-modal").style.display="flex";
   document.getElementById("pl-imp-txt").addEventListener("input",plImportPrever);
+  const fl=document.getElementById("pl-imp-file");
+  if(fl)fl.addEventListener("change",async e=>{
+    const f=e.target.files&&e.target.files[0];
+    if(!f)return;
+    document.getElementById("pl-imp-txt").value=await f.text();
+    plImportPrever();
+  });
 }
 let _plImport=null;
 function plImportPrever(){
@@ -506,6 +519,15 @@ function plImportPrever(){
   const box=document.getElementById("pl-imp-prev");
   const btn=document.getElementById("pl-imp-btn");
   if(!txt.trim()){box.innerHTML="";btn.disabled=true;btn.textContent="Conferir antes";return;}
+  if(r.ehLink){
+    box.innerHTML=`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:9px;padding:12px;font-size:12.5px;color:#7C2D12">
+      Isso é o <b>endereço</b> da planilha, não o conteúdo dela. O sistema não consegue
+      abrir sua planilha sozinho porque ela é privada — e é assim que deve ser.
+      <div style="margin-top:6px">Abra a planilha, selecione as células (cabeçalho incluído),
+      copie e cole aqui. Ou baixe em CSV e use o botão de arquivo acima.</div>
+    </div>`;
+    btn.disabled=true;return;
+  }
   if(!r.colunas){
     box.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:9px;padding:12px;font-size:12.5px;color:#991B1B">
       Não encontrei as colunas <b>SKU</b> e <b>CUSTO PRODUTO</b>. Copie incluindo a linha de cabeçalho.

@@ -59,10 +59,38 @@ const limpaCabecalho = (s) =>
  * um custo desatualizado numa linha estragaria o lucro em silêncio.
  */
 export function interpretarPlanilha(texto) {
-  const linhas = String(texto || "").split(/\r?\n/).filter((l) => l.trim() !== "");
+  const bruto = String(texto || "").trim();
+
+  // Colar o endereço da planilha é o reflexo natural. Como o link não traz
+  // dado nenhum, devolvemos um aviso próprio em vez do genérico "não achei
+  // as colunas", que não ensina o que fazer.
+  if (/^https?:\/\/\S+$/i.test(bruto)) {
+    return { produtos: [], conflitos: [], ignoradas: 0, colunas: null, ehLink: true };
+  }
+
+  const linhas = bruto.split(/\r?\n/).filter((l) => l.trim() !== "");
   if (!linhas.length) return { produtos: [], conflitos: [], ignoradas: 0, colunas: null };
 
-  const separa = (l) => (l.includes("\t") ? l.split("\t") : l.split(";"));
+  // Separador: tab (colado do Sheets) > ponto e vírgula > vírgula (CSV baixado).
+  // A vírgula fica por último porque também é o separador decimal daqui.
+  const amostra = linhas.slice(0, 3).join("\n");
+  const sep = amostra.includes("\t") ? "\t" : amostra.includes(";") ? ";" : ",";
+
+  // Divisão respeitando aspas: o CSV do Google Sheets protege com aspas os
+  // campos que contêm o separador — inclusive "R$ 1.234,56".
+  const separa = (linha) => {
+    const out = []; let atual = "", dentro = false;
+    for (let i = 0; i < linha.length; i++) {
+      const c = linha[i];
+      if (c === '"') {
+        if (dentro && linha[i + 1] === '"') { atual += '"'; i++; }
+        else dentro = !dentro;
+      } else if (c === sep && !dentro) { out.push(atual); atual = ""; }
+      else atual += c;
+    }
+    out.push(atual);
+    return out;
+  };
 
   // Cabeçalho: primeira linha que contenha pelo menos SKU e CUSTO.
   let idxCab = -1, mapa = null;

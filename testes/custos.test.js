@@ -95,6 +95,38 @@ test("texto vazio não quebra", () => {
   assert.deepEqual(r.produtos, []);
 });
 
+test("colar o endereço da planilha é reconhecido como tal", () => {
+  // Reflexo natural do usuário. Merece aviso próprio, não o erro genérico.
+  const r = interpretarPlanilha("https://docs.google.com/spreadsheets/d/13rNn9iEZGJkqF7xUgKYZPLL2Wi5vE3Az/edit?gid=1236684727#gid=1236684727");
+  assert.equal(r.ehLink, true);
+  assert.equal(r.produtos.length, 0);
+});
+
+test("CSV baixado do Sheets: vírgula separa e aspas protegem o preço", () => {
+  // "R$ 1.234,56" tem vírgula dentro; o Sheets protege com aspas.
+  const r = interpretarPlanilha([
+    "SKU,PRODUTO VENDIDO,VALOR DA VENDA,CUSTO PRODUTO",
+    '8,vestido ombro a ombro,"R$ 1.234,56","R$ 49,00"',
+  ].join("\n"));
+  assert.equal(r.produtos.length, 1);
+  assert.equal(r.produtos[0].custo, 49);
+  assert.equal(r.produtos[0].valor, 1234.56);
+});
+
+test("CSV com aspas duplicadas dentro do texto", () => {
+  const r = interpretarPlanilha([
+    "SKU,PRODUTO VENDIDO,CUSTO PRODUTO",
+    '5,"vestido ""premium"" longo","R$ 30,00"',
+  ].join("\n"));
+  assert.equal(r.produtos[0].nome, 'vestido "premium" longo');
+  assert.equal(r.produtos[0].custo, 30);
+});
+
+test("ponto e vírgula continua funcionando", () => {
+  const r = interpretarPlanilha(["SKU;PRODUTO VENDIDO;CUSTO PRODUTO", "31;manta;R$ 13,50"].join("\n"));
+  assert.equal(r.produtos[0].custo, 13.5);
+});
+
 // ─── normalizarSku ────────────────────────────────────────────────────
 // Caso real: a Casulo Tricot vende com item_sku "08"; a planilha tem "8".
 
