@@ -139,6 +139,25 @@ test("resumo sem problema nenhum marca tudoCerto", () => {
   assert.equal(r.diasConferidos, 2);
 });
 
+test("a divergência guarda o valor antigo e o novo, para saber o que mudou", () => {
+  // A conferência corrige o número pelo da Shopee, mas o alerta precisa
+  // mostrar de quanto para quanto: se a loja já foi cobrada com o valor
+  // antigo, a fatura tem que ser acertada.
+  const r = montarResumo({
+    dia: "2026-08-11",
+    comparacoes: [{
+      cliente: "manuland", dia: "2026-08-08", confere: false, tipo: "valor",
+      salvo: { gmv: 1034.19, pedidos: 12 }, api: { gmv: 1000, pedidos: 11 },
+      diferenca: 34.19, corrigido: true,
+    }],
+    quedas: [],
+  });
+  assert.equal(r.divergencias, 1);
+  assert.equal(r.detalheDivergencias[0].salvo.gmv, 1034.19);
+  assert.equal(r.detalheDivergencias[0].api.gmv, 1000);
+  assert.equal(r.detalheDivergencias[0].corrigido, true);
+});
+
 test("uma única queda já derruba tudoCerto", () => {
   const r = montarResumo({
     dia: "2026-08-11",

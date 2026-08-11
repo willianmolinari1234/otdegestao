@@ -897,22 +897,28 @@ function avisoConferenciaHTML(){
   }
   for(const d of (conferencia.detalheDivergencias||[]).slice(0,5)){
     const rotulo=d.tipo==="faltando"
-      ? `a Shopee tem ${money(d.api&&d.api.gmv)} em ${fmtDate(d.dia)} e o sistema não registrou nada`
+      ? `a Shopee tem ${money(d.api&&d.api.gmv)} em ${fmtDate(d.dia)} e o sistema não tinha registrado`
       : d.tipo==="pedidos"
-      ? `o valor bate em ${fmtDate(d.dia)}, mas a contagem de pedidos não`
-      : `em ${fmtDate(d.dia)} o sistema mostra ${money(d.diferenca)} ${Number(d.diferenca)>0?"a mais":"a menos"} que a Shopee`;
-    itens.push(`<li><b>${esc(nomeLoja(d.cliente))}</b>: ${rotulo}.</li>`);
+      ? `a contagem de pedidos de ${fmtDate(d.dia)} mudou`
+      : `${fmtDate(d.dia)} mudou de ${money(d.salvo&&d.salvo.gmv)} para ${money(d.api&&d.api.gmv)}`;
+    // Dizer que já foi corrigido evita a pergunta "e agora, eu conserto como?".
+    // O que importa é o aviso de que o número MUDOU: se a loja já foi cobrada
+    // com o valor antigo, a fatura precisa ser acertada.
+    const fim=d.corrigido
+      ? " — já corrigido pelo valor da Shopee. Se já cobrou, revise a fatura."
+      : " — não corrigi automaticamente: a Shopee devolveu o dia vazio e prefiro não apagar faturamento.";
+    itens.push(`<li><b>${esc(nomeLoja(d.cliente))}</b>: ${rotulo}${fim}</li>`);
   }
   const sobra=(conferencia.divergencias||0)+(conferencia.quedas||0)-itens.length;
 
   return`<div style="background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
     <div style="font-weight:700;font-size:13.5px;color:#9a3412;margin-bottom:6px">
-      Conferência de ${fmtDate(conferencia.data)}: os números não fecham com a Shopee
+      Conferência de ${fmtDate(conferencia.data)}: números mudaram depois de fechados
     </div>
     <ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${itens.join("")}</ul>
     ${sobra>0?`<div style="font-size:11.5px;color:#9a3412">…e mais ${sobra} ocorrência(s).</div>`:""}
     <div style="font-size:11.5px;color:#9a3412;margin-top:6px">
-      Confira antes de fechar a cobrança dessas lojas.
+      Causa habitual: pedido cancelado ou devolvido depois da venda. Confira antes de fechar a cobrança dessas lojas.
     </div>
   </div>`;
 }

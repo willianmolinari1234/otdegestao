@@ -820,9 +820,32 @@ async function rodarConferencia() {
   await forEachShop(async ({ cliente, shopId, token }) => {
     for (const dia of dias) {
       const api = await fetchVendasDoDia(dia, shopId, token);
-      const doc = await db.collection("sales").doc(`${cliente}_${dia}`).get();
+      const ref = db.collection("sales").doc(`${cliente}_${dia}`);
+      const doc = await ref.get();
       const salvo = doc.exists ? doc.data() : null;
       const r = compararDia(api, salvo);
+
+      // Divergiu num dia FECHADO: a Shopee é a fonte, o nosso número é cópia.
+      // Quase sempre é pedido cancelado ou devolvido DEPOIS da sincronização
+      // daquele dia — a cópia envelheceu. Corrigimos para o valor da Shopee,
+      // que é o mesmo que você vê no Seller Centre e o que deve ser cobrado.
+      //
+      // A correção é REGISTRADA, não silenciosa: o alerta mostra o valor
+      // antigo e o novo. O importante não é só ter o número certo agora, é
+      // você saber que ele mudou depois — se já cobrou, precisa acertar.
+      // A guarda `api.pedidos > 0` é proposital: se a Shopee devolver um dia
+      // vazio onde temos venda registrada, NÃO apagamos. Pode ser instabilidade
+      // da API, e zerar faturamento por causa de uma resposta ruim seria bem
+      // pior do que conviver com um alerta. Nesse caso só avisamos.
+      if (!r.confere && api.pedidos > 0) {
+        await ref.set({
+          cliente, data: dia, ...api,
+          ticketMedio: api.pedidos ? api.gmv / api.pedidos : 0,
+          atualizadoEm: FieldValue.serverTimestamp(),
+          corrigidoPelaConferencia: hoje,
+        }, { merge: true });
+      }
+
       comparacoes.push({
         cliente, dia,
         api: { gmv: Number(api.gmv.toFixed(2)), pedidos: api.pedidos },
@@ -830,6 +853,7 @@ async function rodarConferencia() {
         confere: r.confere,
         tipo: r.tipo,
         diferenca: Number(r.diferenca.toFixed(2)),
+        corrigido: !r.confere && api.pedidos > 0,
       });
     }
   });
