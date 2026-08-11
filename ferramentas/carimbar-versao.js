@@ -42,10 +42,37 @@ html = html.replace(
   }
 );
 
+// Import de módulo — import ... from "./js/custos.js".
+// Ficou de fora na primeira versão e deu erro em produção: o navegador
+// serviu o custos.js antigo por causa do cache de 7 dias e a tela de
+// importação quebrou com "interpretarPlanilha is not a function".
+// Cache longo só é seguro se TODA forma de carregar arquivo for carimbada.
+html = html.replace(
+  /(from\s+["'])(\.\/)?(js\/[^"'?]+\.js)(\?v=[a-f0-9]+)?(["'])/g,
+  (todo, ini, ponto, arquivo, _v, fim) => {
+    const h = hashDe(arquivo);
+    if (!h) { faltando.push(arquivo); return todo; }
+    trocados++;
+    return `${ini}${ponto || ""}${arquivo}?v=${h}${fim}`;
+  }
+);
+
 if (faltando.length) {
   console.error("  !! arquivos não encontrados: " + faltando.join(", "));
   process.exit(1);
 }
 
+// Trava: qualquer referência a js/ sem carimbo é erro de publicação.
+// O import de módulo escapou uma vez e, com o cache de 7 dias, o navegador
+// serviu código velho até quebrar em produção. Uma referência sem carimbo
+// vale por um bug que só aparece na máquina de quem já visitou o site.
+const semCarimbo = [...html.matchAll(/(js\/[A-Za-z0-9._-]+\.js)(\?v=[a-f0-9]+)?/g)]
+  .filter((m) => !m[2]).map((m) => m[1]);
+if (semCarimbo.length) {
+  console.error("  !! sem carimbo: " + [...new Set(semCarimbo)].join(", "));
+  console.error("     Com cache longo, isso serve versão antiga ao usuário.");
+  process.exit(1);
+}
+
 fs.writeFileSync(ARQUIVO, html);
-console.log(`   ${trocados} script(s) carimbado(s)`);
+console.log(`   ${trocados} script(s) carimbado(s), nenhum sem carimbo`);
