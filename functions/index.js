@@ -314,11 +314,18 @@ async function fetchVendasDoDia(dia, shopId, token) {
   // do escrow) precisa ignorar os NÃO PAGOS: a Shopee só conta "pedidos pagos"
   // no Vendas, mas o escrow devolve o pedido mesmo antes do pagamento.
   const statusPorSn = new Map();
+  // Itens vendidos, agrupados por código. Serve para cruzar com o custo da
+  // planilha. Agrupado (e não linha a linha) porque uma loja movimentada faria
+  // o documento do dia crescer sem necessidade — o que interessa é quanto de
+  // cada código saiu.
+  const porSku = new Map();
   let pedidos = 0, totalPago = 0;
   for (let i = 0; i < orderSns.length; i += 50) {
     const d = await shopCall(cfg(), {
       path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
-      params: { order_sn_list: orderSns.slice(i, i + 50).join(","), response_optional_fields: "total_amount,order_status" },
+      // item_list entra na MESMA chamada que já fazíamos: nenhum pedido extra
+      // à Shopee, nenhum custo novo.
+      params: { order_sn_list: orderSns.slice(i, i + 50).join(","), response_optional_fields: "total_amount,order_status,item_list" },
     });
     (d.response?.order_list || []).forEach((o) => {
       const st = String(o.order_status || "").toUpperCase();
@@ -326,6 +333,17 @@ async function fetchVendasDoDia(dia, shopId, token) {
       if (STATUS_IGNORADOS.has(st)) return;
       pedidos += 1;
       totalPago += n(o.total_amount);
+
+      for (const it of (o.item_list || [])) {
+        const s = String(it.item_sku || "").trim();
+        const m = String(it.model_sku || "").trim();
+        const q = n(it.model_quantity_purchased) || 1;
+        const chave = `${s}|${m}`;
+        const reg = porSku.get(chave) || { s, m, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
+        reg.q += q;
+        reg.v += n(it.model_discounted_price) * q;
+        porSku.set(chave, reg);
+      }
     });
   }
 
@@ -371,6 +389,13 @@ async function fetchVendasDoDia(dia, shopId, token) {
     taxaServico: r2(taxaServico),
     liquido: r2(liquido),               // escrow: o que cai na conta
     pedidos,
+    // Itens por código, para cruzar com o custo da planilha.
+    //   s = código do anúncio (item_sku) · m = código da variação (model_sku)
+    //   q = quantidade · v = valor · n = nome
+    // ATENÇÃO: a soma de `v` NÃO é o faturamento. Aqui é preço do item vezes
+    // quantidade; o faturamento oficial é o `gmv`, que vem do escrow e desconta
+    // cupom e cashback do vendedor. Usar `v` para cobrar seria errado.
+    itens: [...porSku.values()].map((x) => ({ ...x, v: r2(x.v) })),
   };
 }
 

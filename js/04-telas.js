@@ -474,6 +474,7 @@ function plOpenForm(id){
 function plVarRowHTML(v){v=v||{};
   return `<div class="pl-varrow">
     <input class="pv-nome" placeholder="Variação (P, M, G...)" value="${esc(String(v.nome||''))}" oninput="plVarsRecalc()">
+    <input class="pv-sku" placeholder="SKU da variação" value="${esc(String(v.sku||''))}" title="Código da variação na Shopee (model_sku). É o que permite achar o custo certo por tamanho/cor.">
     <input class="pv-custo" type="number" step="0.01" placeholder="Custo" value="${v.custo!==undefined&&v.custo!==''?v.custo:''}" oninput="plVarsRecalc()">
     <input class="pv-valor" type="number" step="0.01" placeholder="Venda" value="${v.valor!==undefined&&v.valor!==''?v.valor:''}" oninput="plVarsRecalc()">
     <span class="pv-m">—</span>
@@ -483,9 +484,10 @@ function plVarAdd(v){const box=document.getElementById("pl-vars");if(!box)return
 function plVarsData(){
   return [...document.querySelectorAll("#pl-vars .pl-varrow")].map(row=>({
     nome:((row.querySelector(".pv-nome")||{}).value||"").trim(),
+    sku:((row.querySelector(".pv-sku")||{}).value||"").trim(),
     custo:(row.querySelector(".pv-custo")||{}).value||"",
     valor:(row.querySelector(".pv-valor")||{}).value||""
-  })).filter(v=>v.nome!==""||String(v.valor).trim()!==""||String(v.custo).trim()!=="");
+  })).filter(v=>v.nome!==""||v.sku!==""||String(v.valor).trim()!==""||String(v.custo).trim()!=="");
 }
 function plVarsRecalc(){
   const cli=(document.getElementById("pl-f-cli")||{}).value||"";

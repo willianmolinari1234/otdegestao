@@ -611,7 +611,7 @@ tr:last-child td{border-bottom:none}
 #pl-modal .pl-haddrow button{border:none;background:var(--p-navy);color:#fff;border-radius:9px;padding:8px 16px;font-family:inherit;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
 #pl-modal .pl-haddrow button:hover{filter:brightness(1.15)}
 #pl-modal .pl-hnote{font-size:11px;color:var(--p-faint);margin-top:8px;line-height:1.45}
-#pl-modal .pl-varrow{display:grid;grid-template-columns:1.6fr 1fr 1fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+#pl-modal .pl-varrow{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
 #pl-modal .pl-varrow input{border:1.5px solid var(--p-line);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:13px;color:var(--p-ink);width:100%}
 #pl-modal .pl-varrow input:focus{outline:none;border-color:var(--p-o2);box-shadow:0 0 0 3px rgba(238,77,45,.10)}
 #pl-modal .pv-m{font-size:11px;font-weight:800;padding:4px 9px;border-radius:20px;background:#F0F1F5;color:#9AA1AE;min-width:58px;text-align:center}
@@ -728,12 +728,20 @@ tr:last-child td{border-bottom:none}
 
 <!-- TOAST CONTAINER -->
 <div id="toast-container"></div>
+<!-- custos.js é MÓDULO, não script clássico: o mesmo arquivo é importado pelos
+     testes em node. Assim a regra de cruzar venda com custo existe uma vez só.
+     Módulo carrega adiado, então o resto do código usa window.custos com
+     guarda — na prática ele já está pronto quando alguém faz login. -->
+<script type="module">
+  import * as custos from "./js/custos.js";
+  window.custos = custos;
+</script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
      scripts clássicos compartilham escopo e o boot precisa vir por último. -->
 <script src="js/01-estado-e-dados.js?v=d2297c90"></script>
 <script src="js/02-utilitarios.js?v=ed4174d0"></script>
 <script src="js/03-acesso.js?v=cb659190"></script>
-<script src="js/04-telas.js?v=b1bb7d46"></script>
+<script src="js/04-telas.js?v=02b92067"></script>
 <script src="js/05-clientes-e-acesso.js?v=375de987"></script>
 <script src="js/06-formularios.js?v=4b71aa2b"></script>
 <script src="js/07-interacoes-e-boot.js?v=d1eb1d18"></script>
