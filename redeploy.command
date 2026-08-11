@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
-# OTDE — Republicar em PRODUCAO. De dois cliques.
-# Roda os testes e a verificacao de sintaxe ANTES. Se algo falhar, nao publica.
+# OTDE — Publica DIRETO em producao, pulando o ambiente de teste.
+#
+# O caminho normal e o PUBLICAR.command, que passa por homologacao antes.
+# Este aqui existe para urgencia: consertar algo quebrado em producao sem
+# esperar a conferencia. Use quando o sistema ja estiver com problema.
 
 cd "$(dirname "$0")" || exit 1
+
+echo "=================================================="
+echo "  ATENCAO: publicacao DIRETA em producao"
+echo "  O caminho normal e o PUBLICAR.command."
+echo "=================================================="
+read -p "  Digite 'direto' para continuar: " c
+[ "$c" = "direto" ] || { echo "  Cancelado."; read -p "Enter..."; exit 0; }
+echo ""
 
 echo "=================================================="
 echo "  VERIFICANDO ANTES DE PUBLICAR"
