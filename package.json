@@ -1,0 +1,9 @@
+{
+  "name": "otdegestao",
+  "private": true,
+  "type": "module",
+  "description": "OTDE Gestão de Contas — sistema de gestão de lojas Shopee",
+  "scripts": {
+    "test": "node --test testes/*.test.js"
+  }
+}

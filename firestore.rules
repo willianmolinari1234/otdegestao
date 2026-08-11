@@ -43,7 +43,6 @@ service cloud.firestore {
     // ── Preenchidas pelo backend (Admin SDK). Navegador só lê ──────────
     match /sales/{id}       { allow read: if ehFuncionario(); allow write: if false; }
     match /tools/{id}       { allow read: if ehFuncionario(); allow write: if false; }
-    match /financeiro/{id}  { allow read: if ehFuncionario(); allow write: if false; }
     match /integracoes/{id} { allow read: if ehFuncionario(); allow write: if false; }
 
     // ── Tokens da Shopee: nenhum acesso pelo navegador ─────────────────

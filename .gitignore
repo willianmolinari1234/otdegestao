@@ -2,3 +2,7 @@
 .firebase/
 node_modules/
 *.log
+
+# Backups e artefatos locais
+backup-app-monolitico.html
+app-modular-quebrado.html

@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "otdegestao"
-  }
+    "default": "otdegestao",
+    "producao": "otdegestao",
+    "homolog": "otdegestao-homolog"
+  },
+  "targets": {},
+  "etags": {}
 }

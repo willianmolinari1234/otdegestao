@@ -204,7 +204,16 @@
   <details class="form" id="formPanel">
     <summary>Dados de performance (preencher / editar)</summary>
     <div class="form-grid">
-      <div class="field"><label>Faturamento (R$)</label><input type="number" step="0.01" id="fFat" placeholder="12559" /></div>
+      <div class="field">
+        <label><span id="fatCampoLbl">Faturamento do mês</span> (R$) <span id="fatOrigem" style="font-weight:600;font-size:10.5px"></span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="number" step="0.01" id="fFat" placeholder="12559" style="flex:1" />
+          <button type="button" id="fatEditar" title="Editar manualmente"
+            style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                   padding:7px 10px;font-size:12px;cursor:pointer;white-space:nowrap">✏️ Editar</button>
+        </div>
+        <div id="fatDica" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:none"></div>
+      </div>
       <div class="field"><label>Receita de Ads / GMV (R$)</label><input type="number" step="0.01" id="fRec" placeholder="11354" /></div>
       <div class="field"><label>Custo de Ads (R$)</label><input type="number" step="0.01" id="fCusto" placeholder="1140" /></div>
       <div class="field"><label>Anúncios novos</label><input type="number" step="1" id="fAnuncios" placeholder="13" /></div>
@@ -233,7 +242,7 @@
             <div class="cli-sub" id="rCliSub">Relatório de performance</div>
           </div>
         </div>
-        <button id="pdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar PDF</button>
+        <button id="pdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar imagem</button>
       </div>
       <div class="rep-body">
         <div class="cmp">
@@ -329,7 +338,7 @@
             <div class="cli-sub" id="dashSub">Consolidado OTDE</div>
           </div>
         </div>
-        <button id="dashPdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar PDF</button>
+        <button id="dashPdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar imagem</button>
       </div>
       <div class="rep-body">
         <div class="empty" id="dashEmpty"><div class="ico">Σ</div>Nenhum dado salvo neste mês ainda.</div>
@@ -353,6 +362,7 @@
             <div class="kpi"><div class="lbl">Lojas com dados</div><div class="val" id="dashLojas">–</div></div>
             <div class="kpi"><div class="lbl">Anúncios novos (soma)</div><div class="val" id="dashAds">–</div></div>
             <div class="kpi"><div class="lbl">Comissões (soma)</div><div class="val" id="dashCom">–</div></div>
+            <div class="kpi"><div class="lbl">Líquido Shopee (soma)</div><div class="val" id="dashLiq">–</div></div>
           </div>
           <div style="margin-bottom:18px;">
             <div class="chart-title">Faturamento por loja</div>
@@ -388,14 +398,25 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- jsPDF removido: os relatórios agora são exportados como JPG. -->
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
-const firebaseConfig = {
+// Mesmo código, dois ambientes. O endereço decide qual banco será usado —
+// assim a versão de teste nunca escreve nos dados reais.
+const EH_HOMOLOG = location.hostname.includes("otdegestao-homolog");
+
+const firebaseConfig = EH_HOMOLOG ? {
+  apiKey: "HOMOLOG_API_KEY",
+  authDomain: "otdegestao-homolog.firebaseapp.com",
+  projectId: "otdegestao-homolog",
+  storageBucket: "otdegestao-homolog.firebasestorage.app",
+  messagingSenderId: "HOMOLOG_SENDER_ID",
+  appId: "HOMOLOG_APP_ID"
+} : {
   apiKey: "AIzaSyDQ1-LndQtPvZ6zkO6CAt1fD4LQkZeI95A",
   authDomain: "otdegestao.firebaseapp.com",
   projectId: "otdegestao",
@@ -404,6 +425,17 @@ const firebaseConfig = {
   appId: "1:529737654679:web:b7aa1d86e1a23d769564d2",
   measurementId: "G-W8Q3S8BF3B"
 };
+
+if (EH_HOMOLOG) {
+  document.addEventListener("DOMContentLoaded", () => {
+    const f = document.createElement("div");
+    f.textContent = "AMBIENTE DE TESTE — os dados aqui não são reais";
+    f.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;"
+      + "color:#fff;text-align:center;font:700 12px system-ui;padding:5px;letter-spacing:.04em";
+    document.body.appendChild(f);
+    document.body.style.paddingTop = "26px";
+  });
+}
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -415,6 +447,30 @@ const pct = (n) => (isFinite(n) ? n : 0).toLocaleString("pt-BR", { minimumFracti
 const num = (v) => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 
 let clients = [];
+let customers = [];   // proprietários — é neles que ficam % de gestão e imposto
+
+// Aceita "8%", "7,5%", "8" e devolve número. Os campos do cadastro são texto.
+function pctNum(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(String(v).replace("%", "").replace(",", ".").trim());
+  return isFinite(n) ? n : null;
+}
+
+// Percentual efetivo de uma loja, com herança:
+//   1. valor definido na própria loja (exceção)
+//   2. valor do cliente proprietário (regra)
+//   3. padrão do sistema
+function pctDaLojaCampo(clienteId, campoLoja, campoDono, padrao) {
+  const loja = clients.find((c) => c.id === clienteId);
+  if (!loja) return padrao;
+  const proprio = pctNum(loja[campoLoja]);
+  if (proprio !== null) return proprio;
+  const dono = customers.find((c) => c.id === loja.custId);
+  const herdado = dono ? pctNum(dono[campoDono]) : null;
+  return herdado !== null ? herdado : padrao;
+}
+const comissaoDaLoja = (id) => pctDaLojaCampo(id, "comissao", "fee", 2);
+const impostoDaLoja  = (id) => pctDaLojaCampo(id, "imposto", "imposto", 0);
 let chInvest = null, chVar = null;
 let prevPerf = {};
 
@@ -453,6 +509,12 @@ onAuthStateChanged(auth, async (user) => {
 // ---------- Data ----------
 async function loadClients() {
   try {
+    // Proprietários primeiro: as lojas herdam % de gestão e imposto deles.
+    try {
+      const cs = await getDocs(collection(db, "customers"));
+      customers = cs.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e) { console.error("customers:", e); customers = []; }
+
     const snap = await getDocs(collection(db, "clients"));
     clients = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
@@ -473,6 +535,48 @@ function escapeHtml(s) {
 
 const perfId = () => `${$("clientSel").value}_${$("monthSel").value}`;
 
+// Faturamento REAL da loja no mês, vindo da API da Shopee (coleção "sales").
+// É a mesma base do Seller Centre — é sobre ela que o fechamento é cobrado.
+async function faturamentoShopee(cid, mon) {
+  const de = `${mon}-01`, ate = `${mon}-31`;
+  try {
+    const snap = await getDocs(query(collection(db, "sales"),
+      where("data", ">=", de), where("data", "<=", ate)));
+    const linhas = snap.docs.map((d) => d.data()).filter((r) => r.cliente === cid);
+    if (!linhas.length) return null;
+    return {
+      gmv: linhas.reduce((a, r) => a + num(r.gmv), 0),
+      pedidos: linhas.reduce((a, r) => a + Math.round(num(r.pedidos)), 0),
+      liquido: linhas.reduce((a, r) => a + num(r.liquido), 0),
+      dias: linhas.length,
+    };
+  } catch (err) { console.error("faturamentoShopee:", err); return null; }
+}
+
+// Faturamento dos ÚLTIMOS 30 DIAS (janela móvel, termina ontem).
+// Usado só na cobrança de clientes que fecham por esse critério — nunca
+// no relatório mensal, que é sempre por mês do calendário.
+async function faturamentoUltimos30(cid) {
+  const hoje = new Date();
+  const ate = new Date(hoje); ate.setDate(ate.getDate() - 1);
+  const de = new Date(hoje); de.setDate(de.getDate() - 30);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  try {
+    const snap = await getDocs(query(collection(db, "sales"),
+      where("data", ">=", iso(de)), where("data", "<=", iso(ate))));
+    const linhas = snap.docs.map((d) => d.data()).filter((r) => r.cliente === cid);
+    if (!linhas.length) return null;
+    return {
+      gmv: linhas.reduce((a, r) => a + num(r.gmv), 0),
+      pedidos: linhas.reduce((a, r) => a + Math.round(num(r.pedidos)), 0),
+      de: iso(de), ate: iso(ate),
+    };
+  } catch (err) { console.error("faturamentoUltimos30:", err); return null; }
+}
+
+// Guardam as duas bases do cliente selecionado.
+let fatDoMes = null, fatDe30 = null;
+
 async function loadPerf() {
   const cid = $("clientSel").value, mon = $("monthSel").value;
   if (!cid || !mon) { showEmpty(); return; }
@@ -484,9 +588,117 @@ async function loadPerf() {
     const psnap = await getDoc(doc(db, "performance", `${cid}_${prevMonth(mon)}`));
     if (psnap.exists()) prevPerf = psnap.data();
   } catch (err) { console.error(err); }
+
+  // Faturamento do MÊS: é o que fica salvo e alimenta o relatório mensal.
+  // Se alguém já ajustou este mês à mão, a API NÃO sobrescreve.
+  fatEditadoManualmente = data.faturamentoOrigem === "manual";
+  const shopee = await faturamentoShopee(cid, mon);
+  if (shopee && !fatEditadoManualmente) data = { ...data, faturamento: Number(shopee.gmv.toFixed(2)) };
+  fatDoMes = shopee;
+  fatDoMesValor = data.faturamento ?? null;
+
+  // Últimos 30 dias: base alternativa de cobrança, calculada à parte.
+  fatDe30 = await faturamentoUltimos30(cid);
+  // Ajuste manual salvo para a base de 30 dias, se existir.
+  fat30Manual = (data.faturamento30 !== undefined && data.faturamento30 !== null && data.faturamento30 !== "")
+    ? Number(data.faturamento30) : null;
+
+  // Cada loja pode ter sua base padrão definida no cadastro.
+  const cli = clients.find((x) => x.id === cid) || {};
+  if (!data.faturamentoLabel) data.faturamentoLabel = cli.baseCobranca === "ultimos30" ? "ultimos30" : "mes";
+
   fillForm(data);
+  sincronizarCampoComBase();   // campo mostra o período selecionado
   renderReport(data);
 }
+
+// Valor que vai para a COBRANÇA, conforme a base escolhida na tela.
+// O relatório mensal ignora isso e usa sempre o mês.
+// Guarda um ajuste manual feito na base de 30 dias (independente do mês).
+let fat30Manual = null;
+
+function usaUltimos30() { return $("fatLabel").value === "ultimos30"; }
+
+function baseDeCobranca() {
+  if (usaUltimos30()) {
+    // Ajuste manual tem prioridade sobre o que a API calculou.
+    const valor = fat30Manual !== null ? fat30Manual : (fatDe30 ? fatDe30.gmv : num($("fFat").value));
+    return { valor, rotulo: "Faturamento (últimos 30 dias)",
+             detalhe: fatDe30 ? `${fatDe30.de.split("-").reverse().join("/")} a ${fatDe30.ate.split("-").reverse().join("/")} · ${fatDe30.pedidos} pedidos` : "" };
+  }
+  return { valor: num($("fFat").value), rotulo: "Faturamento do mês",
+           detalhe: fatDoMes ? `${fatDoMes.pedidos} pedidos no mês` : "" };
+}
+
+// O campo editável mostra SEMPRE o número que está no relatório ao lado.
+// Assim não há como editar um período achando que é outro.
+function sincronizarCampoComBase() {
+  const campo = $("fFat"), lbl = $("fatCampoLbl");
+  if (usaUltimos30()) {
+    lbl.textContent = "Faturamento (últimos 30 dias)";
+    campo.value = (fat30Manual !== null ? fat30Manual : (fatDe30 ? Number(fatDe30.gmv.toFixed(2)) : ""));
+  } else {
+    lbl.textContent = "Faturamento do mês";
+    campo.value = fatDoMesValor !== null ? fatDoMesValor : "";
+  }
+  marcarOrigemFaturamento(usaUltimos30() ? fatDe30 : fatDoMes);
+}
+
+// Valor do mês guardado à parte, para o campo poder alternar sem perdê-lo.
+let fatDoMesValor = null;
+
+// Mostra de onde veio o faturamento — importante porque é a base da cobrança.
+function marcarOrigemFaturamento(shopee) {
+  const tag = $("fatOrigem"), dica = $("fatDica"), campo = $("fFat"), btn = $("fatEditar");
+  if (shopee) {
+    tag.textContent = "· automático (Shopee)";
+    tag.style.color = "var(--green)";
+    campo.readOnly = true;
+    campo.style.background = "var(--bg)";
+    btn.style.display = "block";
+    dica.style.display = "block";
+    if (usaUltimos30()) {
+      dica.innerHTML = `Editando os <strong>últimos 30 dias</strong> (${shopee.pedidos} pedidos). `
+        + `Alterar aqui <strong>não muda</strong> o faturamento do mês, que continua `
+        + `${fatDoMesValor !== null ? `em ${brl(fatDoMesValor)}` : "como está"} no relatório mensal.`;
+    } else {
+      const extra = fatDe30
+        ? `<br>Últimos 30 dias: <strong>${brl(fat30Manual !== null ? fat30Manual : fatDe30.gmv)}</strong> (${fatDe30.pedidos} pedidos) — usado só na cobrança por essa base.`
+        : "";
+      dica.innerHTML = `Editando o <strong>mês fechado</strong> (${shopee.pedidos} pedidos em ${shopee.dias} dia(s)) `
+        + `— é o que alimenta o relatório mensal.${extra}`;
+    }
+  } else {
+    tag.textContent = "· manual";
+    tag.style.color = "var(--text-muted)";
+    campo.readOnly = false;
+    campo.style.background = "";
+    btn.style.display = "none";
+    dica.style.display = "block";
+    dica.textContent = "Loja sem integração neste mês — preencha à mão.";
+  }
+}
+
+// Libera a edição do faturamento automático. Serve para os casos em que a
+// Shopee mostra outro número (ajuste, devolução processada depois etc.).
+// Ao salvar, o valor passa a valer sobre o da API para aquele mês.
+$("fatEditar").addEventListener("click", () => {
+  const campo = $("fFat"), tag = $("fatOrigem");
+  campo.readOnly = false;
+  campo.style.background = "";
+  campo.focus();
+  campo.select();
+  tag.textContent = "· editado à mão";
+  tag.style.color = "#b45309";
+  $("fatDica").innerHTML = "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o da API neste mês "
+    + "e deixa de ser atualizado automaticamente.";
+  $("fatEditar").style.display = "none";
+  fatEditadoManualmente = true;
+});
+
+// Marca que o faturamento deste mês foi ajustado à mão. Enquanto verdadeiro,
+// a API não sobrescreve o valor ao recarregar a tela.
+let fatEditadoManualmente = false;
 
 function fillForm(d) {
   $("fFat").value = d.faturamento ?? "";
@@ -495,14 +707,23 @@ function fillForm(d) {
   $("fAnuncios").value = d.anunciosNovos ?? "";
   $("fVarAnt").value = d.variacaoMesPassado ?? "";
   $("fVarAtu").value = d.variacaoMesAtual ?? "";
-  $("fPercent").value = d.percentFatura ?? 2;
+  // O % do mês herda do cliente proprietário. Só fica diferente se alguém
+  // digitar outro valor aqui — assim o contrato é a fonte da verdade.
+  $("fPercent").value = d.percentFatura ?? comissaoDaLoja($("clientSel").value);
   $("fRoasManual").value = d.roasManual ?? "";
   $("fSolic").value = d.solicitacoes ?? "";
   if (d.faturamentoLabel) $("fatLabel").value = d.faturamentoLabel;
 }
 
 function collectForm() {
-  const faturamento = num($("fFat").value);
+  // O campo pode estar mostrando o mês OU os últimos 30 dias. Cada um é salvo
+  // no seu próprio lugar — editar um NUNCA altera o outro.
+  const noCampo = num($("fFat").value);
+  const editando30 = usaUltimos30();
+  const faturamento = editando30
+    ? (fatDoMesValor !== null ? fatDoMesValor : 0)   // mês permanece intocado
+    : noCampo;
+  const faturamento30 = editando30 ? noCampo : (fat30Manual !== null ? fat30Manual : null);
   const receitaAds = num($("fRec").value);
   const custoAds = num($("fCusto").value);
   const percentFatura = num($("fPercent").value);
@@ -517,7 +738,13 @@ function collectForm() {
     variacaoMesPassado: num($("fVarAnt").value),
     variacaoMesAtual: num($("fVarAtu").value),
     solicitacoes: $("fSolic").value.trim(),
-    faturamentoLabel: $("fatLabel").value
+    faturamentoLabel: $("fatLabel").value,
+    faturamento30,
+    // Marca a origem para o próximo carregamento saber se pode atualizar
+    // o faturamento pela API ou se deve respeitar o ajuste manual.
+    faturamentoOrigem: editando30
+      ? (fatDoMes ? "api-shopee" : "manual")            // o mês não foi tocado
+      : (fatEditadoManualmente ? "manual" : (fatDoMes ? "api-shopee" : "manual"))
   };
 }
 
@@ -558,11 +785,15 @@ function renderReport(d) {
   if (!cid || !mon) { showEmpty(); return; }
   const c = clients.find((x) => x.id === cid) || {};
   const calc = { ...d };
+  // A base de cobrança pode ser o mês ou os últimos 30 dias (escolha da tela).
+  // O que é SALVO continua sendo o mês — isso aqui afeta só a exibição.
+  const base = baseDeCobranca();
+  calc.faturamento = base.valor;
   // recompute derived fields to be safe
-  calc.tacos = num(d.faturamento) > 0 ? (num(d.custoAds) / num(d.faturamento)) * 100 : 0;
+  calc.tacos = base.valor > 0 ? (num(d.custoAds) / base.valor) * 100 : 0;
   const roasM = d.roasManual === null || d.roasManual === undefined || d.roasManual === "" ? null : num(d.roasManual);
   calc.roas = roasM !== null ? roasM : (num(d.custoAds) > 0 ? num(d.receitaAds) / num(d.custoAds) : 0);
-  calc.valorPercent = num(d.faturamento) * num(d.percentFatura) / 100;
+  calc.valorPercent = base.valor * num(d.percentFatura) / 100;
 
   $("emptyState").style.display = "none";
   $("reportContent").style.display = "block";
@@ -570,7 +801,13 @@ function renderReport(d) {
   const name = c.name || "Cliente";
   $("rAvatar").textContent = (name.trim()[0] || "?").toUpperCase();
   $("rCliName").textContent = name;
-  $("rCliSub").textContent = "Relatório de performance · " + monthLabel(mon) + (c.mkt ? " · " + c.mkt : "");
+  // O subtítulo acompanha a base escolhida: dizer "julho" num relatório de
+  // últimos 30 dias induziria o cliente ao erro.
+  const periodoTxt = $("fatLabel").value === "ultimos30"
+    ? (fatDe30 ? `últimos 30 dias · ${fatDe30.de.split("-").reverse().join("/")} a ${fatDe30.ate.split("-").reverse().join("/")}`
+               : "últimos 30 dias")
+    : monthLabel(mon);
+  $("rCliSub").textContent = "Relatório de performance · " + periodoTxt + (c.mkt ? " · " + c.mkt : "");
 
   // comparison — mês atual calculado automaticamente a partir do histórico
   const fatAtual = num(d.faturamento);
@@ -585,8 +822,9 @@ function renderReport(d) {
   if (hasHist) $("rVarAtuCap").textContent = (vb >= 0 ? "alta" : "queda") + " · " + brl(fatAnt) + " → " + brl(fatAtual);
 
   // kpis
-  $("rFatLbl").textContent = d.faturamentoLabel === "ultimos30" ? "Faturamento (últimos 30 dias)" : "Faturamento do mês";
-  $("rFat").textContent = brl(num(d.faturamento));
+  $("rFatLbl").textContent = base.rotulo;
+  // calc.faturamento já respeita a base escolhida (mês ou últimos 30 dias).
+  $("rFat").textContent = brl(num(calc.faturamento));
   $("rCusto").textContent = brl(num(d.custoAds));
   $("rRoas").textContent = (isFinite(calc.roas) ? calc.roas : 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   $("rTacos").textContent = pct(calc.tacos);
@@ -595,10 +833,12 @@ function renderReport(d) {
   $("rPercent").textContent = brl(calc.valorPercent);
 
   $("rSolic").textContent = d.solicitacoes && d.solicitacoes.trim() ? d.solicitacoes : "—";
-  $("rPeriodo").textContent = "Período: " + monthLabel(mon);
+  $("rPeriodo").textContent = "Período: " + periodoTxt;
   $("rGerado").textContent = "Gerado em " + new Date().toLocaleDateString("pt-BR");
 
-  drawCharts(num(d.custoAds), num(d.faturamento), va, vb);
+  // Os gráficos usam a mesma base exibida, senão o "investido vs. faturado"
+  // compararia o Ads do mês com o faturamento de 30 dias.
+  drawCharts(num(d.custoAds), base.valor, va, vb);
 }
 
 function setCmp(cardId, valId, capId, v) {
@@ -719,7 +959,14 @@ async function loadRealtime() {
   // Repasse: comissões, taxas e o líquido que cai na conta (API de escrow).
   const soma = (campo) => rows.reduce((a, r) => a + num(r[campo]), 0);
   const comissao = soma("comissao"), taxaServico = soma("taxaServico");
-  const liquido = soma("liquido"), cupons = soma("cupons") + soma("cashback"), frete = soma("frete");
+  const liquidoShopee = soma("liquido"), cupons = soma("cupons") + soma("cashback"), frete = soma("frete");
+
+  // Comissão da OTDE: percentual definido no cadastro de cada loja, aplicado
+  // sobre o faturamento dela. Sem valor cadastrado, usa 2%.
+  // % vem do cliente proprietário; a loja só sobrescreve se tiver valor próprio.
+  const comissaoOTDE = rows.reduce((a, r) => a + num(r.gmv) * comissaoDaLoja(r.cliente) / 100, 0);
+  const impostos = rows.reduce((a, r) => a + num(r.gmv) * impostoDaLoja(r.cliente) / 100, 0);
+  const liquido = liquidoShopee - comissaoOTDE - impostos;   // o que sobra para o lojista
   const nota = $("rtNota");
   if (liquido > 0 || comissao > 0) {
     const pctTaxas = gmv ? ((comissao + taxaServico) / gmv * 100) : 0;
@@ -730,11 +977,17 @@ async function loadRealtime() {
         <span>Taxa de serviço: <strong style="color:#dc2626;">${brl(taxaServico)}</strong></span>
         <span>Cupons e cashback da loja: <strong style="color:#dc2626;">${brl(cupons)}</strong></span>
         <span>Frete dos compradores: <strong>${brl(frete)}</strong></span>
-        <span style="margin-left:auto;">Líquido a receber:
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
+        <span>Líquido da Shopee: <strong>${brl(liquidoShopee)}</strong></span>
+        <span>Comissão OTDE: <strong style="color:#dc2626;">− ${brl(comissaoOTDE)}</strong></span>
+        ${impostos > 0 ? `<span>Impostos: <strong style="color:#dc2626;">− ${brl(impostos)}</strong></span>` : ""}
+        <span style="margin-left:auto;">Líquido do lojista:
           <strong style="color:var(--green);font-size:14px;">${brl(liquido)}</strong></span>
       </div>
       <div style="margin-top:6px;">Faturamento = mesma fórmula do Seller Centre (preço de venda − cupom do vendedor).
-        Taxas consomem <strong>${pctTaxas.toFixed(1)}%</strong> do faturamento.</div>`;
+        Taxas da Shopee consomem <strong>${pctTaxas.toFixed(1)}%</strong> do faturamento.
+        Comissão${impostos > 0 ? " e imposto" : ""} conforme o percentual do cadastro de cada loja.</div>`;
   } else {
     nota.style.display = "none";
   }
@@ -746,13 +999,17 @@ function renderRankingLojas(rows, totalGmv) {
   const porLoja = {};
   rows.forEach((r) => {
     const k = r.cliente || "?";
-    if (!porLoja[k]) porLoja[k] = { gmv: 0, pedidos: 0 };
+    if (!porLoja[k]) porLoja[k] = { gmv: 0, pedidos: 0, liquido: 0 };
     porLoja[k].gmv += num(r.gmv);
     porLoja[k].pedidos += Math.round(num(r.pedidos));
+    porLoja[k].liquido += num(r.liquido);
   });
   const nomeDe = (id) => (clients.find((c) => c.id === id) || {}).name || id;
   const lista = Object.entries(porLoja)
-    .map(([id, v]) => ({ nome: nomeDe(id), ...v }))
+    .map(([id, v]) => {
+      const pct = comissaoDaLoja(id), imp = impostoDaLoja(id);
+      return { nome: nomeDe(id), pct, imp, comissao: v.gmv * pct / 100, imposto: v.gmv * imp / 100, ...v };
+    })
     .filter((v) => v.gmv > 0 || v.pedidos > 0)
     .sort((a, b) => b.gmv - a.gmv);
 
@@ -772,6 +1029,8 @@ function renderRankingLojas(rows, totalGmv) {
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-size:13px;font-weight:700;">${brl(v.gmv)}</div>
         <div style="font-size:11px;color:var(--text-muted);">${v.pedidos} ${v.pedidos === 1 ? "pedido" : "pedidos"} · ${perc}%</div>
+        <div style="font-size:11px;color:#dc2626;margin-top:2px;">comissão ${v.pct}% · ${brl(v.comissao)}${v.imp > 0 ? ` · imposto ${v.imp}% · ${brl(v.imposto)}` : ""}</div>
+        <div style="font-size:11px;color:var(--green);">líquido ${brl(v.liquido - v.comissao - v.imposto)}</div>
       </div>
     </div>`;
   }).join("");
@@ -902,12 +1161,53 @@ async function fetchPeriodo(mon) {
   return snap.docs.map((d) => d.data());
 }
 
+// Consolidado do mês juntando as DUAS fontes:
+//  · vendas reais da Shopee (coleção "sales") — atualizadas sozinhas;
+//  · dados preenchidos à mão (coleção "performance") — Ads, % de comissão etc.
+// O faturamento sempre vem da API quando a loja está integrada, então o
+// consolidado aparece em tempo real, sem depender de alguém salvar o mês.
+async function fetchPeriodoCompleto(mon) {
+  const [manuais, vendasSnap] = await Promise.all([
+    fetchPeriodo(mon),
+    getDocs(query(collection(db, "sales"),
+      where("data", ">=", `${mon}-01`), where("data", "<=", `${mon}-31`))),
+  ]);
+
+  const porCliente = new Map();
+  manuais.forEach((m) => porCliente.set(m.cliente, { ...m }));
+
+  const agregado = new Map();
+  vendasSnap.docs.map((d) => d.data()).forEach((v) => {
+    const k = v.cliente;
+    if (!k) return;
+    const a = agregado.get(k) || { gmv: 0, pedidos: 0, liquido: 0, comissao: 0, taxaServico: 0 };
+    a.gmv += num(v.gmv); a.pedidos += Math.round(num(v.pedidos));
+    a.liquido += num(v.liquido); a.comissao += num(v.comissao); a.taxaServico += num(v.taxaServico);
+    agregado.set(k, a);
+  });
+
+  agregado.forEach((a, cliente) => {
+    // Sem dados manuais no mês, o % vem do cadastro do cliente proprietário.
+    const base = porCliente.get(cliente) || { cliente, periodo: mon, percentFatura: comissaoDaLoja(cliente) };
+    porCliente.set(cliente, {
+      ...base,
+      faturamento: Number(a.gmv.toFixed(2)),   // API manda no faturamento
+      pedidosShopee: a.pedidos,
+      liquidoShopee: Number(a.liquido.toFixed(2)),
+      taxasShopee: Number((a.comissao + a.taxaServico).toFixed(2)),
+      viaApi: true,
+    });
+  });
+
+  return [...porCliente.values()];
+}
+
 async function loadDash() {
   const mon = $("dashMonth").value;
   if (!mon) return;
   let rows = [], prevRows = [];
   try {
-    [rows, prevRows] = await Promise.all([fetchPeriodo(mon), fetchPeriodo(prevMonth(mon))]);
+    [rows, prevRows] = await Promise.all([fetchPeriodoCompleto(mon), fetchPeriodoCompleto(prevMonth(mon))]);
   } catch (err) { console.error(err); }
 
   $("dashSub").textContent = "Consolidado OTDE · " + monthLabel(mon);
@@ -939,6 +1239,9 @@ async function loadDash() {
   $("dashLojas").textContent = rows.length;
   $("dashAds").textContent = totAds;
   $("dashCom").textContent = brl(totCom);
+  // Líquido: só existe para lojas integradas (vem do repasse da Shopee).
+  const totLiq = sum(rows, "liquidoShopee");
+  $("dashLiq").textContent = totLiq > 0 ? brl(totLiq) : "—";
 
   const varCard = $("dashVarCard");
   if (prevTot > 0) {
@@ -981,7 +1284,7 @@ async function loadDash() {
 
 $("dashPdfBtn").addEventListener("click", async () => {
   const mon = $("dashMonth").value;
-  if (!mon || $("dashContent").style.display === "none") { alert("Escolha um mês com dados antes de baixar o PDF."); return; }
+  if (!mon || $("dashContent").style.display === "none") { alert("Escolha um mês com dados antes de baixar a imagem."); return; }
   const el = $("dashReport");
   const canvas = await html2canvas(el, {
     scale: 2, backgroundColor: "#ffffff", useCORS: true,
@@ -991,13 +1294,7 @@ $("dashPdfBtn").addEventListener("click", async () => {
       const b = docc.getElementById("dashPdfBtn"); if (b) b.style.visibility = "hidden";
     }
   });
-  const img = canvas.toDataURL("image/png");
-  const { jsPDF } = window.jspdf;
-  const iw = 210;
-  const ih = (canvas.height * iw) / canvas.width;
-  const pdf = new jsPDF({ orientation: ih >= iw ? "portrait" : "landscape", unit: "mm", format: [iw, ih] });
-  pdf.addImage(img, "PNG", 0, 0, iw, ih);
-  pdf.save(`Vendas-Mensais-OTDE-${mon}.pdf`);
+  baixarJPG(canvas, `Vendas-OTDE-${mon}.jpg`);
 });
 
 // live preview dos cálculos enquanto digita
@@ -1014,12 +1311,16 @@ updateChips();
 
 $("clientSel").addEventListener("change", loadPerf);
 $("monthSel").addEventListener("change", loadPerf);
-$("fatLabel").addEventListener("change", () => { const d = collectForm(); if ($("clientSel").value && $("monthSel").value) renderReport({ ...d }); });
+$("fatLabel").addEventListener("change", () => {
+  // Troca a base: o campo passa a mostrar (e editar) o período selecionado.
+  sincronizarCampoComBase();
+  if ($("clientSel").value && $("monthSel").value) renderReport(collectForm());
+});
 
 // ---------- PDF ----------
 $("pdfBtn").addEventListener("click", async () => {
   const cid = $("clientSel").value, mon = $("monthSel").value;
-  if (!cid || $("reportContent").style.display === "none") { alert("Gere um relatório antes de baixar o PDF."); return; }
+  if (!cid || $("reportContent").style.display === "none") { alert("Gere um relatório antes de baixar a imagem."); return; }
   const c = clients.find((x) => x.id === cid) || {};
   const el = $("report");
   const canvas = await html2canvas(el, {
@@ -1030,16 +1331,27 @@ $("pdfBtn").addEventListener("click", async () => {
       const b = docc.getElementById("pdfBtn"); if (b) b.style.visibility = "hidden";
     }
   });
-  const img = canvas.toDataURL("image/png");
-  const { jsPDF } = window.jspdf;
-  // página única no tamanho exato do conteúdo (largura A4, sem faixas brancas)
-  const iw = 210;
-  const ih = (canvas.height * iw) / canvas.width;
-  const pdf = new jsPDF({ orientation: ih >= iw ? "portrait" : "landscape", unit: "mm", format: [iw, ih] });
-  pdf.addImage(img, "PNG", 0, 0, iw, ih);
   const safe = (c.name || "cliente").normalize("NFD").replace(/[^\w]+/g, "-");
-  pdf.save(`Relatorio-${safe}-${mon}.pdf`);
+  baixarJPG(canvas, `Relatorio-${safe}-${mon}.jpg`);
 });
+
+// Salva o canvas como JPG. O JPG não tem transparência: sem um fundo branco
+// explícito, as áreas vazias sairiam pretas.
+function baixarJPG(canvas, nomeArquivo) {
+  const fundo = document.createElement("canvas");
+  fundo.width = canvas.width; fundo.height = canvas.height;
+  const ctx = fundo.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, fundo.width, fundo.height);
+  ctx.drawImage(canvas, 0, 0);
+  fundo.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, "image/jpeg", 0.95);
+}
 </script>
 </body>
 </html>

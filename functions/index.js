@@ -1,14 +1,18 @@
 // Backend do OTDE — App 1 (categoria "ERP System"): vendas + ferramentas.
 // Cloud Functions (2ª geração). Requer plano Blaze no Firebase.
 //
-// Fluxo:
-//   1) /shopeeAuthLink?cliente=ID  -> redireciona o lojista para autorizar o app
-//   2) /shopeeCallback             -> recebe code + shop_id, salva tokens em shopee_auth/{cliente}
-//   3) syncVendas  (agendada)      -> grava faturamento do dia em sales/{cliente}_{data}
-//   4) syncFerramentas (agendada)  -> grava promoções ativas em tools/{cliente}
+// Fluxo de conexão de uma loja:
+//   1) /linkAutorizacao  (admin)  -> gera o link assinado de autorização
+//   2) /shopeeCallback            -> valida a assinatura e salva os tokens
+//                                    em shopee_auth/{cliente}
+//
+// Rotinas automáticas:
+//   syncVendas      (30 min) -> vendas do dia em sales/{cliente}_{data}
+//   syncFerramentas (6 h)    -> promoções ativas em tools/{cliente}
+//   syncHistorico   (5 min)  -> recupera o histórico de lojas novas
 //
 // Segredos (definir com: firebase functions:secrets:set NOME):
-//   SHOPEE_PARTNER_ID, SHOPEE_PARTNER_KEY, SHOPEE_CALLBACK_URL
+//   SHOPEE_PARTNER_KEY   (o resto fica em functions/.env)
 
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -94,6 +98,42 @@ export const removerFuncionario = onRequest({ secrets, cors: ["https://otdegesta
     res.status(500).json({ erro: e.message });
   }
 });
+
+// ---------- Bloquear auto-cadastro no Firebase Auth ----------
+// Mesmo com as regras fechadas, qualquer pessoa ainda conseguia CRIAR uma
+// conta no Auth (ela não acessaria nada, mas polui a base e é degrau para
+// outros ataques). Isto desliga o cadastro público — contas passam a ser
+// criadas só pelo Admin SDK, em criarFuncionario.
+// Equivale a: Authentication > Settings > User actions > Enable create (OFF).
+export const bloquearAutoCadastro = onRequest(
+  { secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] },
+  async (req, res) => {
+    try {
+      const admin = await exigirAdmin(req);
+      if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+      const desligar = req.query.reverter !== "1";
+
+      const { GoogleAuth } = await import("google-auth-library");
+      const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+      const projeto = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+      const cliente = await auth.getClient();
+      const url = `https://identitytoolkit.googleapis.com/admin/v2/projects/${projeto}/config`
+                + `?updateMask=client.permission.disabledUserSignup`;
+      const r = await cliente.request({
+        url, method: "PATCH",
+        data: { client: { permission: { disabledUserSignup: desligar } } },
+      });
+      res.json({
+        ok: true,
+        autoCadastroBloqueado: r.data?.client?.permission?.disabledUserSignup === true,
+        detalhe: r.data?.client?.permission || null,
+      });
+    } catch (e) {
+      logger.error("bloquearAutoCadastro", e);
+      res.status(500).json({ erro: e.message, dica: "Se faltar permissão, a conta de serviço precisa do papel Firebase Authentication Admin." });
+    }
+  }
+);
 
 // ---------- 1) Link de autorização (só admin, com estado assinado) ----------
 // O antigo shopeeAuthLink era público: qualquer pessoa podia gerar um link
@@ -245,6 +285,9 @@ function limitesDoDia(dia) {
 
 // Pedidos que NÃO contam como venda: não pagos e cancelados.
 const STATUS_IGNORADOS = new Set(["UNPAID", "CANCELLED", "INVOICE_PENDING"]);
+
+// Converte para número tratando null/undefined como zero.
+const n = (v) => Number(v || 0);
 
 // Faturamento de um dia do calendário, para uma loja.
 async function fetchVendasDoDia(dia, shopId, token) {
@@ -462,339 +505,6 @@ export const syncAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (req,
   }
 });
 
-// ---------- FINANCEIRO (repasse / escrow) ----------------------------------
-// Fonte da verdade para fechamento: o quanto de fato entra na conta.
-// get_escrow_detail_batch traz, por pedido, o bruto pago pelo comprador, as
-// comissões e taxas da Shopee, e o líquido a receber (escrow_amount).
-
-// Lista os order_sn de um dia (mesma janela usada nas vendas).
-async function pedidosDoDia(dia, shopId, token) {
-  const { inicio, fim } = limitesDoDia(dia);
-  if (fim <= inicio) return [];
-  let cursor = "", sns = [];
-  do {
-    const r = await shopCall(cfg(), {
-      path: "/api/v2/order/get_order_list", accessToken: token, shopId,
-      params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 100, cursor },
-    });
-    sns.push(...(r.response?.order_list || []).map((o) => o.order_sn));
-    cursor = r.response?.next_cursor || "";
-    if (!r.response?.more) break;
-  } while (cursor);
-  return sns;
-}
-
-const n = (v) => Number(v || 0);
-
-// Repasse de um dia: soma o detalhamento financeiro de cada pedido.
-async function fetchFinanceiroDoDia(dia, shopId, token) {
-  const sns = await pedidosDoDia(dia, shopId, token);
-  const tot = {
-    pedidos: 0,
-    bruto: 0,          // valor dos produtos (antes de taxas)
-    pagoPeloComprador: 0,
-    comissao: 0,       // comissão da Shopee
-    taxaServico: 0,    // taxa de serviço / programas
-    taxaTransacao: 0,  // taxa de transação (pagamento)
-    freteComprador: 0,
-    freteReal: 0,
-    descontoVendedor: 0,
-    descontoShopee: 0,
-    liquido: 0,        // escrow_amount — o que cai na conta
-  };
-  const amostra = [];
-  for (let i = 0; i < sns.length; i += 50) {
-    // Atenção: este endpoint é POST e exige order_sn_list como ARRAY, ao
-    // contrário do get_order_detail, que é GET com os SNs separados por vírgula.
-    const r = await shopPost(cfg(), {
-      path: "/api/v2/payment/get_escrow_detail_batch", accessToken: token, shopId,
-      body: { order_sn_list: sns.slice(i, i + 50) },
-    });
-    const lista = r.response || [];
-    lista.forEach((item) => {
-      const inc = item?.escrow_detail?.order_income;
-      if (!inc) return;
-      tot.pedidos += 1;
-      tot.bruto += n(inc.original_price) - n(inc.seller_discount);
-      tot.pagoPeloComprador += n(inc.buyer_total_amount);
-      tot.comissao += n(inc.commission_fee);
-      tot.taxaServico += n(inc.service_fee);
-      tot.taxaTransacao += n(inc.seller_transaction_fee);
-      tot.freteComprador += n(inc.buyer_paid_shipping_fee);
-      tot.freteReal += n(inc.actual_shipping_fee);
-      tot.descontoVendedor += n(inc.seller_discount);
-      tot.descontoShopee += n(inc.shopee_discount);
-      tot.liquido += n(inc.escrow_amount);
-      tot.cupomVendedor = n(tot.cupomVendedor) + n(inc.voucher_from_seller);
-      // Uma linha por pedido: o suficiente para conferir cupom a cupom.
-      const it = inc.items || [];
-      const somaIt = (campo) => it.reduce((a, x) => a + n(x[campo]), 0);
-      amostra.push({
-        sn: item.order_sn,
-        venda: n(inc.order_selling_price),
-        cupomPedido: n(inc.voucher_from_seller),
-        cupomItens: Number(somaIt("discount_from_voucher_seller").toFixed(2)),
-        moedas: Number(somaIt("discount_from_coin").toFixed(2)),
-        coins: n(inc.coins),
-        cashback: n(inc.seller_coin_cash_back),
-        codigo: (inc.seller_voucher_code || []).join(","),
-        liquido: n(inc.escrow_amount),
-      });
-    });
-  }
-  Object.keys(tot).forEach((k) => { if (k !== "pedidos") tot[k] = Number(tot[k].toFixed(2)); });
-  return { ...tot, amostra };
-}
-
-// Diagnóstico: /financeiroDia?token=SEU_TOKEN&dia=2026-08-02[&bruto=1]
-export const financeiroDia = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
-  const esperado = (process.env.SYNC_TOKEN || "").trim();
-  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
-  const dia = String(req.query.dia || dataLocal());
-  // Itera as lojas SEM engolir erros — aqui o erro é justamente o diagnóstico.
-  const out = [], erros = [];
-  const snap = await db.collection("shopee_auth").get();
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    try {
-      const token = await ensureToken(doc.ref, data);
-      const f = await fetchFinanceiroDoDia(dia, data.shopId, token);
-      if (req.query.bruto !== "1") delete f.amostra;
-      out.push({ cliente: doc.id, dia, ...f });
-    } catch (e) {
-      erros.push({ cliente: doc.id, erro: e.message });
-    }
-  }
-  res.json({
-    ok: erros.length === 0,
-    resultado: out,
-    erros,
-    dica: erros.length ? "Erro 'no_permission'/'error_auth' significa que o app não tem o escopo de Payment liberado na Shopee." : undefined,
-  });
-});
-
-// Grava o financeiro de um intervalo em "financeiro/{cliente}_{dia}".
-// Uso: /syncFinanceiro?token=SEU_TOKEN&de=2026-07-01&ate=2026-07-31
-export const syncFinanceiro = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
-  const esperado = (process.env.SYNC_TOKEN || "").trim();
-  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
-  const filtroCliente = req.query.cliente ? String(req.query.cliente) : null;
-  const de = String(req.query.de || dataLocal()), ate = String(req.query.ate || de);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
-    res.status(400).json({ erro: "informe de=YYYY-MM-DD e ate=YYYY-MM-DD" }); return;
-  }
-  const dias = [];
-  for (let t = Date.parse(`${de}T12:00:00${TZ_OFFSET}`); t <= Date.parse(`${ate}T12:00:00${TZ_OFFSET}`); t += 86400000) {
-    dias.push(dataLocal(new Date(t)));
-    if (dias.length > 31) { res.status(400).json({ erro: "máximo de 31 dias por chamada" }); return; }
-  }
-  try {
-    const gravados = [];
-    await forEachShop(async ({ cliente, shopId, token }) => {
-      for (const dia of dias) {
-        const f = await fetchFinanceiroDoDia(dia, shopId, token);
-        delete f.amostra;
-        await db.collection("financeiro").doc(`${cliente}_${dia}`).set({
-          cliente, data: dia, ...f, atualizadoEm: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        if (f.pedidos > 0) gravados.push({ cliente, dia, bruto: f.bruto, liquido: f.liquido, pedidos: f.pedidos });
-      }
-    }, { cliente: filtroCliente });
-    res.json({ ok: true, intervalo: { de, ate, dias: dias.length }, gravados });
-  } catch (e) {
-    logger.error("syncFinanceiro", e);
-    res.status(500).json({ erro: e.message });
-  }
-});
-
-// ---------- Comparador: testa variações de critério para bater com a Shopee --
-// A Shopee conta "pedidos PAGOS no período". Nós filtramos por data de CRIAÇÃO.
-// Este endpoint calcula as duas formas (e com/sem cancelados) para descobrir
-// qual reproduz exatamente o número do Seller Centre.
-// Uso: /compararVendas?token=SEU_TOKEN&dia=2026-08-02
-export const compararVendas = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
-  const esperado = (process.env.SYNC_TOKEN || "").trim();
-  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
-  const dia = String(req.query.dia || dataLocal());
-  try {
-    const out = [];
-    await forEachShop(async ({ cliente, shopId, token }) => {
-      const alvo = limitesDoDia(dia);
-      const inicioDia = Math.floor(Date.parse(`${dia}T00:00:00${TZ_OFFSET}`) / 1000);
-      const fimDia = Math.floor(Date.parse(`${dia}T23:59:59${TZ_OFFSET}`) / 1000);
-      // Janela de criação alargada (±2 dias) para pegar pedidos criados fora do
-      // dia mas pagos dentro dele.
-      let cursor = "", sns = [];
-      do {
-        const r = await shopCall(cfg(), {
-          path: "/api/v2/order/get_order_list", accessToken: token, shopId,
-          params: {
-            time_range_field: "create_time",
-            time_from: alvo.inicio - 2 * 86400, time_to: Math.min(fimDia + 86400, Math.floor(Date.now() / 1000)),
-            page_size: 100, cursor,
-          },
-        });
-        sns.push(...(r.response?.order_list || []).map((o) => o.order_sn));
-        cursor = r.response?.next_cursor || "";
-        if (!r.response?.more) break;
-      } while (cursor);
-
-      const todos = [];
-      for (let i = 0; i < sns.length; i += 50) {
-        const d = await shopCall(cfg(), {
-          path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
-          params: {
-            order_sn_list: sns.slice(i, i + 50).join(","),
-            response_optional_fields: "total_amount,order_status,item_list,create_time,pay_time,update_time",
-          },
-        });
-        (d.response?.order_list || []).forEach((o) => {
-          const itens = (o.item_list || []).reduce(
-            (a, it) => a + Number(it.model_discounted_price || it.model_original_price || 0)
-                         * Number(it.model_quantity_purchased || 1), 0);
-          todos.push({
-            status: String(o.order_status || "").toUpperCase(),
-            criado: Number(o.create_time || 0),
-            pago: Number(o.pay_time || 0),
-            itens: Number(itens.toFixed(2)),
-            total: Number(o.total_amount || 0),
-          });
-        });
-      }
-      const noDia = (t) => t >= inicioDia && t <= fimDia;
-      const calc = (lista) => ({
-        pedidos: lista.length,
-        produtos: Number(lista.reduce((a, x) => a + x.itens, 0).toFixed(2)),
-        totalPago: Number(lista.reduce((a, x) => a + x.total, 0).toFixed(2)),
-      });
-      const semUnpaid = (x) => x.status !== "UNPAID";
-      const semCancel = (x) => !["UNPAID", "CANCELLED", "INVOICE_PENDING"].includes(x.status);
-
-      // Dump bruto dos pedidos indicados (?bruto=1) para inspecionar todos os
-      // campos que a Shopee devolve — usado para achar descontos não mapeados.
-      let bruto = null;
-      if (req.query.bruto === "1") {
-        const coletados = [];
-        for (let i = 0; i < sns.length; i += 50) {
-          const d = await shopCall(cfg(), {
-            path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
-            params: {
-              order_sn_list: sns.slice(i, i + 50).join(","),
-              response_optional_fields: "total_amount,order_status,item_list,create_time,pay_time,payment_method",
-            },
-          });
-          coletados.push(...(d.response?.order_list || []));
-        }
-        // Só os pedidos DO DIA pedido, resumidos item a item.
-        bruto = coletados
-          .filter((o) => noDia(Number(o.create_time || 0)))
-          .map((o) => ({
-            sn: o.order_sn,
-            status: o.order_status,
-            total_amount: o.total_amount,
-            itens: (o.item_list || []).map((it) => ({
-              nome: String(it.item_name || "").slice(0, 40),
-              qtd: it.model_quantity_purchased,
-              preco_com_desconto: it.model_discounted_price,
-              preco_original: it.model_original_price,
-              promo: it.promotion_type,
-              promos: it.promotion_list,
-            })),
-          }));
-      }
-
-      out.push({
-        cliente, dia,
-        bruto,
-        A_criacao_sem_cancelados: calc(todos.filter((x) => noDia(x.criado) && semCancel(x))),
-        B_criacao_com_cancelados: calc(todos.filter((x) => noDia(x.criado) && semUnpaid(x))),
-        C_pagamento_sem_cancelados: calc(todos.filter((x) => noDia(x.pago) && semCancel(x))),
-        D_pagamento_com_cancelados: calc(todos.filter((x) => noDia(x.pago) && semUnpaid(x))),
-        statusEncontrados: [...new Set(todos.map((x) => x.status))],
-      });
-    });
-    res.json({ ok: true, resultado: out });
-  } catch (e) {
-    logger.error("compararVendas", e);
-    res.status(500).json({ erro: e.message });
-  }
-});
-
-// ---------- Inspeção: composição do valor dos pedidos de um dia ----------
-// Mostra, pedido a pedido, os campos que compõem o total — para entender a
-// diferença entre o nosso GMV e o "Vendas" do Seller Centre.
-// Uso: /inspecionarPedidos?token=SEU_TOKEN&dia=2026-08-02
-export const inspecionarPedidos = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
-  const esperado = (process.env.SYNC_TOKEN || "").trim();
-  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
-  const dia = String(req.query.dia || dataLocal());
-  try {
-    const saida = [];
-    await forEachShop(async ({ cliente, shopId, token }) => {
-      const { inicio, fim } = limitesDoDia(dia);
-      let cursor = "", sns = [];
-      do {
-        const r = await shopCall(cfg(), {
-          path: "/api/v2/order/get_order_list", accessToken: token, shopId,
-          params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 100, cursor },
-        });
-        sns.push(...(r.response?.order_list || []).map((o) => o.order_sn));
-        cursor = r.response?.next_cursor || "";
-        if (!r.response?.more) break;
-      } while (cursor);
-
-      const pedidos = [];
-      for (let i = 0; i < sns.length; i += 50) {
-        const d = await shopCall(cfg(), {
-          path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
-          params: {
-            order_sn_list: sns.slice(i, i + 50).join(","),
-            response_optional_fields: "total_amount,order_status,actual_shipping_fee,estimated_shipping_fee,item_list,voucher_from_seller,voucher_from_shopee,seller_discount,shopee_discount,payment_method",
-          },
-        });
-        (d.response?.order_list || []).forEach((o) => {
-          const itens = (o.item_list || []).reduce(
-            (a, it) => a + Number(it.model_discounted_price || it.model_original_price || 0) * Number(it.model_quantity_purchased || 1), 0);
-          const itensOriginal = (o.item_list || []).reduce(
-            (a, it) => a + Number(it.model_original_price || 0) * Number(it.model_quantity_purchased || 1), 0);
-          pedidos.push({
-            status: o.order_status,
-            total_amount: Number(o.total_amount || 0),
-            frete_real: Number(o.actual_shipping_fee || 0),
-            frete_estimado: Number(o.estimated_shipping_fee || 0),
-            soma_itens: Number(itens.toFixed(2)),
-            soma_itens_original: Number(itensOriginal.toFixed(2)),
-            voucher_vendedor: Number(o.voucher_from_seller || 0),
-            voucher_shopee: Number(o.voucher_from_shopee || 0),
-            desconto_vendedor: Number(o.seller_discount || 0),
-            desconto_shopee: Number(o.shopee_discount || 0),
-          });
-        });
-      }
-      const validos = pedidos.filter((p) => !STATUS_IGNORADOS.has(String(p.status || "").toUpperCase()));
-      const som = (f) => Number(validos.reduce((a, p) => a + p[f], 0).toFixed(2));
-      saida.push({
-        cliente, dia, pedidos: validos.length,
-        totais: {
-          total_amount: som("total_amount"),
-          soma_itens: som("soma_itens"),
-          soma_itens_original: som("soma_itens_original"),
-          voucher_vendedor: som("voucher_vendedor"),
-          voucher_shopee: som("voucher_shopee"),
-          desconto_vendedor: som("desconto_vendedor"),
-          desconto_shopee: som("desconto_shopee"),
-          itens_menos_voucher_vendedor: Number((som("soma_itens") - som("voucher_vendedor")).toFixed(2)),
-          itens_menos_todos_vouchers: Number((som("soma_itens") - som("voucher_vendedor") - som("voucher_shopee")).toFixed(2)),
-        },
-        amostra: validos,
-      });
-    });
-    res.json({ ok: true, resultado: saida });
-  } catch (e) {
-    logger.error("inspecionarPedidos", e);
-    res.status(500).json({ erro: e.message });
-  }
-});
 
 // ---------- Preencher histórico de vendas ----------
 // Busca na Shopee cada dia do intervalo e grava em "sales". Serve para

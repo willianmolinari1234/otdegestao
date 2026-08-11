@@ -2,7 +2,7 @@
 # OTDE — Publicar a dashboard + regras de seguranca do Firestore. De dois cliques.
 cd "$(dirname "$0")" || exit 1
 echo ">> Publicando a dashboard e as regras do Firestore..."
-npx --yes firebase-tools@latest deploy --only hosting,firestore:rules
+npx --yes firebase-tools@latest deploy --project otdegestao --only hosting,firestore:rules
 echo ""
 echo "=========================================="
 echo " PRONTO."
