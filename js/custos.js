@@ -25,6 +25,92 @@ export function normalizarSku(valor) {
   return /^\d+$/.test(s) ? String(Number(s)) : s;
 }
 
+/** Lê número no formato brasileiro: "R$ 1.234,56" → 1234.56 */
+export function numeroBR(v) {
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  let s = String(v ?? "").replace(/[R$\s%]/g, "").trim();
+  if (!s) return null;
+  // "1.234,56" (BR) vs "1234.56" (US): a vírgula decide.
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+const SINONIMOS = {
+  sku: ["sku", "codigo", "código", "cod", "ref", "referencia", "referência"],
+  nome: ["produto", "produtovendido", "descricao", "descrição", "nome", "item"],
+  valor: ["valordavenda", "valorvenda", "preco", "preço", "precodevenda", "venda"],
+  custo: ["custoproduto", "custodoproduto", "custo", "customercadoria"],
+};
+const limpaCabecalho = (s) =>
+  String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z]/g, "");
+
+/**
+ * Interpreta o texto colado da planilha do cliente (Google Sheets / Excel).
+ *
+ * Colar é o caminho realista: a planilha muda de cliente para cliente e
+ * ninguém vai redigitar centenas de produtos. Aceita colunas em qualquer
+ * ordem, achando pelo cabeçalho.
+ *
+ * A planilha do cliente é um REGISTRO DE VENDAS: o mesmo SKU aparece várias
+ * vezes porque tem vários anúncios. Aqui isso é reduzido a uma linha por SKU.
+ * Se o custo divergir entre as repetições, vira conflito e não é importado —
+ * um custo desatualizado numa linha estragaria o lucro em silêncio.
+ */
+export function interpretarPlanilha(texto) {
+  const linhas = String(texto || "").split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (!linhas.length) return { produtos: [], conflitos: [], ignoradas: 0, colunas: null };
+
+  const separa = (l) => (l.includes("\t") ? l.split("\t") : l.split(";"));
+
+  // Cabeçalho: primeira linha que contenha pelo menos SKU e CUSTO.
+  let idxCab = -1, mapa = null;
+  for (let i = 0; i < Math.min(linhas.length, 5); i++) {
+    const cels = separa(linhas[i]).map(limpaCabecalho);
+    const m = {};
+    for (const [campo, nomes] of Object.entries(SINONIMOS)) {
+      const pos = cels.findIndex((c) => c && nomes.includes(c));
+      if (pos >= 0) m[campo] = pos;
+    }
+    if (m.sku !== undefined && m.custo !== undefined) { idxCab = i; mapa = m; break; }
+  }
+  if (!mapa) return { produtos: [], conflitos: [], ignoradas: linhas.length, colunas: null };
+
+  const porSku = new Map();
+  const conflitos = [];
+  let ignoradas = 0;
+
+  for (let i = idxCab + 1; i < linhas.length; i++) {
+    const c = separa(linhas[i]);
+    const sku = normalizarSku(c[mapa.sku]);
+    const custo = numeroBR(c[mapa.custo]);
+    if (!sku || custo === null) { ignoradas++; continue; }
+
+    const novo = {
+      sku,
+      nome: mapa.nome !== undefined ? String(c[mapa.nome] || "").trim() : "",
+      valor: mapa.valor !== undefined ? numeroBR(c[mapa.valor]) : null,
+      custo,
+    };
+    const antigo = porSku.get(sku);
+    if (!antigo) { porSku.set(sku, novo); continue; }
+    if (Number(antigo.custo) !== Number(custo)) {
+      conflitos.push({ sku, custos: [antigo.custo, custo], nome: antigo.nome || novo.nome });
+      porSku.delete(sku); // não importa nenhum dos dois: o humano decide
+    }
+  }
+  // Conflito remove o SKU; se ele reaparecer depois, não deve voltar sozinho.
+  for (const cf of conflitos) porSku.delete(cf.sku);
+
+  return {
+    produtos: [...porSku.values()],
+    conflitos,
+    ignoradas,
+    colunas: Object.keys(mapa),
+  };
+}
+
 /**
  * Monta o índice de custo de uma loja a partir dos produtos da planilha.
  *

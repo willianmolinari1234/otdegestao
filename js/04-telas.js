@@ -411,6 +411,7 @@ function plStoreView(){
       <span style="font-size:11px;font-weight:800;color:#C73E22;background:#FCEADF;padding:5px 12px;border-radius:30px;letter-spacing:.03em">Gestão: ${plGestaoPct(plStore)}% · Imposto: ${plImpostoPct(plStore)}%</span>
       <div style="flex:1"></div>
       <button class="pl-cfgbtn" onclick="document.getElementById('pl-cfg').classList.toggle('open')">⚙ Taxas</button>
+      <button class="pl-cfgbtn" onclick="plImportOpen()">📋 Importar planilha</button>
       <button class="pl-new" onclick="plOpenForm('')">+ Novo produto</button>
     </div>
     <div class="pl-cfg" id="pl-cfg">
@@ -471,6 +472,99 @@ function plOpenForm(id){
   ["valor","custo"].forEach(k=>{const el=document.getElementById("pl-f-"+k);if(el)el.addEventListener("input",plVarsRecalc);});
   plVarsRecalc();
 }
+// ── Importar a planilha do cliente ────────────────────────────────────
+// Colar é o caminho realista: cada cliente tem sua planilha no Google Sheets
+// e ninguém vai redigitar centenas de produtos. Sempre mostra a prévia antes
+// de gravar — importação de custo entra direto no cálculo de lucro.
+function plImportOpen(){
+  if(!window.custos){showToast("Recarregue a página e tente de novo.","error");return;}
+  const loja=getCli(plStore);
+  document.getElementById("pl-modal").innerHTML=`<div class="pl-modal">
+    <div class="pl-mh"><b>Importar planilha — ${esc(loja?loja.name:"")}</b><button onclick="plClose()">✕</button></div>
+    <div class="pl-mbody">
+      <p style="font-size:12.5px;color:#5A6270;line-height:1.6;margin:0 0 10px">
+        No Google Sheets, selecione as linhas <b>com o cabeçalho</b> e copie (Ctrl+C).
+        Cole abaixo. O sistema procura as colunas <b>SKU</b> e <b>CUSTO PRODUTO</b> —
+        a ordem não importa.
+      </p>
+      <textarea id="pl-imp-txt" rows="9" placeholder="Cole aqui..." style="width:100%;border:1.5px solid var(--p-line);border-radius:9px;padding:10px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
+      <div id="pl-imp-prev" style="margin-top:12px"></div>
+    </div>
+    <div class="pl-mf">
+      <button class="pl-cancel" onclick="plClose()">Cancelar</button>
+      <button class="pl-save" id="pl-imp-btn" onclick="plImportSalvar()" disabled>Conferir antes</button>
+    </div>
+  </div>`;
+  document.getElementById("pl-modal").style.display="flex";
+  document.getElementById("pl-imp-txt").addEventListener("input",plImportPrever);
+}
+let _plImport=null;
+function plImportPrever(){
+  const txt=(document.getElementById("pl-imp-txt")||{}).value||"";
+  const r=window.custos.interpretarPlanilha(txt);
+  _plImport=r;
+  const box=document.getElementById("pl-imp-prev");
+  const btn=document.getElementById("pl-imp-btn");
+  if(!txt.trim()){box.innerHTML="";btn.disabled=true;btn.textContent="Conferir antes";return;}
+  if(!r.colunas){
+    box.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:9px;padding:12px;font-size:12.5px;color:#991B1B">
+      Não encontrei as colunas <b>SKU</b> e <b>CUSTO PRODUTO</b>. Copie incluindo a linha de cabeçalho.
+      <div style="margin-top:6px;color:#7F1D1D">Nada será importado — melhor não importar do que importar errado.</div>
+    </div>`;
+    btn.disabled=true;return;
+  }
+  const jaTem=prods.filter(p=>p.cli===plStore).length;
+  const amostra=r.produtos.slice(0,6).map(p=>
+    `<tr><td style="padding:3px 8px">${esc(p.sku)}</td><td style="padding:3px 8px">${esc(p.nome||"—")}</td>
+     <td style="padding:3px 8px;text-align:right">${p.valor!==null?plMoney(p.valor):"—"}</td>
+     <td style="padding:3px 8px;text-align:right;font-weight:700">${plMoney(p.custo)}</td></tr>`).join("");
+  box.innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="background:#ECFDF5;color:#065F46;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700">${r.produtos.length} produto(s)</span>
+      ${r.conflitos.length?`<span style="background:#FFF7ED;color:#9A3412;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700">${r.conflitos.length} com custo divergente</span>`:""}
+      ${r.ignoradas?`<span style="background:#F1F5F9;color:#475569;border-radius:20px;padding:5px 12px;font-size:12px">${r.ignoradas} linha(s) sem custo</span>`:""}
+      ${jaTem?`<span style="background:#F1F5F9;color:#475569;border-radius:20px;padding:5px 12px;font-size:12px">${jaTem} já cadastrado(s)</span>`:""}
+    </div>
+    ${r.conflitos.length?`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:9px;padding:10px 12px;font-size:12px;color:#7C2D12;margin-bottom:10px">
+      <b>Não vou importar estes</b> — o mesmo SKU aparece com custos diferentes na planilha:
+      <div style="margin-top:5px;line-height:1.7">${r.conflitos.slice(0,6).map(c=>`SKU ${esc(c.sku)}: ${plMoney(c.custos[0])} × ${plMoney(c.custos[1])}`).join("<br>")}</div>
+      <div style="margin-top:6px">Corrija na planilha e cole de novo. Escolher um por conta própria daria lucro errado sem aviso.</div>
+    </div>`:""}
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr style="background:#F8FAFC;text-align:left"><th style="padding:5px 8px">SKU</th><th style="padding:5px 8px">Produto</th><th style="padding:5px 8px;text-align:right">Venda</th><th style="padding:5px 8px;text-align:right">Custo</th></tr>
+      ${amostra}
+    </table>
+    ${r.produtos.length>6?`<div style="font-size:11.5px;color:#94A3B8;margin-top:6px">…e mais ${r.produtos.length-6}.</div>`:""}
+    <div style="font-size:11.5px;color:#5A6270;margin-top:8px">Produto com o mesmo SKU já cadastrado tem o custo atualizado. Nada é apagado.</div>`;
+  btn.disabled=r.produtos.length===0;
+  btn.textContent=`Importar ${r.produtos.length}`;
+}
+async function plImportSalvar(){
+  if(!_plImport||!_plImport.produtos.length)return;
+  const btn=document.getElementById("pl-imp-btn");
+  btn.disabled=true;btn.textContent="Importando...";
+  const existentes=prods.filter(p=>p.cli===plStore);
+  let novos=0,atualizados=0;
+  try{
+    for(const p of _plImport.produtos){
+      const ja=existentes.find(x=>window.custos.normalizarSku(x.sku)===p.sku);
+      if(ja){
+        await fbSet("products",ja.id,{...ja,custo:p.custo,valor:p.valor!==null?p.valor:ja.valor});
+        atualizados++;
+      }else{
+        const id=("p"+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
+        await fbSet("products",id,{id,cli:plStore,sku:p.sku,nome:p.nome,custo:p.custo,valor:p.valor!==null?p.valor:""});
+        novos++;
+      }
+    }
+    plClose();
+    showToast(`${novos} novo(s), ${atualizados} atualizado(s)`,"success");
+  }catch(e){
+    showToast("Erro ao importar: "+(e.message||""),"error");
+    btn.disabled=false;btn.textContent="Tentar de novo";
+  }
+}
+
 function plVarRowHTML(v){v=v||{};
   return `<div class="pl-varrow">
     <input class="pv-nome" placeholder="Variação (P, M, G...)" value="${esc(String(v.nome||''))}" oninput="plVarsRecalc()">
