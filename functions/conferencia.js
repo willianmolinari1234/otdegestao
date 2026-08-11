@@ -18,6 +18,30 @@ export const QUEDA_MINIMA_FRACAO = 0.01; // 1%
 const num = (v) => Number(v || 0);
 
 /**
+ * Quais dias conferir, a partir de hoje.
+ *
+ * NUNCA inclui o dia de hoje. A sincronização roda a cada 30 minutos, então
+ * entre o último sync e a conferência sempre entram pedidos novos — o salvo
+ * fica legitimamente atrás da API e toda loja com movimento apareceria como
+ * divergente, todo dia. Alerta que dispara sempre para de ser lido.
+ *
+ * Só dia fechado tem número definitivo para cobrar.
+ *
+ * @param {string} hoje   "2026-08-11"
+ * @param {number} quantos  quantidade de dias fechados
+ * @returns {string[]} do mais recente para o mais antigo
+ */
+export function diasParaConferir(hoje, quantos) {
+  const base = Date.parse(`${hoje}T00:00:00Z`);
+  if (!isFinite(base)) return [];
+  const dias = [];
+  for (let i = 1; i <= Math.max(0, quantos); i++) {
+    dias.push(new Date(base - i * 86400000).toISOString().slice(0, 10));
+  }
+  return dias;
+}
+
+/**
  * Compara um dia: o que a API da Shopee devolve agora × o que está salvo.
  *
  * @param {{gmv:number, pedidos:number}} api    recalculado na hora

@@ -25,7 +25,9 @@ import { getAuth } from "firebase-admin/auth";
 import {
   buildAuthUrl, getAccessToken, refreshAccessToken, shopCall, shopPost,
 } from "./shopee.js";
-import { compararDia, detectarQuedas, montarResumo } from "./conferencia.js";
+import {
+  compararDia, detectarQuedas, montarResumo, diasParaConferir,
+} from "./conferencia.js";
 
 initializeApp();
 const db = getFirestore();
@@ -765,7 +767,10 @@ export const shopeeDesconectar = onRequest({ secrets, cors: ["https://otdegestao
 //
 // O resultado fica em conferencias/{data} e aparece no painel.
 
-const DIAS_CONFERIDOS = 3; // dias recentes ainda mudam (cancelamento, repasse)
+// Dias FECHADOS conferidos por execução. Hoje fica de fora: a sincronização
+// roda a cada 30 min, então o salvo está sempre legitimamente atrás da API
+// enquanto o dia corre. Conferir hoje geraria alerta todos os dias.
+const DIAS_CONFERIDOS = 3;
 
 /** Total do mês corrente por loja, lido do que está salvo. */
 async function totaisDoMesPorLoja() {
@@ -784,9 +789,11 @@ async function rodarConferencia() {
   const hoje = dataLocal();
   const comparacoes = [];
 
+  // Dias FECHADOS apenas. O dia em curso ainda está sendo sincronizado.
+  const dias = diasParaConferir(hoje, DIAS_CONFERIDOS);
+
   await forEachShop(async ({ cliente, shopId, token }) => {
-    for (let i = 0; i < DIAS_CONFERIDOS; i++) {
-      const dia = dataLocal(new Date(Date.now() - i * 86400000));
+    for (const dia of dias) {
       const api = await fetchVendasDoDia(dia, shopId, token);
       const doc = await db.collection("sales").doc(`${cliente}_${dia}`).get();
       const salvo = doc.exists ? doc.data() : null;

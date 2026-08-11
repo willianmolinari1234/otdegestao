@@ -9,7 +9,37 @@ import {
   compararDia,
   detectarQuedas,
   montarResumo,
+  diasParaConferir,
 } from "../functions/conferencia.js";
+
+// ─── diasParaConferir ─────────────────────────────────────────────────
+// A primeira execução em produção acusou 4 divergências, TODAS do próprio
+// dia, todas com o salvo atrás da API. Não era erro de dado: era a sincronia
+// de 30 em 30 minutos ainda não ter alcançado. Hoje ficou de fora.
+
+test("o dia de hoje nunca é conferido", () => {
+  const dias = diasParaConferir("2026-08-11", 3);
+  assert.ok(!dias.includes("2026-08-11"));
+});
+
+test("confere os dias fechados, do mais recente ao mais antigo", () => {
+  assert.deepEqual(diasParaConferir("2026-08-11", 3),
+    ["2026-08-10", "2026-08-09", "2026-08-08"]);
+});
+
+test("atravessa a virada de mês", () => {
+  assert.deepEqual(diasParaConferir("2026-08-02", 3),
+    ["2026-08-01", "2026-07-31", "2026-07-30"]);
+});
+
+test("atravessa a virada de ano", () => {
+  assert.deepEqual(diasParaConferir("2027-01-01", 2),
+    ["2026-12-31", "2026-12-30"]);
+});
+
+test("data inválida devolve lista vazia em vez de quebrar", () => {
+  assert.deepEqual(diasParaConferir("qualquer coisa", 3), []);
+});
 
 // ─── compararDia ──────────────────────────────────────────────────────
 
