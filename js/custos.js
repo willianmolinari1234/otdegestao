@@ -199,6 +199,51 @@ export function custoDoItem(indice, item) {
 }
 
 /**
+ * Preço realmente praticado por código, a partir das vendas.
+ *
+ * Melhor que o preço digitado à mão: é o que o comprador pagou de fato,
+ * e acompanha promoção e mudança de preço sem ninguém precisar atualizar.
+ *
+ * Devolve dois índices porque o código da variação é mais específico que o
+ * do anúncio. O do anúncio soma todas as variações — o que serve para
+ * produto sem variação cadastrada, e por isso é só a reserva.
+ *
+ * O preço é a MÉDIA ponderada pela quantidade: o mesmo produto costuma ter
+ * vários anúncios com preços diferentes, e vendas com desconto puxam o
+ * valor para baixo. É o preço médio praticado, não o de tabela.
+ */
+export function precosPraticados(itens) {
+  const somar = (mapa, chave, it) => {
+    const k = normalizarSku(chave);
+    if (!k) return;
+    const r = mapa.get(k) || { valor: 0, qtd: 0 };
+    r.valor += Number(it?.valor || 0);
+    r.qtd += Number(it?.qtd || 0);
+    mapa.set(k, r);
+  };
+  const porVariacao = new Map(), porAnuncio = new Map();
+  for (const it of itens || []) {
+    somar(porVariacao, it?.model_sku, it);
+    somar(porAnuncio, it?.item_sku, it);
+  }
+  const fechar = (m) => {
+    const out = new Map();
+    for (const [k, r] of m) {
+      if (r.qtd > 0) out.set(k, { preco: Number((r.valor / r.qtd).toFixed(2)), qtd: r.qtd });
+    }
+    return out;
+  };
+  return { porVariacao: fechar(porVariacao), porAnuncio: fechar(porAnuncio) };
+}
+
+/** Preço praticado de um SKU, variação na frente do anúncio. */
+export function precoDoSku(precos, sku) {
+  const k = normalizarSku(sku);
+  if (!k || !precos) return null;
+  return precos.porVariacao.get(k) || precos.porAnuncio.get(k) || null;
+}
+
+/**
  * Custo total de um período e, sobretudo, QUANTO dele nós realmente sabemos.
  *
  * `cobertura` é a fração da receita cujo custo é conhecido. A tela deve

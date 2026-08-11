@@ -263,13 +263,18 @@ function plCustPct(cliId,field,fallback){
 function plGestaoPct(cliId){return plCustPct(cliId,"fee",prodCfg.gestao);}
 function plImpostoPct(cliId){return plCustPct(cliId,"imposto",prodCfg.imposto);}
 function plCompute(p){
-  const valor=plNum(p.valor),custo=plNum(p.custo);
+  // Preço: o praticado no marketplace manda. É o que o comprador pagou de
+  // fato e acompanha promoção sozinho — o digitado à mão envelhece calado.
+  // O manual continua valendo para produto que ainda não vendeu.
+  const real=plPrecoReal(p.sku);
+  const valor=real?real.preco:plNum(p.valor),custo=plNum(p.custo);
   const tier=plTier(valor);
   const gesPct=plGestaoPct(p.cli),impPct=plImpostoPct(p.cli);
   const taxaShopee=valor*tier.pct/100,imp=valor*impPct/100,ges=valor*gesPct/100;
   const lucro=valor-taxaShopee-imp-tier.fixa-ges-custo;
   const margem=valor>0?lucro/valor*100:0;
-  return{valor,custo,sp:tier.pct,tf:tier.fixa,taxaShopee,imp,impPct,ges,gesPct,lucro,margem,tier,priced:valor>0};
+  return{valor,custo,sp:tier.pct,tf:tier.fixa,taxaShopee,imp,impPct,ges,gesPct,lucro,margem,tier,priced:valor>0,
+    doMarketplace:!!real,vendidos:real?real.qtd:0};
 }
 function plComputeProd(p){
   const meta=prodCfg.meta||15;
@@ -277,7 +282,8 @@ function plComputeProd(p){
     const r=plCompute(p);
     return{vars:null,base:r,priced:r.priced,pricedVars:r.priced?1:0,unpricedVars:r.priced?0:1,minM:r.margem,maxM:r.margem,avgM:r.margem,avgL:r.lucro,minV:r.valor,maxV:r.valor,minC:r.custo,maxC:r.custo,minL:r.lucro,maxL:r.lucro,anyBelow:r.priced&&r.margem<meta};
   }
-  const rs=p.vars.map(v=>({v,r:plCompute({cli:p.cli,valor:v.valor,custo:v.custo})}));
+  // A variação usa o próprio SKU; sem ele, herda o do produto.
+  const rs=p.vars.map(v=>({v,r:plCompute({cli:p.cli,sku:v.sku||p.sku,valor:v.valor,custo:v.custo})}));
   const pr=rs.filter(x=>x.r.priced);
   const cs=rs.map(x=>x.r.custo);
   const out={vars:rs,base:null,priced:pr.length>0,pricedVars:pr.length,unpricedVars:rs.length-pr.length,minC:Math.min(...cs),maxC:Math.max(...cs),minM:0,maxM:0,avgM:0,avgL:0,minV:0,maxV:0,minL:0,maxL:0,anyBelow:false};
@@ -301,7 +307,37 @@ function plVarTable(p,cp){
 }
 function plMColor(m){const meta=prodCfg.meta||15;return m>=meta?"#1F9D57":m>=meta*0.5?"#D69304":"#E03B3B";}
 function plMBg(m){const meta=prodCfg.meta||15;return m>=meta?"#E2F5EA":m>=meta*0.5?"#FBF2D6":"#FCE7E7";}
-function plOpenStore(id){plStore=id;render();}
+// Preço praticado, vindo das vendas da loja aberta.
+// Buscado sob demanda (e não por assinatura permanente) porque a coleção de
+// vendas é a maior do sistema e só esta tela precisa dela.
+let plPrecos=null, plPrecosCli="", plPrecosDias=0;
+async function plCarregarPrecos(cli){
+  if(plPrecosCli===cli&&plPrecos)return;
+  plPrecosCli=cli;plPrecos=null;
+  try{
+    const q=window.fb.query(window.fb.collection(window.fb.db,"sales"),window.fb.where("cliente","==",cli));
+    const snap=await window.fb.getDocs(q);
+    // Janela de 60 dias: preço de dois meses atrás não representa o de hoje.
+    const limite=new Date(Date.now()-60*864e5).toISOString().slice(0,10);
+    const itens=[];const dias=new Set();
+    snap.docs.forEach(d=>{
+      const v=d.data();
+      if(String(v.data||"")<limite)return;
+      if(!Array.isArray(v.itens))return;
+      dias.add(v.data);
+      v.itens.forEach(i=>itens.push({item_sku:i.s,model_sku:i.m,qtd:i.q,valor:i.v}));
+    });
+    plPrecosDias=dias.size;
+    plPrecos=window.custos?window.custos.precosPraticados(itens):null;
+  }catch(e){console.error("precos:",e);plPrecos=null;}
+  if(view==="planilhas")render();
+}
+/** Preço de um SKU vindo do marketplace, ou null se ele ainda não vendeu. */
+function plPrecoReal(sku){
+  if(!plPrecos||!window.custos)return null;
+  return window.custos.precoDoSku(plPrecos,sku);
+}
+function plOpenStore(id){plStore=id;plCarregarPrecos(id);render();}
 function plBack(){plStore="";render();}
 function plTog(id){const r=document.getElementById("pl-d-"+id),b=document.getElementById("pl-t-"+id);if(r)r.classList.toggle("open");if(b)b.classList.toggle("open");}
 function plInitials(n){return (n||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();}
@@ -370,13 +406,17 @@ function plStoreView(){
     let venda,taxas,custoC,lucro,margem,detail;
     if(!hasVars){
       const r=cp.base,col=plMColor(r.margem),bg=plMBg(r.margem);
-      venda=r.priced?plMoney(r.valor):'<span style="color:#9AA1AE">—</span>';
+      // O selo diz de onde veio o preço. Sem ele, você não sabe se está
+      // olhando o valor que alguém digitou ou o que o mercado pagou.
+      venda=r.priced
+        ?`${plMoney(r.valor)}${r.doMarketplace?`<span title="Preço médio das vendas reais — ${r.vendidos} unidade(s) nos últimos 60 dias" style="display:block;font-size:9.5px;font-weight:800;color:#1F9D57;letter-spacing:.02em">● DA SHOPEE</span>`:`<span title="Valor digitado no cadastro: este produto ainda não vendeu no período" style="display:block;font-size:9.5px;color:#9AA1AE">manual</span>`}`
+        :'<span style="color:#9AA1AE">—</span>';
       taxas=r.priced?`${r.sp}% + ${plMoney(r.tf)}`:'—';
       custoC=plMoney(r.custo);
       lucro=`<span style="color:${r.priced?(r.lucro>=0?'#1F9D57':'#E03B3B'):'#9AA1AE'};font-weight:800">${r.priced?plMoney(r.lucro):'—'}</span>`;
       margem=r.priced?`<span class="pl-mb" style="background:${bg};color:${col}">${r.margem.toFixed(1)}%</span>`:'<span class="pl-mb" style="background:#FBF2D6;color:#B07A0A">Definir preço</span>';
       detail=r.priced?`<div class="pl-break">
-        <div><span>Valor da venda</span><b>${plMoney(r.valor)}</b></div>
+        <div><span>Valor da venda${r.doMarketplace?` <i style="font-style:normal;color:#1F9D57">· média de ${r.vendidos} venda(s) reais</i>`:" · digitado no cadastro"}</span><b>${plMoney(r.valor)}</b></div>
         <div><span>Comissão Shopee (${r.sp}%)</span><b>− ${plMoney(r.taxaShopee)}</b></div>
         <div><span>Taxa fixa (${r.tier.label})</span><b>− ${plMoney(r.tf)}</b></div>
         <div><span>Imposto do cliente (${r.impPct}%)</span><b>− ${plMoney(r.imp)}</b></div>
@@ -424,6 +464,9 @@ function plStoreView(){
       <button class="pl-back" onclick="plBack()">← Lojas</button>
       <div class="pl-title">${esc(store.name)} ${mktTag(store.mkt)}${own&&own!==store.name?`<small>${esc(own)}</small>`:""}</div>
       <span style="font-size:11px;font-weight:800;color:#C73E22;background:#FCEADF;padding:5px 12px;border-radius:30px;letter-spacing:.03em">Gestão: ${plGestaoPct(plStore)}% · Imposto: ${plImpostoPct(plStore)}%</span>
+      ${plPrecosCli===plStore?(plPrecos
+        ?`<span style="font-size:11px;font-weight:700;color:#1F9D57;background:#ECFDF5;padding:5px 12px;border-radius:30px" title="Produtos que venderam usam o preço médio real. Os que não venderam ficam com o valor do cadastro.">● Preços das vendas · ${plPrecosDias} dia(s)</span>`
+        :`<span style="font-size:11px;color:#9AA1AE;background:#F4F5F7;padding:5px 12px;border-radius:30px">Buscando preços…</span>`):""}
       <div style="flex:1"></div>
       <button class="pl-cfgbtn" onclick="document.getElementById('pl-cfg').classList.toggle('open')">⚙ Taxas</button>
       <button class="pl-cfgbtn" onclick="plImportOpen()">📋 Importar planilha</button>

@@ -5,8 +5,51 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizarSku, indexarCustos, custoDoItem, apurarCustos,
-  numeroBR, interpretarPlanilha,
+  numeroBR, interpretarPlanilha, precosPraticados, precoDoSku,
 } from "../js/custos.js";
+
+// ─── precosPraticados ─────────────────────────────────────────────────
+
+test("preço vem da venda real, não do que foi digitado", () => {
+  const p = precosPraticados([{ item_sku: "8", qtd: 2, valor: 259.8 }]);
+  assert.equal(precoDoSku(p, "8").preco, 129.9);
+});
+
+test("média ponderada quando o mesmo SKU vende em anúncios de preço diferente", () => {
+  // Caso real: SKU 21 sai a R$ 99,90 num anúncio e R$ 84,90 em outro.
+  const p = precosPraticados([
+    { item_sku: "21", qtd: 1, valor: 99.9 },
+    { item_sku: "21", qtd: 1, valor: 84.9 },
+  ]);
+  assert.equal(precoDoSku(p, "21").preco, 92.4);
+  assert.equal(precoDoSku(p, "21").qtd, 2);
+});
+
+test("a variação tem preço próprio e vence o do anúncio", () => {
+  const p = precosPraticados([
+    { item_sku: "20099492505", model_sku: "protetor_pretos", qtd: 1, valor: 55 },
+    { item_sku: "20099492505", model_sku: "protetor_brancoq", qtd: 1, valor: 75 },
+  ]);
+  assert.equal(precoDoSku(p, "protetor_pretos").preco, 55);
+  // Pelo código do anúncio vem a média das duas variações.
+  assert.equal(precoDoSku(p, "20099492505").preco, 65);
+});
+
+test("zero à esquerda também casa no preço", () => {
+  const p = precosPraticados([{ item_sku: "08", qtd: 1, valor: 129.9 }]);
+  assert.equal(precoDoSku(p, "8").preco, 129.9);
+});
+
+test("SKU sem venda devolve null, não zero", () => {
+  // Zero viraria 'preço R$ 0,00' e margem de -100% na tela.
+  const p = precosPraticados([{ item_sku: "8", qtd: 1, valor: 100 }]);
+  assert.equal(precoDoSku(p, "999"), null);
+});
+
+test("quantidade zero não vira divisão por zero", () => {
+  const p = precosPraticados([{ item_sku: "8", qtd: 0, valor: 0 }]);
+  assert.equal(precoDoSku(p, "8"), null);
+});
 
 // ─── numeroBR ─────────────────────────────────────────────────────────
 
