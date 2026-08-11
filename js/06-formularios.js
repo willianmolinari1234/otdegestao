@@ -334,6 +334,7 @@ function openEmployeeForm(empId){
       const pass=document.getElementById("ef-pass").value;
       if(!email){showToast("Informe o e-mail","error");return;}
       if(pass.length<8){showToast("Senha deve ter ao menos 8 caracteres","error");return;}
+      if(SEM_BACKEND)return backendIndisponivel();
       const saveBtn=document.getElementById("ef-save");
       saveBtn.disabled=true;saveBtn.textContent="Criando...";
       try{

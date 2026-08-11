@@ -935,6 +935,7 @@ function rIntegracoes(){
   </div>`;
 }
 function conectarLoja(cliId){
+  if(SEM_BACKEND)return backendIndisponivel();
   // Abre a janela ANTES do fetch (senão o bloqueador de pop-up mata), e o
   // servidor — validando que somos admin — devolve o link assinado.
   const w=window.open("about:blank","_blank","width=1000,height=760");
@@ -955,6 +956,7 @@ function conectarLoja(cliId){
 }
 // Puxa os dados da Shopee na hora, sem esperar o agendamento (30 min).
 async function sincronizarAgora(btn){
+  if(SEM_BACKEND)return backendIndisponivel();
   const txt=btn.textContent;
   btn.disabled=true;btn.textContent="Sincronizando…";
   try{
@@ -972,6 +974,7 @@ async function sincronizarAgora(btn){
 }
 
 async function desconectarLoja(cliId){
+  if(SEM_BACKEND)return backendIndisponivel();
   const nome=(clis.find(c=>c.id===cliId)||{}).name||"esta loja";
   askConfirm("Desconectar loja",`Desconectar ${nome} da API da Shopee? O sistema para de buscar vendas dessa loja até você conectar de novo.`,async()=>{
     try{

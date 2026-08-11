@@ -76,6 +76,18 @@ let fIntegBusca="",fIntegFiltro="all";
 const FN_BASE=(window.AMBIENTE==="homolog")
   ? "https://us-central1-otdegestao-homolog.cloudfunctions.net"
   : "https://us-central1-otdegestao.cloudfunctions.net";
+
+// Homologação não tem backend próprio (as lojas foram autorizadas no app de
+// produção da Shopee). Em vez de o botão falhar com erro de rede, ele avisa.
+// SEM_BACKEND também protege contra o pior caso: o ambiente de teste nunca
+// dispara uma sincronização que gravaria em produção.
+const SEM_BACKEND = (window.AMBIENTE === "homolog");
+function backendIndisponivel(){
+  alert("Ambiente de TESTE: o backend da Shopee não roda aqui.\n\n"
+      + "Sincronizar, conectar loja e criar funcionário só funcionam em produção.\n"
+      + "Aqui você testa telas, cálculos e permissões com dados separados.");
+  return null;
+}
 let currentUser=null;
 let myOnly=false;
 let view="dashboard",fRange="today",fDate=todayISO(),fEmp="all",fCli="all",fCust="all",fSort="prazo",fErp="all",fMkt="all";
