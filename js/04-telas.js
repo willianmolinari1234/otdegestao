@@ -489,8 +489,8 @@ function plImportOpen(){
       <ol style="font-size:12.5px;color:#5A6270;line-height:1.7;margin:0 0 12px;padding-left:20px">
         <li>Na planilha aberta, clique na célula do cabeçalho <b>SKU</b>, aperte
             <b>Ctrl+Shift+↓</b> e depois <b>Ctrl+Shift+→</b> para pegar tudo. <b>Ctrl+C</b> e cole abaixo.</li>
-        <li>Ou <b>Arquivo → Fazer download → CSV</b> e escolha o arquivo aqui:
-            <input type="file" id="pl-imp-file" accept=".csv,.tsv,.txt" style="font-size:12px;margin-top:4px">
+        <li>Ou escolha o arquivo da planilha aqui — aceita <b>.xlsx</b>, <b>.xls</b> e <b>.csv</b>:
+            <input type="file" id="pl-imp-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="font-size:12px;margin-top:4px">
         </li>
       </ol>
       <textarea id="pl-imp-txt" rows="8" placeholder="Cole o conteúdo aqui (não o link)..." style="width:100%;border:1.5px solid var(--p-line);border-radius:9px;padding:10px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
@@ -507,9 +507,42 @@ function plImportOpen(){
   if(fl)fl.addEventListener("change",async e=>{
     const f=e.target.files&&e.target.files[0];
     if(!f)return;
-    document.getElementById("pl-imp-txt").value=await f.text();
+    const cx=document.getElementById("pl-imp-txt");
+    try{
+      cx.value=/\.xlsx?$/i.test(f.name) ? await plLerExcel(f) : await f.text();
+    }catch(err){
+      showToast("Não consegui ler o arquivo: "+(err.message||""),"error");
+      return;
+    }
     plImportPrever();
   });
+}
+// Excel é um zip com XML dentro — não dá para ler sem biblioteca. Carregamos
+// a SheetJS só quando alguém escolhe um .xlsx, para não pesar o sistema
+// inteiro por causa de uma tela usada de vez em quando.
+function plCarregarSheetJS(){
+  if(window.XLSX)return Promise.resolve();
+  return new Promise((ok,erro)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=()=>ok();
+    s.onerror=()=>erro(new Error("sem conexão com o servidor da biblioteca"));
+    document.head.appendChild(s);
+  });
+}
+async function plLerExcel(arquivo){
+  await plCarregarSheetJS();
+  const wb=window.XLSX.read(await arquivo.arrayBuffer(),{type:"array"});
+  // Procura a aba que tenha SKU e custo; a planilha do cliente costuma ter
+  // várias abas e a primeira nem sempre é a certa.
+  let melhor="",nota=-1;
+  for(const nome of wb.SheetNames){
+    const txt=window.XLSX.utils.sheet_to_csv(wb.Sheets[nome],{FS:"\t"});
+    const r=window.custos.interpretarPlanilha(txt);
+    const n=r.produtos.length;
+    if(n>nota){nota=n;melhor=txt;}
+  }
+  return melhor||window.XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]],{FS:"\t"});
 }
 let _plImport=null;
 function plImportPrever(){
