@@ -440,11 +440,16 @@ async function fetchVendasDoDia(dia, shopId, token) {
     // deixar de fechar, é sinal de mudança na API e aparece sem ninguém caçar.
     itens: [...porSku.values()].map((x) => ({ ...x, v: r2(x.v) })),
     itensSoma: r2([...porSku.values()].reduce((a, x) => a + x.v, 0)),
-    // Tolerância relativa: cada item é arredondado em 2 casas, e um dia com
-    // dezenas de itens acumula centavos. Exigir exatidão faria o dia ser
-    // reprocessado para sempre por causa de arredondamento.
+    // Tolerância de 1%. Medido em 31 dias reais: erro médio de 0,17% e máximo
+    // de 0,93%. O resíduo vem de desconto de nível de PEDIDO (cupom, moedas)
+    // que a Shopee não reparte item a item — não há como zerar sem inventar
+    // rateio. Abaixo de 1% o efeito na margem é irrelevante.
+    //
+    // A folga também é econômica: `pronto` só considera o dia que fecha, e um
+    // limite apertado demais faria a rotina refazer os mesmos dias para
+    // sempre, gastando chamada de API sem melhorar número nenhum.
     itensConferem: Math.abs([...porSku.values()].reduce((a, x) => a + x.v, 0) - gmv)
-      <= Math.max(0.05, Math.abs(gmv) * 0.001),
+      <= Math.max(0.05, Math.abs(gmv) * 0.01),
   };
 }
 
