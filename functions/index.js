@@ -382,7 +382,12 @@ async function fetchVendasDoDia(dia, shopId, token) {
         // quem identifica o produto pelo link do anúncio na planilha.
         const id = String(it.item_id || "").trim();
         const q = n(it.quantity_purchased) || 1;
-        const bruto = n(it.selling_price) * q;
+        // selling_price já é o total DA LINHA, não o preço unitário.
+        // Multiplicar por quantidade inflava a soma em 10% a 20% — e foi
+        // assim que descobrimos: itensConferem acusou o dia inteiro.
+        // A prova está no pedido da sondagem: dois itens de quantidade 1
+        // somando 49,90 + 72,99 = 122,89, exatamente o order_selling_price.
+        const bruto = n(it.selling_price);
         const descontoVendedor = n(it.discount_from_voucher_seller) + n(it.discount_from_coin);
         const chave = `${s}|${m}|${id}`;
         const reg = porSku.get(chave) || { s, m, i: id, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
@@ -768,10 +773,13 @@ async function completarItensPendente() {
           // Sem a segunda condição, os dias preenchidos na versão anterior
           // — quando o valor vinha do preço do comprador — nunca seriam
           // refeitos e ficariam com o número errado para sempre.
+          // Só considera pronto o dia que FECHOU com o faturamento. Dia que
+          // não fecha é dia com conta errada — refazer é o certo, e assim uma
+          // correção de fórmula se propaga sozinha pelo histórico.
           const d = atual.exists ? atual.data() : null;
           const pronto = d
             && Array.isArray(d.itens) && d.itens.some((i) => i && i.i)
-            && d.itensConferem !== undefined;
+            && d.itensConferem === true;
           if (pronto) continue;
 
           const v = await fetchVendasDoDia(dia, shopId, token);
