@@ -279,20 +279,18 @@ export function custoDoItem(indice, item, porAnuncio) {
  * valor para baixo. É o preço médio praticado, não o de tabela.
  */
 /**
- * Ajusta os valores dos itens de um dia para somarem o faturamento do dia.
+ * Rede de segurança para os dias gravados ANTES de o valor por item passar a
+ * vir da API financeira.
  *
- * POR QUE: o preço por item que a Shopee devolve é o que o COMPRADOR pagou.
- * Em promoção subsidiada pela plataforma, o vendedor recebe mais do que isso —
- * por isso a soma dos itens fica 10% a 19% abaixo do faturamento do escrow.
- * Calcular margem sobre o valor do comprador faz produto lucrativo parecer
- * prejuízo, e isso levaria a mexer em preço com o cliente sem motivo.
+ * Naquela versão o valor do item era o que o COMPRADOR pagou; em promoção
+ * subsidiada pela Shopee o vendedor recebe mais, e a soma dos itens ficava
+ * 10% a 19% abaixo do faturamento — fazendo produto lucrativo parecer
+ * prejuízo. Aqui os itens do dia são redistribuídos até somarem o `gmv`,
+ * que é o número conferido contra o Seller Centre.
  *
- * O faturamento do dia (`gmv`) é o número que conferimos contra o Seller
- * Centre todo dia. Ele é a âncora. Cada item recebe a mesma proporção que
- * tinha, redistribuída até somar o faturamento real.
- *
- * É aproximação, e assumida como tal: não sabemos o subsídio item a item.
- * Mas erra junto com um total verificado, em vez de errar sozinha.
+ * Nos dias novos isto é inofensivo: os itens já somam o faturamento, então o
+ * fator dá 1 e nada muda. A função existe para o histórico antigo, e vira
+ * desnecessária quando todo o período tiver sido reprocessado.
  */
 export function ajustarItensAoFaturamento(itens, gmv) {
   const lista = (itens || []).filter((i) => Number(i?.valor) > 0);

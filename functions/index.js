@@ -334,20 +334,7 @@ async function fetchVendasDoDia(dia, shopId, token) {
       pedidos += 1;
       totalPago += n(o.total_amount);
 
-      for (const it of (o.item_list || [])) {
-        const s = String(it.item_sku || "").trim();
-        const m = String(it.model_sku || "").trim();
-        // O ID do anúncio vem SEMPRE, com ou sem SKU. É a chave reserva para
-        // a maioria dos clientes, que não preenche SKU mas identifica o
-        // produto pelo link do anúncio na planilha.
-        const i = String(it.item_id || "").trim();
-        const q = n(it.model_quantity_purchased) || 1;
-        const chave = `${s}|${m}|${i}`;
-        const reg = porSku.get(chave) || { s, m, i, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
-        reg.q += q;
-        reg.v += n(it.model_discounted_price) * q;
-        porSku.set(chave, reg);
-      }
+      // (os itens vêm da API financeira, mais abaixo — ver comentário lá)
     });
   }
 
@@ -377,6 +364,32 @@ async function fetchVendasDoDia(dia, shopId, token) {
       comissao += n(inc.commission_fee);
       taxaServico += n(inc.service_fee);
       liquido += n(inc.escrow_amount);
+
+      // ---- Valor por produto, da MESMA fonte do faturamento ----
+      // Antes o valor por item vinha de get_order_detail, que devolve o preço
+      // que o COMPRADOR pagou. Em promoção subsidiada pela Shopee o vendedor
+      // recebe mais, e a soma dos itens ficava 10-19% abaixo do faturamento —
+      // fazendo produto lucrativo parecer prejuízo na tela.
+      //
+      // Aqui é a mesma conta do faturamento, só que por item:
+      //   valor = preço de venda − cupom do vendedor − moedas do vendedor
+      // O subsídio da Shopee (discount_from_voucher_shopee) NÃO é descontado,
+      // porque o vendedor recebe essa parte.
+      for (const it of (inc.items || [])) {
+        const s = String(it.item_sku || "").trim();
+        const m = String(it.model_sku || "").trim();
+        // O ID do anúncio vem sempre, com ou sem SKU — chave reserva para
+        // quem identifica o produto pelo link do anúncio na planilha.
+        const id = String(it.item_id || "").trim();
+        const q = n(it.quantity_purchased) || 1;
+        const bruto = n(it.selling_price) * q;
+        const descontoVendedor = n(it.discount_from_voucher_seller) + n(it.discount_from_coin);
+        const chave = `${s}|${m}|${id}`;
+        const reg = porSku.get(chave) || { s, m, i: id, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
+        reg.q += q;
+        reg.v += bruto - descontoVendedor;
+        porSku.set(chave, reg);
+      }
     });
   }
 
@@ -395,11 +408,14 @@ async function fetchVendasDoDia(dia, shopId, token) {
     pedidos,
     // Itens por código, para cruzar com o custo da planilha.
     //   s = código do anúncio (item_sku) · m = código da variação (model_sku)
-    //   q = quantidade · v = valor · n = nome
-    // ATENÇÃO: a soma de `v` NÃO é o faturamento. Aqui é preço do item vezes
-    // quantidade; o faturamento oficial é o `gmv`, que vem do escrow e desconta
-    // cupom e cashback do vendedor. Usar `v` para cobrar seria errado.
+    //   i = ID do anúncio · q = quantidade · v = valor · n = nome
+    //
+    // `v` sai da MESMA conta do `gmv`, só que por item, então a soma dos itens
+    // fecha com o faturamento do dia. `itensConferem` registra isso: se um dia
+    // deixar de fechar, é sinal de mudança na API e aparece sem ninguém caçar.
     itens: [...porSku.values()].map((x) => ({ ...x, v: r2(x.v) })),
+    itensSoma: r2([...porSku.values()].reduce((a, x) => a + x.v, 0)),
+    itensConferem: Math.abs([...porSku.values()].reduce((a, x) => a + x.v, 0) - gmv) < 0.05,
   };
 }
 
@@ -747,11 +763,15 @@ async function completarItensPendente() {
         try {
           const ref = db.collection("sales").doc(`${cliente}_${dia}`);
           const atual = await ref.get();
-          // Dia que já tem item com ID de anúncio está pronto: não gastamos
-          // chamada de API à toa nem reescrevemos faturamento sem motivo.
-          const pronto = atual.exists
-            && Array.isArray(atual.data().itens)
-            && atual.data().itens.some((i) => i && i.i);
+          // Dia pronto = tem item com ID de anúncio E foi gravado já com o
+          // valor vindo da API financeira (marcado por itensConferem).
+          // Sem a segunda condição, os dias preenchidos na versão anterior
+          // — quando o valor vinha do preço do comprador — nunca seriam
+          // refeitos e ficariam com o número errado para sempre.
+          const d = atual.exists ? atual.data() : null;
+          const pronto = d
+            && Array.isArray(d.itens) && d.itens.some((i) => i && i.i)
+            && d.itensConferem !== undefined;
           if (pronto) continue;
 
           const v = await fetchVendasDoDia(dia, shopId, token);
