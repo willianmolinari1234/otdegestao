@@ -354,7 +354,15 @@ async function fetchVendasDoDia(dia, shopId, token) {
     (r.response || []).forEach((item) => {
       const inc = item?.escrow_detail?.order_income;
       if (!inc) return;
-      // Pedido ainda não pago não entra no faturamento (a Shopee também não conta).
+      // ATENÇÃO — esta linha NÃO filtra nada. A API financeira não devolve
+      // order_sn, então `item.order_sn` é indefinido e a comparação é sempre
+      // falsa. Descoberto ao investigar a soma dos itens (46 pedidos vieram
+      // com status "?" no diagnóstico).
+      //
+      // O faturamento continua certo porque pedido não pago e cancelado vêm
+      // ZERADOS no escrow — é o zero que filtra, não esta linha. Mantida
+      // apenas como registro: mexer nela sem entender isso pode alterar um
+      // número que hoje bate com o Seller Centre.
       if (statusPorSn.get(item.order_sn) === "UNPAID") return;
       const desconto = n(inc.voucher_from_seller) + n(inc.seller_coin_cash_back);
       gmv += n(inc.order_selling_price) - desconto;
@@ -375,12 +383,17 @@ async function fetchVendasDoDia(dia, shopId, token) {
       //   valor = preço de venda − cupom do vendedor − moedas do vendedor
       // O subsídio da Shopee (discount_from_voucher_shopee) NÃO é descontado,
       // porque o vendedor recebe essa parte.
-      // Pedido cancelado vem ZERADO no total do pedido, então sai sozinho do
-      // faturamento — mas os ITENS dele continuam vindo com preço cheio. Sem
-      // esta guarda, a soma dos itens ficava acima do faturamento, e a
-      // diferença crescia nos dias antigos (mais tempo, mais cancelamento) e
-      // sumia no dia de hoje. Foi esse padrão que entregou a causa.
-      if (STATUS_IGNORADOS.has(statusPorSn.get(item.order_sn))) return;
+      // Pedido cancelado vem ZERADO no total, então sai sozinho do
+      // faturamento — mas os ITENS dele continuam vindo com preço cheio.
+      //
+      // A guarda usa o PRÓPRIO total do pedido, e não o status, porque a API
+      // financeira não devolve order_sn: qualquer filtro por status compara
+      // com indefinido e nunca dispara. Foi assim que a primeira tentativa
+      // falhou sem dar erro — o diagnóstico pedido a pedido mostrou 46
+      // pedidos com status "?" e o campo sn ausente.
+      //
+      // Regra: pedido que não entrou no faturamento não entra nos itens.
+      if (n(inc.order_selling_price) <= 0) return;
 
       for (const it of (inc.items || [])) {
         const s = String(it.item_sku || "").trim();
