@@ -705,6 +705,123 @@ export const syncHistorico = onSchedule(
   async () => { await recuperarHistoricoPendente(); }
 );
 
+// ---------- Preencher os itens vendidos no histórico ----------
+// Os dias antigos foram gravados antes de o sistema pedir item_list à Shopee,
+// então não têm código de produto nem ID de anúncio — e sem isso não há como
+// cruzar com o custo. Esta rotina volta no tempo e recompõe, loja por loja.
+//
+// É automática de propósito: são 17 lojas × 60 dias. Disparar uma por uma na
+// mão consome a atenção de alguém e alguém sempre esquece uma.
+const DIAS_ITENS = 60;          // janela suficiente para preço e margem
+const DIAS_ITENS_POR_EXEC = 5;  // por loja, por execução
+const LOJAS_ITENS_POR_EXEC = 5;
+
+async function completarItensPendente() {
+  const pend = await db.collection("integracoes")
+    .where("itensCompletos", "==", false).limit(LOJAS_ITENS_POR_EXEC).get();
+  if (pend.empty) return { lojas: 0, dias: 0 };
+
+  let totalDias = 0;
+  const resumo = [];
+  for (const docInt of pend.docs) {
+    const info = docInt.data();
+    const cliente = docInt.id;
+    const limite = info.itensDe || dataLocal(new Date(Date.now() - DIAS_ITENS * 86400000));
+    let cursor = info.itensProximo || dataLocal();
+
+    const dias = [];
+    while (dias.length < DIAS_ITENS_POR_EXEC && cursor >= limite) {
+      dias.push(cursor);
+      const d = new Date(`${cursor}T12:00:00${TZ_OFFSET}`);
+      d.setDate(d.getDate() - 1);
+      cursor = dataLocal(d);
+    }
+    if (!dias.length) {
+      await docInt.ref.set({ itensCompletos: true }, { merge: true });
+      continue;
+    }
+
+    let gravados = 0;
+    await forEachShop(async ({ shopId, token }) => {
+      for (const dia of dias) {
+        try {
+          const ref = db.collection("sales").doc(`${cliente}_${dia}`);
+          const atual = await ref.get();
+          // Dia que já tem item com ID de anúncio está pronto: não gastamos
+          // chamada de API à toa nem reescrevemos faturamento sem motivo.
+          const pronto = atual.exists
+            && Array.isArray(atual.data().itens)
+            && atual.data().itens.some((i) => i && i.i);
+          if (pronto) continue;
+
+          const v = await fetchVendasDoDia(dia, shopId, token);
+          if (v.pedidos === 0) continue; // dia sem venda: nada a completar
+
+          // Trava contra o erro que já aconteceu (Vic.Ti: R$ 64.484 → 12.824).
+          // Esta rotina existe para ACRESCENTAR os itens, não para mudar
+          // faturamento. Se o novo valor for muito menor que o guardado, é
+          // mais provável ser resposta ruim da API do que a verdade — então
+          // não gravamos e registramos para conferir.
+          const antes = Number((atual.data() || {}).gmv || 0);
+          if (antes > 0 && v.gmv < antes * 0.9) {
+            logger.error("itens: recusado por queda suspeita", {
+              cliente, dia, antes, agora: v.gmv,
+            });
+            continue;
+          }
+
+          await ref.set({
+            cliente, data: dia, ...v,
+            ticketMedio: v.gmv / v.pedidos,
+            atualizadoEm: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          gravados += 1;
+        } catch (e) {
+          logger.warn(`itens ${cliente} ${dia}: ${e.message}`);
+        }
+      }
+    }, { cliente });
+
+    totalDias += dias.length;
+    await docInt.ref.set({
+      itensProximo: cursor,
+      itensCompletos: cursor < limite,
+      itensAtualizadoEm: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    resumo.push({ cliente, dias: dias.length, gravados, proximo: cursor, completo: cursor < limite });
+  }
+  return { lojas: pend.size, dias: totalDias, resumo };
+}
+
+export const syncItens = onSchedule(
+  { schedule: "every 5 minutes", secrets, timeoutSeconds: 540 },
+  async () => { await completarItensPendente(); }
+);
+
+// Enfileira todas as lojas conectadas para o preenchimento dos itens.
+//   /completarItens?token=SEU_TOKEN&reiniciar=1
+export const completarItens = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  try {
+    if (req.query.reiniciar === "1") {
+      const auth = await db.collection("shopee_auth").get();
+      const de = dataLocal(new Date(Date.now() - DIAS_ITENS * 86400000));
+      for (const d of auth.docs) {
+        await db.collection("integracoes").doc(d.id).set({
+          itensDe: de, itensProximo: dataLocal(), itensCompletos: false,
+        }, { merge: true });
+      }
+      res.json({ ok: true, enfileiradas: auth.size, de });
+      return;
+    }
+    res.json({ ok: true, ...(await completarItensPendente()) });
+  } catch (e) {
+    logger.error("completarItens", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // Disparo manual / enfileirar lojas já conectadas:
 //   /recuperarHistorico?token=SEU_TOKEN            -> processa um bloco agora
 //   /recuperarHistorico?token=SEU_TOKEN&reiniciar=1 -> reagenda TODAS as lojas
