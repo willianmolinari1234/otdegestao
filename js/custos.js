@@ -282,9 +282,20 @@ export function precosPraticados(itens) {
   const somar = (mapa, chave, it) => {
     const k = normalizarSku(chave);
     if (!k) return;
+    // Venda com valor zerado NÃO entra — nem o valor, nem a quantidade.
+    //
+    // A Shopee às vezes devolve o preço do item vazio em pedidos antigos.
+    // Contando a quantidade e somando zero ao valor, a média despencava:
+    // o ROMPER PEROLA vende a R$ 49,90 e aparecia a R$ 24,95, porque duas
+    // vendas vieram sem preço. O produto virou prejuízo de 51% na tela.
+    //
+    // Preço desconhecido é desconhecido. Não é zero.
+    const valor = Number(it?.valor || 0);
+    const qtd = Number(it?.qtd || 0);
+    if (valor <= 0 || qtd <= 0) return;
     const r = mapa.get(k) || { valor: 0, qtd: 0 };
-    r.valor += Number(it?.valor || 0);
-    r.qtd += Number(it?.qtd || 0);
+    r.valor += valor;
+    r.qtd += qtd;
     mapa.set(k, r);
   };
   const porVariacao = new Map(), porAnuncio = new Map(), porAnuncioId = new Map();
@@ -341,9 +352,15 @@ export function apurarCustos(itens, indice, porAnuncio) {
   const semCusto = new Map();
   const achadoPor = { model_sku: 0, item_sku: 0, item_id: 0 };
 
+  let itensSemValor = 0;
   for (const it of itens || []) {
     const qtd = Number(it?.qtd || 0);
     const valor = Number(it?.valor || 0);
+
+    // Item que a Shopee devolveu sem preço fica FORA da conta inteira.
+    // Se entrasse, somaria custo real contra receita zero e a margem
+    // apareceria pior do que é — erro na direção de assustar à toa.
+    if (valor <= 0) { itensSemValor += qtd; continue; }
     receita += valor;
 
     const r = custoDoItem(indice, it, porAnuncio);
@@ -379,6 +396,9 @@ export function apurarCustos(itens, indice, porAnuncio) {
       item_id: r2(achadoPor.item_id),
     },
     itensSemCusto,
+    // Unidades vendidas cujo preço a Shopee não devolveu. Ficaram de fora
+    // da apuração inteira; aparecem aqui para não sumirem em silêncio.
+    itensSemValor,
     semCusto: [...semCusto.values()].sort((a, b) => b.valor - a.valor).slice(0, 30),
   };
 }

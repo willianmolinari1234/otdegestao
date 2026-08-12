@@ -175,6 +175,39 @@ test("zero à esquerda também casa no preço", () => {
   assert.equal(precoDoSku(p, "8").preco, 129.9);
 });
 
+// Caso real: ROMPER PEROLA vende a R$ 49,90. Duas vendas antigas voltaram da
+// Shopee sem preço (v=0, q=2 e q=3). A média caiu para R$ 24,95 e o produto
+// apareceu como prejuízo de 51% numa tela que o cliente pode ver.
+test("venda com preço zerado não derruba a média", () => {
+  const p = precosPraticados([
+    { item_id: "23699488318", qtd: 2, valor: 0 },
+    { item_id: "23699488318", qtd: 3, valor: 0 },
+    { item_id: "23699488318", qtd: 1, valor: 49.9 },
+    { item_id: "23699488318", qtd: 2, valor: 99.8 },
+  ]);
+  const r = precoDoProduto(p, { anuncioId: "23699488318" });
+  assert.equal(r.preco, 49.9);
+  assert.equal(r.qtd, 3); // só as unidades com preço conhecido
+});
+
+test("todas as vendas sem preço devolve null, não zero", () => {
+  const p = precosPraticados([{ item_id: "999", qtd: 5, valor: 0 }]);
+  assert.equal(precoDoProduto(p, { anuncioId: "999" }), null);
+});
+
+test("item sem preço fica fora da apuração inteira", () => {
+  // Se entrasse, somaria custo real contra receita zero e pioraria a margem.
+  const { indice, porAnuncio } = indexarCustos([{ cli: "A", sku: "8", custo: 26.5 }], "A");
+  const r = apurarCustos([
+    { item_sku: "8", qtd: 1, valor: 49.9 },
+    { item_sku: "8", qtd: 2, valor: 0 },
+  ], indice, porAnuncio);
+  assert.equal(r.receita, 49.9);
+  assert.equal(r.custoTotal, 26.5);   // NÃO 79,50
+  assert.equal(r.margemBruta, 23.4);
+  assert.equal(r.itensSemValor, 2);
+});
+
 test("SKU sem venda devolve null, não zero", () => {
   // Zero viraria 'preço R$ 0,00' e margem de -100% na tela.
   const p = precosPraticados([{ item_sku: "8", qtd: 1, valor: 100 }]);
