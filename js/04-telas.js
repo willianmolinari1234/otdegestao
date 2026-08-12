@@ -325,7 +325,9 @@ async function plCarregarPrecos(cli){
       if(String(v.data||"")<limite)return;
       if(!Array.isArray(v.itens))return;
       dias.add(v.data);
-      v.itens.forEach(i=>itens.push({item_sku:i.s,model_sku:i.m,item_id:i.i,qtd:i.q,valor:i.v}));
+      // Ancora os itens do dia no faturamento conferido daquele dia.
+      const doDia=v.itens.map(i=>({item_sku:i.s,model_sku:i.m,item_id:i.i,qtd:i.q,valor:i.v}));
+      itens.push(...window.custos.ajustarItensAoFaturamento(doDia,v.gmv));
     });
     plPrecosDias=dias.size;
     plPrecos=window.custos?window.custos.precosPraticados(itens):null;
@@ -465,7 +467,7 @@ function plStoreView(){
       <div class="pl-title">${esc(store.name)} ${mktTag(store.mkt)}${own&&own!==store.name?`<small>${esc(own)}</small>`:""}</div>
       <span style="font-size:11px;font-weight:800;color:#C73E22;background:#FCEADF;padding:5px 12px;border-radius:30px;letter-spacing:.03em">Gestão: ${plGestaoPct(plStore)}% · Imposto: ${plImpostoPct(plStore)}%</span>
       ${plPrecosCli===plStore?(plPrecos
-        ?`<span style="font-size:11px;font-weight:700;color:#1F9D57;background:#ECFDF5;padding:5px 12px;border-radius:30px" title="Produtos que venderam usam o preço médio real. Os que não venderam ficam com o valor do cadastro.">● Preços das vendas · ${plPrecosDias} dia(s)</span>`
+        ?`<span style="font-size:11px;font-weight:700;color:#1F9D57;background:#ECFDF5;padding:5px 12px;border-radius:30px" title="Preço médio das vendas reais, ajustado para somar o faturamento conferido de cada dia. Produto que não vendeu fica com o valor do cadastro.">● Preços das vendas · ${plPrecosDias} dia(s)</span>`
         :`<span style="font-size:11px;color:#9AA1AE;background:#F4F5F7;padding:5px 12px;border-radius:30px">Buscando preços…</span>`):""}
       <div style="flex:1"></div>
       <button class="pl-cfgbtn" onclick="document.getElementById('pl-cfg').classList.toggle('open')">⚙ Taxas</button>

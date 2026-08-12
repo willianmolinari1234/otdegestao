@@ -278,6 +278,34 @@ export function custoDoItem(indice, item, porAnuncio) {
  * vários anúncios com preços diferentes, e vendas com desconto puxam o
  * valor para baixo. É o preço médio praticado, não o de tabela.
  */
+/**
+ * Ajusta os valores dos itens de um dia para somarem o faturamento do dia.
+ *
+ * POR QUE: o preço por item que a Shopee devolve é o que o COMPRADOR pagou.
+ * Em promoção subsidiada pela plataforma, o vendedor recebe mais do que isso —
+ * por isso a soma dos itens fica 10% a 19% abaixo do faturamento do escrow.
+ * Calcular margem sobre o valor do comprador faz produto lucrativo parecer
+ * prejuízo, e isso levaria a mexer em preço com o cliente sem motivo.
+ *
+ * O faturamento do dia (`gmv`) é o número que conferimos contra o Seller
+ * Centre todo dia. Ele é a âncora. Cada item recebe a mesma proporção que
+ * tinha, redistribuída até somar o faturamento real.
+ *
+ * É aproximação, e assumida como tal: não sabemos o subsídio item a item.
+ * Mas erra junto com um total verificado, em vez de errar sozinha.
+ */
+export function ajustarItensAoFaturamento(itens, gmv) {
+  const lista = (itens || []).filter((i) => Number(i?.valor) > 0);
+  const soma = lista.reduce((a, i) => a + Number(i.valor || 0), 0);
+  const alvo = Number(gmv || 0);
+  // Sem base de comparação, ou diferença irrelevante: devolve como está.
+  if (soma <= 0 || alvo <= 0) return lista;
+  const fator = alvo / soma;
+  // Fator absurdo indica dado inconsistente; melhor não inventar.
+  if (!isFinite(fator) || fator <= 0 || fator > 3) return lista;
+  return lista.map((i) => ({ ...i, valor: Number((Number(i.valor) * fator).toFixed(2)) }));
+}
+
 export function precosPraticados(itens) {
   const somar = (mapa, chave, it) => {
     const k = normalizarSku(chave);

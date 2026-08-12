@@ -6,8 +6,43 @@ import assert from "node:assert/strict";
 import {
   normalizarSku, indexarCustos, custoDoItem, apurarCustos,
   numeroBR, interpretarPlanilha, precosPraticados, precoDoSku,
-  idDoAnuncio, precoDoProduto,
+  idDoAnuncio, precoDoProduto, ajustarItensAoFaturamento,
 } from "../js/custos.js";
+
+// ─── ajustarItensAoFaturamento ────────────────────────────────────────
+// Caso real (Ninho de Anjo, 11/08): itens somam R$ 2.136,67 e o faturamento
+// conferido do dia é R$ 2.636,95. O preço do item é o que o COMPRADOR pagou;
+// em promoção subsidiada o vendedor recebe mais.
+
+test("itens passam a somar o faturamento do dia", () => {
+  const r = ajustarItensAoFaturamento(
+    [{ valor: 1000, qtd: 1 }, { valor: 1136.67, qtd: 1 }], 2636.95);
+  const soma = r.reduce((a, i) => a + i.valor, 0);
+  assert.ok(Math.abs(soma - 2636.95) < 0.02);
+});
+
+test("mantém a proporção entre os itens", () => {
+  const r = ajustarItensAoFaturamento([{ valor: 100 }, { valor: 300 }], 800);
+  assert.equal(r[0].valor, 200);
+  assert.equal(r[1].valor, 600);
+});
+
+test("sem faturamento do dia, não inventa: devolve como está", () => {
+  const r = ajustarItensAoFaturamento([{ valor: 100 }], 0);
+  assert.equal(r[0].valor, 100);
+});
+
+test("fator absurdo é recusado — dado inconsistente não vira número novo", () => {
+  // Faturamento 10x a soma dos itens: algo está errado, não é subsídio.
+  const r = ajustarItensAoFaturamento([{ valor: 100 }], 1000);
+  assert.equal(r[0].valor, 100);
+});
+
+test("itens sem preço não entram no ajuste", () => {
+  const r = ajustarItensAoFaturamento([{ valor: 0, qtd: 2 }, { valor: 100, qtd: 1 }], 150);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].valor, 150);
+});
 
 // ─── idDoAnuncio ──────────────────────────────────────────────────────
 // A maioria dos clientes NÃO usa SKU, mas identifica o anúncio pelo link.
