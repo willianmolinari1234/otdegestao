@@ -791,7 +791,7 @@ async function completarItensPendente() {
       continue;
     }
 
-    let gravados = 0;
+    let gravados = 0, falhas = 0, verificados = 0;
     await forEachShop(async ({ shopId, token }) => {
       for (const dia of dias) {
         try {
@@ -809,10 +809,10 @@ async function completarItensPendente() {
           const pronto = d
             && Array.isArray(d.itens) && d.itens.some((i) => i && i.i)
             && d.itensConferem === true;
-          if (pronto) continue;
+          if (pronto) { verificados += 1; continue; }
 
           const v = await fetchVendasDoDia(dia, shopId, token);
-          if (v.pedidos === 0) continue; // dia sem venda: nada a completar
+          if (v.pedidos === 0) { verificados += 1; continue; } // sem venda: nada a completar
 
           // Trava contra o erro que já aconteceu (Vic.Ti: R$ 64.484 → 12.824).
           // Esta rotina existe para ACRESCENTAR os itens, não para mudar
@@ -824,6 +824,7 @@ async function completarItensPendente() {
             logger.error("itens: recusado por queda suspeita", {
               cliente, dia, antes, agora: v.gmv,
             });
+            falhas += 1;
             continue;
           }
 
@@ -833,19 +834,56 @@ async function completarItensPendente() {
             atualizadoEm: FieldValue.serverTimestamp(),
           }, { merge: true });
           gravados += 1;
+          // Só conta como verificado o dia que REALMENTE fechou depois de
+          // gravado. Antes eu avançava o cursor de qualquer jeito, e a loja
+          // era marcada como completa sem o trabalho ter sido feito — 15
+          // lojas ficaram "prontas" com 393 dias errados.
+          if (v.itensConferem) verificados += 1; else falhas += 1;
         } catch (e) {
           logger.warn(`itens ${cliente} ${dia}: ${e.message}`);
+          falhas += 1;
         }
       }
     }, { cliente });
 
     totalDias += dias.length;
+
+    // "Completo" agora exige DUAS coisas: ter varrido todo o período E não
+    // ter deixado dia por fechar. Antes bastava o cursor passar do limite,
+    // então uma loja cujos dias falharam era declarada pronta e saía da fila
+    // para sempre — foi o que aconteceu com 15 lojas e 393 dias errados.
+    const varreuTudo = cursor < limite;
+    const falhasAcumuladas = Number(info.itensFalhas || 0) + falhas;
+    const passadas = Number(info.itensPassadas || 0);
+
+    let novoCursor = cursor, completo = false, novasFalhas = falhasAcumuladas, novasPassadas = passadas;
+    if (varreuTudo) {
+      if (falhasAcumuladas === 0) {
+        completo = true;
+      } else if (passadas < 2) {
+        // Mais uma varredura: dia que falhou pode ter sido instabilidade da
+        // API. Recomeça de hoje, e o que já fechou é pulado sem custo.
+        novoCursor = dataLocal();
+        novasFalhas = 0;
+        novasPassadas = passadas + 1;
+      } else {
+        // Insistir mais viraria laço infinito gastando chamada de API.
+        // Marca como completo, mas deixa registrado que desistiu — número
+        // errado precisa aparecer, não sumir de vista.
+        completo = true;
+        logger.error("itens: desisti com dias sem fechar", { cliente, falhas: falhasAcumuladas });
+      }
+    }
+
     await docInt.ref.set({
-      itensProximo: cursor,
-      itensCompletos: cursor < limite,
+      itensProximo: novoCursor,
+      itensCompletos: completo,
+      itensFalhas: novasFalhas,
+      itensPassadas: novasPassadas,
+      itensDesistiu: completo && falhasAcumuladas > 0,
       itensAtualizadoEm: FieldValue.serverTimestamp(),
     }, { merge: true });
-    resumo.push({ cliente, dias: dias.length, gravados, proximo: cursor, completo: cursor < limite });
+    resumo.push({ cliente, dias: dias.length, gravados, verificados, falhas, proximo: novoCursor, completo });
   }
   return { lojas: pend.size, dias: totalDias, resumo };
 }
@@ -867,6 +905,7 @@ export const completarItens = onRequest({ secrets, timeoutSeconds: 540 }, async 
       for (const d of auth.docs) {
         await db.collection("integracoes").doc(d.id).set({
           itensDe: de, itensProximo: dataLocal(), itensCompletos: false,
+          itensFalhas: 0, itensPassadas: 0, itensDesistiu: false,
         }, { merge: true });
       }
       res.json({ ok: true, enfileiradas: auth.size, de });
