@@ -1118,6 +1118,90 @@ export const amostraEscrow = onRequest({ secrets, timeoutSeconds: 300 }, async (
   }
 });
 
+// Reconciliação PEDIDO A PEDIDO de um dia.
+// Existe porque eu errei duas vezes tentando explicar a diferença entre o
+// faturamento e a soma dos itens só olhando o total do dia. Aqui dá para ver
+// qual pedido não fecha e por quê, em vez de formular hipótese.
+// Uso: /conferirDia?token=...&cliente=ID&dia=2026-07-23
+export const conferirDia = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const dia = String(req.query.dia || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) { res.status(400).json({ erro: "informe dia=YYYY-MM-DD" }); return; }
+  let saida = null;
+  try {
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      if (saida) return;
+      const { inicio, fim } = limitesDoDia(dia);
+      let cursor = "", sns = [];
+      do {
+        const r = await shopCall(cfg(), {
+          path: "/api/v2/order/get_order_list", accessToken: token, shopId,
+          params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 100, cursor },
+        });
+        sns.push(...(r.response?.order_list || []).map((o) => o.order_sn));
+        cursor = r.response?.next_cursor || "";
+        if (!r.response?.more) break;
+      } while (cursor);
+
+      const status = new Map();
+      for (let i = 0; i < sns.length; i += 50) {
+        const d = await shopCall(cfg(), {
+          path: "/api/v2/order/get_order_detail", accessToken: token, shopId,
+          params: { order_sn_list: sns.slice(i, i + 50).join(","), response_optional_fields: "order_status" },
+        });
+        (d.response?.order_list || []).forEach((o) => status.set(o.order_sn, o.order_status));
+      }
+
+      const pedidos = [];
+      for (let i = 0; i < sns.length; i += 50) {
+        const r = await shopPost(cfg(), {
+          path: "/api/v2/payment/get_escrow_detail_batch", accessToken: token, shopId,
+          body: { order_sn_list: sns.slice(i, i + 50) },
+        });
+        (r.response || []).forEach((p) => {
+          const inc = p?.escrow_detail?.order_income;
+          if (!inc) return;
+          const itens = inc.items || [];
+          const somaItens = itens.reduce((a, it) => a + n(it.selling_price), 0);
+          const somaComQtd = itens.reduce((a, it) => a + n(it.selling_price) * (n(it.quantity_purchased) || 1), 0);
+          pedidos.push({
+            sn: p.order_sn,
+            status: status.get(p.order_sn) || "?",
+            order_selling_price: n(inc.order_selling_price),
+            voucher_vendedor: n(inc.voucher_from_seller),
+            escrow: n(inc.escrow_amount),
+            qtdItens: itens.length,
+            somaItens: Number(somaItens.toFixed(2)),
+            somaComQtd: Number(somaComQtd.toFixed(2)),
+            // A pergunta central: a soma dos itens bate com o total do pedido?
+            fecha: Math.abs(somaItens - n(inc.order_selling_price)) < 0.05,
+            fechaComQtd: Math.abs(somaComQtd - n(inc.order_selling_price)) < 0.05,
+            quantidades: itens.map((it) => n(it.quantity_purchased)),
+            principais: itens.map((it) => it.is_main_item),
+            kits: itens.map((it) => it.is_kit),
+          });
+        });
+      }
+      const naoFecham = pedidos.filter((p) => !p.fecha && !p.fechaComQtd);
+      saida = {
+        cliente, dia, pedidos: pedidos.length,
+        somaOrderSellingPrice: Number(pedidos.reduce((a, p) => a + p.order_selling_price, 0).toFixed(2)),
+        somaItensSemQtd: Number(pedidos.reduce((a, p) => a + p.somaItens, 0).toFixed(2)),
+        somaItensComQtd: Number(pedidos.reduce((a, p) => a + p.somaComQtd, 0).toFixed(2)),
+        fechamSemQtd: pedidos.filter((p) => p.fecha).length,
+        fechamComQtd: pedidos.filter((p) => p.fechaComQtd).length,
+        porStatus: pedidos.reduce((m, p) => { m[p.status] = (m[p.status] || 0) + 1; return m; }, {}),
+        exemplosQueNaoFecham: naoFecham.slice(0, 5),
+      };
+    }, { cliente: req.query.cliente || null });
+    res.json(saida || { aviso: "sem dados" });
+  } catch (e) {
+    logger.error("conferirDia", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // Só lê. Não grava nada. Uso: /amostraSku?token=...&cliente=ID (opcional)
 export const amostraSku = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();
