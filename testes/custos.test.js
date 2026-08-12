@@ -49,6 +49,37 @@ test("importa planilha que não tem coluna de SKU", () => {
   assert.equal(r.produtos[0].custo, 31);
 });
 
+test("coluna chamada ID com número de anúncio é reconhecida", () => {
+  // Planilha da Poliane: coluna A = ID, com 58204670969.
+  const r = interpretarPlanilha([
+    "ID\tPRODUTO VENDIDO\tCUSTO PRODUTO",
+    "58204670969\tROMPER BOTÃO DE MADEIRA\tR$ 24,50",
+  ].join("\n"));
+  assert.equal(r.produtos.length, 1);
+  assert.equal(r.produtos[0].anuncioId, "58204670969");
+  assert.equal(r.produtos[0].custo, 24.5);
+});
+
+test("linhas em branco do fim da planilha (R$ 0,00) não viram produto", () => {
+  // A planilha real tem dezenas dessas. Custo zero vira margem de 100%.
+  const r = interpretarPlanilha([
+    "ID\tPRODUTO VENDIDO\tCUSTO PRODUTO",
+    "58204670969\tRomper\tR$ 24,50",
+    "\t\tR$ 0,00",
+    "\t\tR$ 0,00",
+  ].join("\n"));
+  assert.equal(r.produtos.length, 1);
+  assert.equal(r.ignoradas, 2);
+});
+
+test("produto com custo zero é recusado mesmo tendo identificação", () => {
+  const r = interpretarPlanilha([
+    "ID\tCUSTO PRODUTO", "58204670969\tR$ 0,00",
+  ].join("\n"));
+  assert.equal(r.produtos.length, 0);
+  assert.equal(r.ignoradas, 1);
+});
+
 test("linha sem SKU e sem link é ignorada", () => {
   const r = interpretarPlanilha([CAB_LINK, "Produto solto\tR$ 10,00\t"].join("\n"));
   assert.equal(r.produtos.length, 0);

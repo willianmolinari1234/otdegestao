@@ -554,6 +554,7 @@ function plImportOpen(){
             <input type="file" id="pl-imp-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="font-size:12px;margin-top:4px">
         </li>
       </ol>
+      <div id="pl-imp-abas"></div>
       <textarea id="pl-imp-txt" rows="8" placeholder="Cole o conteúdo aqui (não o link)..." style="width:100%;border:1.5px solid var(--p-line);border-radius:9px;padding:10px;font-family:ui-monospace,monospace;font-size:12px"></textarea>
       <div id="pl-imp-prev" style="margin-top:12px"></div>
     </div>
@@ -569,14 +570,52 @@ function plImportOpen(){
     const f=e.target.files&&e.target.files[0];
     if(!f)return;
     const cx=document.getElementById("pl-imp-txt");
+    const cxAbas=document.getElementById("pl-imp-abas");
+    cxAbas.innerHTML="";
     try{
-      cx.value=/\.xlsx?$/i.test(f.name) ? await plLerExcel(f) : await f.text();
+      if(/\.xlsx?$/i.test(f.name)){
+        _plAbas=(await plLerAbas(f)).filter(a=>a.qtd>0);
+        if(!_plAbas.length){ cx.value=""; showToast("Nenhuma aba com SKU/link e custo.","error"); return; }
+        if(_plAbas.length===1){ cx.value=_plAbas[0].texto; }
+        else { plMostrarAbas(); return; } // espera a escolha
+      }else{
+        cx.value=await f.text();
+      }
     }catch(err){
       showToast("Não consegui ler o arquivo: "+(err.message||""),"error");
       return;
     }
     plImportPrever();
   });
+}
+let _plAbas=[];
+function plMostrarAbas(){
+  const loja=getCli(plStore);
+  const sug=plAbaSugerida(_plAbas,loja?loja.name:"");
+  const box=document.getElementById("pl-imp-abas");
+  box.innerHTML=`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:9px;padding:12px;margin-bottom:10px">
+    <div style="font-size:12.5px;font-weight:700;color:#7C2D12;margin-bottom:6px">
+      O arquivo tem ${_plAbas.length} abas com produtos. Qual é a da <b>${esc(loja?loja.name:"loja")}</b>?
+    </div>
+    <div style="font-size:11.5px;color:#7C2D12;margin-bottom:8px">
+      Não escolho por você: cada aba costuma ser de uma loja diferente, e a errada
+      colocaria o custo de um cliente no outro.
+    </div>
+    <select id="pl-imp-aba" style="width:100%;padding:8px 10px;border:1.5px solid var(--p-line);border-radius:9px;font-size:13px">
+      <option value="">— escolha a aba —</option>
+      ${_plAbas.map((a,i)=>`<option value="${i}"${sug&&sug.nome===a.nome?" selected":""}>${esc(a.nome)} · ${a.qtd} produto(s)</option>`).join("")}
+    </select>
+  </div>`;
+  const sel=document.getElementById("pl-imp-aba");
+  sel.addEventListener("change",()=>{
+    const i=sel.value;
+    document.getElementById("pl-imp-txt").value=i===""?"":_plAbas[Number(i)].texto;
+    plImportPrever();
+  });
+  if(sel.value!==""){ // sugestão pelo nome já vem marcada, mas confere na tela
+    document.getElementById("pl-imp-txt").value=_plAbas[Number(sel.value)].texto;
+    plImportPrever();
+  }
 }
 // Excel é um zip com XML dentro — não dá para ler sem biblioteca. Carregamos
 // a SheetJS só quando alguém escolhe um .xlsx, para não pesar o sistema
@@ -591,19 +630,28 @@ function plCarregarSheetJS(){
     document.head.appendChild(s);
   });
 }
-async function plLerExcel(arquivo){
+// Lê TODAS as abas e devolve as que têm produto reconhecível.
+// Antes eu escolhia sozinho a aba com mais linhas. Isso é perigoso: a planilha
+// da Poliane tem uma aba por loja (Laços de Lã, Ninho de Anjo, Shein), e a de
+// mais linhas não é a da loja aberta — o custo de uma loja entraria na outra
+// sem ninguém perceber. Quando há mais de uma candidata, quem escolhe é você.
+async function plLerAbas(arquivo){
   await plCarregarSheetJS();
   const wb=window.XLSX.read(await arquivo.arrayBuffer(),{type:"array"});
-  // Procura a aba que tenha SKU e custo; a planilha do cliente costuma ter
-  // várias abas e a primeira nem sempre é a certa.
-  let melhor="",nota=-1;
+  const abas=[];
   for(const nome of wb.SheetNames){
-    const txt=window.XLSX.utils.sheet_to_csv(wb.Sheets[nome],{FS:"\t"});
-    const r=window.custos.interpretarPlanilha(txt);
-    const n=r.produtos.length;
-    if(n>nota){nota=n;melhor=txt;}
+    const texto=window.XLSX.utils.sheet_to_csv(wb.Sheets[nome],{FS:"\t"});
+    const r=window.custos.interpretarPlanilha(texto);
+    abas.push({nome,texto,qtd:r.produtos.length});
   }
-  return melhor||window.XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]],{FS:"\t"});
+  return abas;
+}
+/** Aba cujo nome mais se parece com o da loja aberta — só como sugestão. */
+function plAbaSugerida(abas,nomeLoja){
+  const limpa=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,"");
+  const alvo=limpa(nomeLoja);
+  if(!alvo)return null;
+  return abas.find(a=>{const n=limpa(a.nome);return n&&(alvo.includes(n)||n.includes(alvo));})||null;
 }
 let _plImport=null;
 function plImportPrever(){

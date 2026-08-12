@@ -66,7 +66,10 @@ const SINONIMOS = {
   nome: ["produto", "produtovendido", "descricao", "descrição", "nome", "item"],
   valor: ["valordavenda", "valorvenda", "preco", "preço", "precodevenda", "venda"],
   custo: ["custoproduto", "custodoproduto", "custo", "customercadoria"],
-  link: ["link", "linkdoanuncio", "anuncio", "anúncio", "url", "iddoanuncio", "idanuncio"],
+  // "id" entra aqui, e não em sku, porque nessas planilhas a coluna ID guarda
+  // o número do anúncio (58204670969). idDoAnuncio() exige 6+ dígitos, então
+  // um SKU curto como "8" nunca é confundido com ID de anúncio.
+  link: ["link", "linkdoanuncio", "anuncio", "anúncio", "url", "iddoanuncio", "idanuncio", "id"],
 };
 const limpaCabecalho = (s) =>
   String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -143,9 +146,11 @@ export function interpretarPlanilha(texto) {
     const sku = mapa.sku !== undefined ? normalizarSku(c[mapa.sku]) : "";
     const anuncioId = mapa.link !== undefined ? idDoAnuncio(c[mapa.link]) : "";
     const custo = numeroBR(c[mapa.custo]);
-    // Sem custo, ou sem NENHUMA forma de identificar o produto, a linha não
-    // entra. Importar com identificação vazia criaria produto que nunca casa.
-    if ((!sku && !anuncioId) || custo === null) { ignoradas++; continue; }
+    // Sem identificação, a linha não entra: criaria produto que nunca casa.
+    // Custo zero também não entra — as planilhas têm dezenas de linhas em
+    // branco no fim que somam R$ 0,00, e custo zero vira margem de 100%,
+    // que é o tipo de número que ninguém questiona porque parece ótimo.
+    if ((!sku && !anuncioId) || custo === null || custo <= 0) { ignoradas++; continue; }
 
     // A chave de deduplicação é o SKU quando existe; senão, o anúncio.
     const chave = sku || ("A:" + anuncioId);
