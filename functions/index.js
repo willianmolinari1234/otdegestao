@@ -1059,12 +1059,30 @@ export const amostraSku = onRequest({ secrets, timeoutSeconds: 300 }, async (req
             nome: String(it.item_name || "").slice(0, 60),
             modelo: String(it.model_name || "").slice(0, 40),
             qtd: it.model_quantity_purchased,
+            // Campos de preço, para descobrir qual deles reconcilia com o
+            // faturamento. Hoje usamos model_discounted_price e a soma fica
+            // 10-19% ABAIXO do escrow — ou seja, ele não é o que o comprador
+            // pagou. Sem saber qual é o certo, não dá para afirmar que um
+            // produto dá prejuízo.
+            preco_desconto: it.model_discounted_price ?? null,
+            preco_original: it.model_original_price ?? null,
+            promo_tipo: it.promotion_type ?? null,
+            promo_id: it.promotion_id ?? null,
+            add_on: it.add_on_deal ?? null,
+            brinde: it.is_main_item === false ? true : null,
           });
         }
       }
+      // Total do pedido, para comparar com a soma dos itens.
+      const totais = (d.response?.order_list || []).map((o) => ({
+        sn: o.order_sn, status: o.order_status, total: o.total_amount ?? null,
+      }));
       porLoja.push({
         cliente,
         itens: itens.slice(0, 12),
+        totais,
+        somaItens: Number(itens.reduce((a, i) => a + Number(i.preco_desconto || 0) * Number(i.qtd || 0), 0).toFixed(2)),
+        somaPedidos: Number(totais.reduce((a, t) => a + Number(t.total || 0), 0).toFixed(2)),
         comItemSku: itens.filter((i) => i.item_sku).length,
         comModelSku: itens.filter((i) => i.model_sku).length,
         total: itens.length,
