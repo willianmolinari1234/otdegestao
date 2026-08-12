@@ -375,6 +375,13 @@ async function fetchVendasDoDia(dia, shopId, token) {
       //   valor = preço de venda − cupom do vendedor − moedas do vendedor
       // O subsídio da Shopee (discount_from_voucher_shopee) NÃO é descontado,
       // porque o vendedor recebe essa parte.
+      // Pedido cancelado vem ZERADO no total do pedido, então sai sozinho do
+      // faturamento — mas os ITENS dele continuam vindo com preço cheio. Sem
+      // esta guarda, a soma dos itens ficava acima do faturamento, e a
+      // diferença crescia nos dias antigos (mais tempo, mais cancelamento) e
+      // sumia no dia de hoje. Foi esse padrão que entregou a causa.
+      if (STATUS_IGNORADOS.has(statusPorSn.get(item.order_sn))) return;
+
       for (const it of (inc.items || [])) {
         const s = String(it.item_sku || "").trim();
         const m = String(it.model_sku || "").trim();
@@ -420,7 +427,11 @@ async function fetchVendasDoDia(dia, shopId, token) {
     // deixar de fechar, é sinal de mudança na API e aparece sem ninguém caçar.
     itens: [...porSku.values()].map((x) => ({ ...x, v: r2(x.v) })),
     itensSoma: r2([...porSku.values()].reduce((a, x) => a + x.v, 0)),
-    itensConferem: Math.abs([...porSku.values()].reduce((a, x) => a + x.v, 0) - gmv) < 0.05,
+    // Tolerância relativa: cada item é arredondado em 2 casas, e um dia com
+    // dezenas de itens acumula centavos. Exigir exatidão faria o dia ser
+    // reprocessado para sempre por causa de arredondamento.
+    itensConferem: Math.abs([...porSku.values()].reduce((a, x) => a + x.v, 0) - gmv)
+      <= Math.max(0.05, Math.abs(gmv) * 0.001),
   };
 }
 
