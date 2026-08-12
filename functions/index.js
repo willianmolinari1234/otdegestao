@@ -1028,6 +1028,57 @@ export const conferirAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (
 // planilha de custo? Se não for, cruzar custo com venda vira trabalho manual
 // loja por loja, e a funcionalidade muda de tamanho.
 //
+// Mostra a estrutura BRUTA de um pedido na API financeira (escrow), para
+// descobrir se ela traz o valor por item — que é o que o vendedor realmente
+// recebe daquele produto, já sem cupom. Se trouxer, some a aproximação de
+// distribuir o faturamento proporcionalmente.
+// Uso: /amostraEscrow?token=...&cliente=ID
+export const amostraEscrow = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtro = req.query.cliente || null;
+  let saida = null;
+  try {
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      if (saida) return;
+      const { inicio, fim } = limitesDoDia(dataLocal(new Date(Date.now() - 86400000)));
+      const l = await shopCall(cfg(), {
+        path: "/api/v2/order/get_order_list", accessToken: token, shopId,
+        params: { time_range_field: "create_time", time_from: inicio, time_to: fim, page_size: 5, cursor: "" },
+      });
+      const sns = (l.response?.order_list || []).map((o) => o.order_sn).slice(0, 2);
+      if (!sns.length) return;
+      const r = await shopPost(cfg(), {
+        path: "/api/v2/payment/get_escrow_detail_batch", accessToken: token, shopId,
+        body: { order_sn_list: sns },
+      });
+      const p = (r.response || [])[0];
+      const inc = p?.escrow_detail?.order_income;
+      saida = {
+        cliente,
+        order_sn: p?.order_sn,
+        // Campos de nível de PEDIDO que já usamos hoje.
+        pedido: {
+          order_selling_price: inc?.order_selling_price ?? null,
+          voucher_from_seller: inc?.voucher_from_seller ?? null,
+          seller_coin_cash_back: inc?.seller_coin_cash_back ?? null,
+          escrow_amount: inc?.escrow_amount ?? null,
+        },
+        // O que interessa descobrir: existe detalhe por item?
+        temItems: Array.isArray(inc?.items),
+        quantosItems: Array.isArray(inc?.items) ? inc.items.length : 0,
+        // Primeiro item cru, com todos os campos que a Shopee mandar.
+        primeiroItem: Array.isArray(inc?.items) ? inc.items[0] : null,
+        camposDoItem: Array.isArray(inc?.items) && inc.items[0] ? Object.keys(inc.items[0]) : [],
+      };
+    }, { cliente: filtro });
+    res.json(saida ? { ok: true, ...saida } : { ok: true, aviso: "nenhum pedido ontem nessa loja" });
+  } catch (e) {
+    logger.error("amostraEscrow", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // Só lê. Não grava nada. Uso: /amostraSku?token=...&cliente=ID (opcional)
 export const amostraSku = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();
