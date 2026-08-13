@@ -54,6 +54,40 @@ export function vencendo(lojas, agoraSeg, dias = 2) {
   return fora.sort((a, b) => a.fim - b.fim);
 }
 
+/**
+ * Lojas SEM nenhuma promoção ativa de um tipo.
+ *
+ * O caso que importa: loja sem desconto ativo. Na Shopee, anúncio sem
+ * desconto perde posição na busca e some do "ofertas" — a loja continua
+ * vendendo menos sem nada quebrar, então ninguém percebe olhando o painel.
+ * É a falha silenciosa da operação, equivalente à que perseguimos nos dados.
+ *
+ * Considera ativa a promoção que já começou e ainda não terminou. A Shopee
+ * é consultada a cada 6 horas, então uma que acabou nesse meio-tempo ainda
+ * viria na lista — checar o fim evita dizer que está tudo certo quando não está.
+ *
+ * Só avalia lojas que TÊM registro de ferramentas. Loja sem registro é loja
+ * não sincronizada; acusá-la de estar sem desconto seria inventar problema.
+ */
+export function semFerramenta(lojas, tipo, agoraSeg) {
+  const agora = Number(agoraSeg || 0);
+  const out = [];
+  for (const loja of lojas || []) {
+    if (!loja) continue;
+    const proms = Array.isArray(loja.promocoes) ? loja.promocoes : [];
+    const temAtiva = proms.some((p) => {
+      if (String(p?.tipo || "") !== tipo) return false;
+      const fim = Number(p?.fim || 0);
+      const inicio = Number(p?.inicio || 0);
+      if (fim && fim <= agora) return false;      // já acabou
+      if (inicio && inicio > agora) return false; // ainda não começou
+      return true;
+    });
+    if (!temAtiva) out.push({ cliente: loja.cliente || loja.id, total: proms.length });
+  }
+  return out;
+}
+
 /** Texto curto do prazo, para caber na linha do aviso. */
 export function comoFalta(horas) {
   if (horas < 1) return "vence em menos de 1 hora";

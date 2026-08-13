@@ -949,22 +949,38 @@ document.addEventListener("keydown",e=>{
 function avisoFerramentasHTML(){
   if(!window.prazos||!Array.isArray(tools)||!tools.length)return "";
   const agora=Math.floor(Date.now()/1000);
-  const lista=window.prazos.vencendo(tools,agora,2);
-  if(!lista.length)return "";
   const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
-  const linhas=lista.slice(0,8).map(p=>
-    `<li><b>${esc(nomeLoja(p.cliente))}</b>: ${esc(p.nome)} — ${esc(window.prazos.comoFalta(p.horas))}${p.emAndamento?"":" (ainda não começou)"}.</li>`
-  ).join("");
-  const sobra=lista.length-Math.min(8,lista.length);
+
+  // Loja sem desconto ativo vem PRIMEIRO: já está perdendo posição agora,
+  // enquanto a que vence em 2 dias ainda está funcionando.
+  const semDesc=window.prazos.semFerramenta(tools,"desconto",agora)
+    .map(x=>({...x,nome:nomeLoja(x.cliente)}))
+    .sort((a,b)=>a.nome.localeCompare(b.nome));
+  const vence=window.prazos.vencendo(tools,agora,2);
+  if(!semDesc.length&&!vence.length)return "";
+
+  const bloco=(cor,titulo,itens,rodape)=>itens?`
+    <div style="margin-bottom:${rodape?"10px":"0"}">
+      <div style="font-weight:700;font-size:13px;color:${cor};margin-bottom:4px">${titulo}</div>
+      <ul style="margin:0 0 4px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${itens}</ul>
+      ${rodape?`<div style="font-size:11.5px;color:#9a3412">${rodape}</div>`:""}
+    </div>`:"";
+
+  const liSemDesc=semDesc.slice(0,10).map(x=>
+    `<li><b>${esc(x.nome)}</b>${x.total?` — tem ${x.total} outra(s) ferramenta(s), mas nenhum desconto`:" — sem nenhuma ferramenta ativa"}.</li>`).join("");
+  const liVence=vence.slice(0,8).map(p=>
+    `<li><b>${esc(nomeLoja(p.cliente))}</b>: ${esc(p.nome)} — ${esc(window.prazos.comoFalta(p.horas))}.</li>`).join("");
+
   return`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
-    <div style="font-weight:700;font-size:13.5px;color:#9a3412;margin-bottom:6px">
-      ${lista.length} ferramenta(s) vencendo em até 2 dias
-    </div>
-    <ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${linhas}</ul>
-    ${sobra>0?`<div style="font-size:11.5px;color:#9a3412">…e mais ${sobra}.</div>`:""}
-    <div style="font-size:11.5px;color:#9a3412;margin-top:6px">
-      Renove antes de vencer: loja sem promoção ativa perde posição na busca no dia seguinte.
-    </div>
+    ${bloco("#991B1B",
+      `${semDesc.length} loja(s) SEM desconto ativo`,
+      liSemDesc,
+      (semDesc.length>10?`…e mais ${semDesc.length-10}. `:"")+
+      "Anúncio sem desconto perde posição na busca — a loja vende menos sem nada dar erro.")}
+    ${bloco("#9a3412",
+      `${vence.length} ferramenta(s) vencendo em até 2 dias`,
+      liVence,
+      vence.length>8?`…e mais ${vence.length-8}.`:"")}
   </div>`;
 }
 
