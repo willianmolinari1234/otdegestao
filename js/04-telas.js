@@ -942,9 +942,35 @@ document.addEventListener("keydown",e=>{
 });
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────
-// Aviso da conferência diária.
-// Só aparece quando há problema. Um aviso que fica sempre na tela vira
-// paisagem e para de ser lido — por isso o silêncio é o estado normal.
+// Aviso de ferramenta prestes a vencer.
+// Substituiu o aviso da conferência no painel: promoção acabando é ação da
+// equipe HOJE; divergência de centavos já é corrigida sozinha pelo backend e
+// não muda o que ninguém faz. Aviso que não gera ação vira paisagem.
+function avisoFerramentasHTML(){
+  if(!window.prazos||!Array.isArray(tools)||!tools.length)return "";
+  const agora=Math.floor(Date.now()/1000);
+  const lista=window.prazos.vencendo(tools,agora,2);
+  if(!lista.length)return "";
+  const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
+  const linhas=lista.slice(0,8).map(p=>
+    `<li><b>${esc(nomeLoja(p.cliente))}</b>: ${esc(p.nome)} — ${esc(window.prazos.comoFalta(p.horas))}${p.emAndamento?"":" (ainda não começou)"}.</li>`
+  ).join("");
+  const sobra=lista.length-Math.min(8,lista.length);
+  return`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:13.5px;color:#9a3412;margin-bottom:6px">
+      ${lista.length} ferramenta(s) vencendo em até 2 dias
+    </div>
+    <ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${linhas}</ul>
+    ${sobra>0?`<div style="font-size:11.5px;color:#9a3412">…e mais ${sobra}.</div>`:""}
+    <div style="font-size:11.5px;color:#9a3412;margin-top:6px">
+      Renove antes de vencer: loja sem promoção ativa perde posição na busca no dia seguinte.
+    </div>
+  </div>`;
+}
+
+// Aviso da conferência diária — MANTIDO, mas fora do painel.
+// A correção continua acontecendo no backend e fica registrada; o que saiu
+// foi a interrupção diária de quem não vai agir sobre ela.
 function avisoConferenciaHTML(){
   if(!isAdmin()||!conferencia||conferencia.tudoCerto)return "";
   const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
@@ -1041,7 +1067,7 @@ function rDash(){
     }).join("");
 
   return`
-    ${avisoConferenciaHTML()}
+    ${avisoFerramentasHTML()}
     ${rangeBarHTML()}
     <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" style="color:#0f172a">${tot}</div></div>

@@ -70,6 +70,7 @@ let prods=[];let prodCfg={imposto:7.5,gestao:2,meta:15};let plStore="";let plEdi
 let tsks=[];
 let proms=[];
 let integs=[];
+let tools=[];         // promoções ativas por loja (vindas da Shopee)
 let conferencia=null; // último resultado da conferência diária (só admin)
 let fIntegBusca="",fIntegFiltro="all";
 // Base das Cloud Functions (backend da integração Shopee).
@@ -195,6 +196,12 @@ function startListeners(){
       if(currentUser)render();
     },err=>console.error("prods listener:",err)));
   }
+  // Ferramentas (promoções) por loja — alimentam o aviso de vencimento no
+  // painel. Documento pequeno (uma linha por loja), então assinar é barato.
+  listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"tools"),snap=>{
+    tools=snap.docs.map(d=>({cliente:d.id,...d.data()}));
+    if(currentUser&&view==="dashboard")render();
+  },err=>{console.error("tools listener:",err);tools=[];}));
   // Conferência diária: o backend recompara com a Shopee e grava o resultado.
   // Só admin vê — é informação de fechamento, não de operação.
   if(isAdmin()){
