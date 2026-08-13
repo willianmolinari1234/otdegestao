@@ -848,6 +848,16 @@ async function completarItensPendente() {
 
     totalDias += dias.length;
 
+    // Todo dia do lote precisa terminar em UMA das duas contas. O que não
+    // aparece em nenhuma não foi processado — acontece quando a busca da loja
+    // falha inteira (token expirado, rede) e o laço interno nem roda.
+    //
+    // Sem isto, esse caso produzia zero falhas, e zero falha era lido como
+    // "deu tudo certo": 26 lojas se declararam completas com 482 dias ainda
+    // errados. Dia não processado é falha, não silêncio.
+    const naoContados = dias.length - (verificados + falhas);
+    if (naoContados > 0) falhas += naoContados;
+
     // "Completo" agora exige DUAS coisas: ter varrido todo o período E não
     // ter deixado dia por fechar. Antes bastava o cursor passar do limite,
     // então uma loja cujos dias falharam era declarada pronta e saía da fila
