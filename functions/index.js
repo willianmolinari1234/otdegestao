@@ -395,24 +395,48 @@ async function fetchVendasDoDia(dia, shopId, token) {
       // Regra: pedido que não entrou no faturamento não entra nos itens.
       if (n(inc.order_selling_price) <= 0) return;
 
-      for (const it of (inc.items || [])) {
-        const s = String(it.item_sku || "").trim();
-        const m = String(it.model_sku || "").trim();
-        // O ID do anúncio vem sempre, com ou sem SKU — chave reserva para
-        // quem identifica o produto pelo link do anúncio na planilha.
-        const id = String(it.item_id || "").trim();
-        const q = n(it.quantity_purchased) || 1;
+      // Valor bruto por item deste pedido, antes de acertar com o total.
+      const linhas = (inc.items || []).map((it) => {
         // selling_price já é o total DA LINHA, não o preço unitário.
-        // Multiplicar por quantidade inflava a soma em 10% a 20% — e foi
-        // assim que descobrimos: itensConferem acusou o dia inteiro.
-        // A prova está no pedido da sondagem: dois itens de quantidade 1
-        // somando 49,90 + 72,99 = 122,89, exatamente o order_selling_price.
+        // Multiplicar por quantidade inflava a soma em 10% a 20%.
+        // A prova está na sondagem: dois itens de quantidade 1 somando
+        // 49,90 + 72,99 = 122,89, exatamente o order_selling_price.
         const bruto = n(it.selling_price);
-        const descontoVendedor = n(it.discount_from_voucher_seller) + n(it.discount_from_coin);
-        const chave = `${s}|${m}|${id}`;
-        const reg = porSku.get(chave) || { s, m, i: id, q: 0, v: 0, n: String(it.item_name || "").slice(0, 70) };
-        reg.q += q;
-        reg.v += bruto - descontoVendedor;
+        const descVend = n(it.discount_from_voucher_seller) + n(it.discount_from_coin);
+        return {
+          s: String(it.item_sku || "").trim(),
+          m: String(it.model_sku || "").trim(),
+          // O ID do anúncio vem sempre, com ou sem SKU — chave reserva para
+          // quem identifica o produto pelo link do anúncio na planilha.
+          id: String(it.item_id || "").trim(),
+          q: n(it.quantity_purchased) || 1,
+          nome: String(it.item_name || "").slice(0, 70),
+          v: bruto - descVend,
+        };
+      });
+
+      // Acerta os itens com o total DESTE pedido.
+      //
+      // Sobrava 1% a 5% de diferença em 144 dias porque parte do desconto é
+      // aplicada no PEDIDO e a Shopee não reparte item a item. Aqui o
+      // denominador é conhecido e exato: o quanto este pedido entrou no
+      // faturamento. Distribuir dentro de UM pedido é seguro — são poucos
+      // itens e a mesma promoção. Bem diferente de ratear o dia inteiro
+      // entre produtos de promoções distintas, que foi o que me fez inflar
+      // um produto acima do próprio preço de tabela.
+      const alvoPedido = n(inc.order_selling_price) - desconto;
+      const somaLinhas = linhas.reduce((a, l) => a + l.v, 0);
+      const fator = somaLinhas > 0 && alvoPedido > 0 ? alvoPedido / somaLinhas : 1;
+      // Fator distante demais indica pedido atípico (estorno parcial, por
+      // exemplo). Aí não force: melhor o resíduo aparecer em itensConferem
+      // do que um número inventado passar despercebido.
+      const usarFator = fator > 0.5 && fator < 1.5;
+
+      for (const l of linhas) {
+        const chave = `${l.s}|${l.m}|${l.id}`;
+        const reg = porSku.get(chave) || { s: l.s, m: l.m, i: l.id, q: 0, v: 0, n: l.nome };
+        reg.q += l.q;
+        reg.v += usarFator ? l.v * fator : l.v;
         porSku.set(chave, reg);
       }
     });
