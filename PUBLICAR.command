@@ -28,6 +28,14 @@ for f in js/*.js; do node --check "$f" || { echo "  !! $f"; read -p "Enter..."; 
 echo "   OK"
 
 echo ">> Carimbo de versão..."
+# Guarda se o app.html JÁ estava alterado antes do carimbo. Se estava, o
+# commit automático lá do fim não roda: ele levaria junto uma edição sua que
+# não é carimbo, com uma mensagem dizendo que é. Melhor não commitar do que
+# commitar mentindo o que mudou.
+APPHTML_SUJO_ANTES=""
+if command -v git > /dev/null 2>&1; then
+  APPHTML_SUJO_ANTES=$(git status --porcelain -- app.html 2>/dev/null)
+fi
 node ferramentas/carimbar-versao.js || { echo "  !! falhou"; read -p "Enter..."; exit 1; }
 
 # ── 2. Homologação ────────────────────────────────────────────────────
@@ -76,6 +84,37 @@ if [ $CODIGO -ne 0 ]; then
   echo " !! FALHOU EM PRODUÇÃO. Leia o erro acima."
 else
   echo " PRONTO. https://otdegestao.web.app"
+
+  # ── 4. Registrar no git o que foi publicado ─────────────────────────
+  # Por que existe: o carimbo é escrito no app.html pelo próprio script, e
+  # ficava só no disco. O resultado é o repositório ficar atrás do que está
+  # no ar — foi assim que o clone do Windows e o origin/main passaram semanas
+  # apontando para uma versão que não era a de produção. Publicar sem
+  # registrar transforma o Mac no único lugar onde o código publicado existe.
+  #
+  # Commita SÓ o app.html: os arquivos que você editou são assunto seu, e
+  # varrer tudo para dentro de um commit chamado "carimbo" esconde o trabalho
+  # real no meio de duas linhas de hash.
+  if command -v git > /dev/null 2>&1 && [ -z "$APPHTML_SUJO_ANTES" ] \
+     && [ -n "$(git status --porcelain -- app.html 2>/dev/null)" ]; then
+    echo ""
+    echo ">> Registrando o carimbo no git..."
+    if git add app.html && git commit -q -m "Carimbo de versao da publicacao" -- app.html; then
+      echo "   commit feito."
+      # O push pode falhar (sem rede, credencial expirada). Não é motivo para
+      # a publicação parecer que deu errado: o que está no ar já está no ar.
+      if git push -q origin HEAD 2>/dev/null; then
+        echo "   enviado para o GitHub."
+      else
+        echo "   !! nao consegui enviar. Abra o GitHub Desktop e clique em Push origin."
+      fi
+    else
+      echo "   !! nao consegui commitar. Faça pelo GitHub Desktop."
+    fi
+  elif [ -n "$APPHTML_SUJO_ANTES" ]; then
+    echo ""
+    echo " (o app.html já tinha alterações suas — commite pelo GitHub Desktop)"
+  fi
 fi
 read -p "Pressione Enter para fechar..."
 exit $CODIGO
