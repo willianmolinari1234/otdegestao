@@ -107,11 +107,17 @@
 
   /* Report */
   #report{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-md);}
-  .rep-header{background:var(--brand);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  /* A faixa de cima veste a cor do marketplace da loja (ver TEMA_MKT no script).
+     Os valores abaixo são o padrão OTDE/Shopee: sem tema aplicado, nada muda.
+     Só o cabeçalho troca de cor — os indicadores seguem iguais em toda loja,
+     porque quem compara dois relatórios compara números, e número que muda de
+     cor conforme a loja vira decoração no lugar de leitura. */
+  .rep-header{background:var(--hdr-bg,var(--brand));padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
   .rep-header .who{display:flex;align-items:center;gap:12px;}
-  .rep-header .avatar{width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;}
-  .rep-header .cli-name{color:#fff;font-size:17px;font-weight:600;}
-  .rep-header .cli-sub{color:#ffe6d5;font-size:12px;}
+  .rep-header .avatar{width:40px;height:40px;border-radius:10px;background:var(--hdr-avatar,rgba(255,255,255,.2));color:var(--hdr-fg,#fff);display:flex;align-items:center;justify-content:center;font-weight:600;}
+  .rep-header .cli-name{color:var(--hdr-fg,#fff);font-size:17px;font-weight:600;}
+  .rep-header .cli-sub{color:var(--hdr-sub,#ffe6d5);font-size:12px;}
+  .btn-baixar{background:var(--hdr-btn-bg,#fff);color:var(--hdr-btn-fg,var(--brand-dark));border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;}
   .rep-body{padding:18px 22px;}
 
   .cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
@@ -245,7 +251,7 @@
             <div class="cli-sub" id="rCliSub">Relatório de performance</div>
           </div>
         </div>
-        <button id="pdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar imagem</button>
+        <button id="pdfBtn" class="btn-baixar">⤓ Baixar imagem</button>
       </div>
       <div class="rep-body">
         <div class="cmp">
@@ -341,7 +347,7 @@
             <div class="cli-sub" id="dashSub">Consolidado OTDE</div>
           </div>
         </div>
-        <button id="dashPdfBtn" style="background:#fff;color:var(--brand-dark);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;">⤓ Baixar imagem</button>
+        <button id="dashPdfBtn" class="btn-baixar">⤓ Baixar imagem</button>
       </div>
       <div class="rep-body">
         <div class="empty" id="dashEmpty"><div class="ico">Σ</div>Nenhum dado salvo neste mês ainda.</div>
@@ -802,6 +808,45 @@ function renderReport(d) {
   calc.roas = roasM !== null ? roasM : (num(d.custoAds) > 0 ? num(d.receitaAds) / num(d.custoAds) : 0);
   calc.valorPercent = base.valor * num(d.percentFatura) / 100;
 
+// ---------- Cor do cabeçalho por marketplace ----------
+// O relatório é o que o cliente recebe. Chegar com a faixa laranja da Shopee
+// num relatório de loja Shein confunde quem vende nos dois lugares.
+//
+// Só a faixa de cima muda. Os indicadores ficam iguais em toda loja: quem
+// compara dois relatórios compara números, e número que troca de cor conforme
+// o marketplace vira decoração no lugar de leitura.
+//
+// O amarelo do Mercado Livre é o motivo de cada tema trazer também a cor do
+// TEXTO: letra branca sobre amarelo não se lê. Por isso não basta guardar uma
+// cor por marketplace — o par fundo/texto anda junto.
+//
+// Atenção: isto NÃO é o MKT_STYLE do sistema (js/01-estado-e-dados.js), que
+// pinta os selos da tela de Clientes e mantém a Shein preta. São duas coisas
+// por decisão: lá é selo, aqui é a identidade do relatório do cliente.
+const TEMA_MKT = {
+  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c" },
+  "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af" },
+  "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
+  "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
+  "tiktok":        { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111" },
+  "tiktok shop":   { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111" },
+};
+
+function aplicarTemaMkt(mkt) {
+  // Marketplace desconhecido ou loja sem marketplace cai no padrão OTDE.
+  const t = TEMA_MKT[String(mkt || "").toLowerCase().trim()] || TEMA_MKT["shopee"];
+  const h = document.querySelector("#reportContent .rep-header");
+  if (!h) return;
+  h.style.setProperty("--hdr-bg", t.bg);
+  h.style.setProperty("--hdr-fg", t.fg);
+  h.style.setProperty("--hdr-sub", t.sub);
+  h.style.setProperty("--hdr-btn-bg", t.btnBg);
+  h.style.setProperty("--hdr-btn-fg", t.btnFg);
+  // O quadradinho da inicial usa a cor do texto rebaixada, para funcionar
+  // tanto sobre fundo escuro quanto sobre o amarelo do Mercado Livre.
+  h.style.setProperty("--hdr-avatar", t.fg === "#ffffff" ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.12)");
+}
+
   $("emptyState").style.display = "none";
   $("reportContent").style.display = "block";
 
@@ -815,6 +860,7 @@ function renderReport(d) {
                : "últimos 30 dias")
     : monthLabel(mon);
   $("rCliSub").textContent = "Relatório de performance · " + periodoTxt + (c.mkt ? " · " + c.mkt : "");
+  aplicarTemaMkt(c.mkt);
 
   // comparison — mês atual calculado automaticamente a partir do histórico
   const fatAtual = num(d.faturamento);

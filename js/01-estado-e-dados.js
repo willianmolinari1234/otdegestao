@@ -2,7 +2,7 @@
 // ─── SEED DATA ────────────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
 const todayISO=()=>new Date().toISOString().slice(0,10);
-const MKTS=["Shopee","Shein"];
+const MKTS=["Shopee","Shein","Mercado Livre","TikTok"];
 // Brand identity per marketplace: icon glyph + colors. Falls back gracefully for unknown markets.
 const MKT_STYLE={
   "shopee":   {bg:"#fff1e9", fg:"#ee4d2d", border:"#ffd4c2"},
