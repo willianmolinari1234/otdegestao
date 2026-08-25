@@ -136,6 +136,79 @@ export function semFerramentaNemAgendada(lojas, tipo, agoraSeg) {
   return out;
 }
 
+/**
+ * O mínimo de ferramentas que toda loja deve manter no ar.
+ *
+ * Não é meta de performance: é o arroz com feijão que a operação combinou de
+ * deixar sempre ativo em toda loja. Ficar abaixo disso não quebra nada nem
+ * aparece em relatório — a loja só rende menos, em silêncio, até alguém
+ * reparar. É a mesma falha silenciosa do desconto, contada por outro lado.
+ */
+export const MINIMO_FERRAMENTAS = { cupom: 4, desconto: 3 };
+
+/** Trecho que identifica o cupom de Prêmio de Seguidor no nome digitado na Shopee. */
+export const CUPOM_SEGUIDOR = "seguidor";
+
+/** Minúsculas e sem acento: o nome do cupom é digitado à mão, loja por loja. */
+function normalizar(txt) {
+  return String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Uma promoção conta como ativa se já começou e ainda não terminou.
+ *
+ * Sem data conta como ativa: a Shopee só devolve as vigentes, então falta de
+ * data é falta de dado, não falta de promoção. É a mesma regra de semFerramenta.
+ */
+function estaAtiva(p, agora) {
+  const fim = Number(p?.fim || 0);
+  const inicio = Number(p?.inicio || 0);
+  if (fim && fim <= agora) return false;
+  if (inicio && inicio > agora) return false;
+  return true;
+}
+
+/**
+ * Lojas que estão abaixo do mínimo combinado.
+ *
+ * Devolve só quem falha, e já com o que falta escrito — a tela não precisa
+ * refazer a conta para montar o texto, e a regra fica num lugar só.
+ *
+ * O Prêmio de Seguidor é um cupom como outro qualquer para a Shopee: ele conta
+ * dentro dos 4 e ainda é exigido à parte. Uma loja com 4 cupons sem o Prêmio
+ * está incompleta do mesmo jeito.
+ *
+ * @param {Array} lojas [{cliente, promocoes:[{tipo,nome,inicio,fim}]}]
+ * @param {number} agoraSeg momento de referência, em segundos
+ * @param {{cupom:number,desconto:number}} minimos
+ */
+export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS) {
+  const agora = Number(agoraSeg || 0);
+  const out = [];
+  for (const loja of lojas || []) {
+    if (!loja) continue;
+    const proms = Array.isArray(loja.promocoes) ? loja.promocoes : [];
+    const ativas = proms.filter((p) => estaAtiva(p, agora));
+    const doTipo = (tipo) => ativas.filter((p) => String(p?.tipo || "") === tipo);
+    const cupons = doTipo("cupom");
+    const descontos = doTipo("desconto").length;
+    const temSeguidor = cupons.some((p) => normalizar(p?.nome).includes(CUPOM_SEGUIDOR));
+
+    const faltas = [];
+    if (cupons.length < minimos.cupom) faltas.push({ chave: "cupom", texto: `${cupons.length}/${minimos.cupom} cupons` });
+    if (descontos < minimos.desconto) faltas.push({ chave: "desconto", texto: `${descontos}/${minimos.desconto} descontos` });
+    if (!temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
+
+    if (faltas.length) {
+      out.push({
+        cliente: loja.cliente || loja.id,
+        cupons: cupons.length, descontos, temSeguidor, faltas,
+      });
+    }
+  }
+  return out;
+}
+
 /** Texto curto do prazo, para caber na linha do aviso. */
 export function comoFalta(horas) {
   if (horas < 1) return "vence em menos de 1 hora";

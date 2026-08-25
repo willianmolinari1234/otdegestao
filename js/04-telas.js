@@ -946,59 +946,122 @@ document.addEventListener("keydown",e=>{
 });
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────
-// Aviso de ferramenta prestes a vencer.
-// Substituiu o aviso da conferência no painel: promoção acabando é ação da
+// Pendências de ferramenta, uma linha por loja.
+//
+// Substituiu o aviso da conferência no painel: promoção faltando é ação da
 // equipe HOJE; divergência de centavos já é corrigida sozinha pelo backend e
 // não muda o que ninguém faz. Aviso que não gera ação vira paisagem.
+//
+// Antes eram listas separadas por tipo de falha, e a mesma loja aparecia em
+// todas repetindo a mesma frase. Quem lê quer saber o que fazer NA LOJA, não
+// percorrer três listas para juntar as partes — por isso agora é uma linha por
+// loja, com as faltas dela em etiquetas.
+// Texto do combinado, montado a partir da própria regra: se o mínimo mudar em
+// prazos.js, o rodapé do aviso muda junto em vez de mentir.
+//
+// É função, não constante: este arquivo é script comum e roda ANTES do módulo
+// que preenche window.prazos, então ler a regra na carga pegaria undefined.
+function minimoTxt(){
+  const m=(window.prazos&&window.prazos.MINIMO_FERRAMENTAS)||{cupom:4,desconto:3};
+  return `${m.cupom} cupons (um deles o Prêmio de Seguidor) e ${m.desconto} descontos`;
+}
+const AVISO_MAX_LOJAS=12;
+const AVISO_MAX_VENCENDO=6;
+const AVISO_MAX_NOMES=14;
 function avisoFerramentasHTML(){
+  // Só admin. A equipe não decide o que fazer com pendência de loja, e aviso
+  // que quem lê não pode resolver é o jeito mais rápido de ensinar a ignorar
+  // o painel inteiro.
+  if(!isAdmin())return "";
   if(!window.prazos||!Array.isArray(tools)||!tools.length)return "";
   const agora=Math.floor(Date.now()/1000);
   const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
 
-  // Loja sem desconto ativo vem PRIMEIRO: já está perdendo posição agora,
-  // enquanto a que vence em 2 dias ainda está funcionando.
-  const semDesc=window.prazos.semFerramenta(tools,"desconto",agora)
-    .map(x=>({...x,nome:nomeLoja(x.cliente)}))
-    .sort((a,b)=>a.nome.localeCompare(b.nome));
-  // Oferta relâmpago tem regra própria: ela se renova sozinha, então o alerta
-  // é a AUSÊNCIA (nem rodando nem agendada), não o prazo. Uma agendada para
-  // amanhã já cobre a loja — cobrar de novo só ensina a ignorar o painel.
-  const semRelampago=window.prazos.semFerramentaNemAgendada(tools,"flash_sale",agora)
-    .map(x=>({...x,nome:nomeLoja(x.cliente)}))
-    .sort((a,b)=>a.nome.localeCompare(b.nome));
+  const semDesc=new Set(window.prazos.semFerramenta(tools,"desconto",agora).map(x=>x.cliente));
+  const semRel=new Set(window.prazos.semFerramentaNemAgendada(tools,"flash_sale",agora).map(x=>x.cliente));
+  const minimos=new Map(window.prazos.abaixoDoMinimo(tools,agora).map(x=>[x.cliente,x]));
   const vence=window.prazos.vencendo(tools,agora,2);
-  if(!semDesc.length&&!semRelampago.length&&!vence.length)return "";
 
-  const bloco=(cor,titulo,itens,rodape)=>itens?`
-    <div style="margin-bottom:${rodape?"10px":"0"}">
-      <div style="font-weight:700;font-size:13px;color:${cor};margin-bottom:4px">${titulo}</div>
-      <ul style="margin:0 0 4px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${itens}</ul>
-      ${rodape?`<div style="font-size:11.5px;color:#9a3412">${rodape}</div>`:""}
-    </div>`:"";
+  const ids=[...new Set([...semDesc,...semRel,...minimos.keys()])];
+  const lojas=ids.map(id=>{
+    const tags=[];
+    // Ordem fixa: o que já custa venda agora vem antes do que é combinado.
+    if(semDesc.has(id))tags.push({t:"sem desconto ativo",n:"crit"});
+    if(semRel.has(id))tags.push({t:"sem oferta relâmpago",n:"alerta"});
+    for(const f of ((minimos.get(id)||{}).faltas||[])){
+      // "0/3 descontos" não acrescenta nada em quem já está marcado como sem
+      // desconto ativo — seria a mesma notícia duas vezes na mesma linha.
+      if(f.chave==="desconto"&&semDesc.has(id))continue;
+      tags.push({t:f.texto,n:"min"});
+    }
+    return {id,nome:nomeLoja(id),tags,
+            peso:(semDesc.has(id)?100:0)+(semRel.has(id)?50:0)+tags.length};
+  }).filter(x=>x.tags.length)
+    .sort((a,b)=>b.peso-a.peso||a.nome.localeCompare(b.nome));
 
-  const liSemDesc=semDesc.slice(0,10).map(x=>
-    `<li><b>${esc(x.nome)}</b>${x.total?` — tem ${x.total} outra(s) ferramenta(s), mas nenhum desconto`:" — sem nenhuma ferramenta ativa"}.</li>`).join("");
-  const liSemRelampago=semRelampago.slice(0,10).map(x=>
-    `<li><b>${esc(x.nome)}</b> — nenhuma oferta relâmpago em andamento nem agendada.</li>`).join("");
-  const liVence=vence.slice(0,8).map(p=>
-    `<li><b>${esc(nomeLoja(p.cliente))}</b>: ${esc(p.nome)} — ${esc(window.prazos.comoFalta(p.horas))}.</li>`).join("");
+  if(!lojas.length&&!vence.length)return "";
 
-  return`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
-    ${bloco("#991B1B",
-      `${semDesc.length} loja(s) SEM desconto ativo`,
-      liSemDesc,
-      (semDesc.length>10?`…e mais ${semDesc.length-10}. `:"")+
-      "Anúncio sem desconto perde posição na busca — a loja vende menos sem nada dar erro.")}
-    ${bloco("#b45309",
-      `${semRelampago.length} loja(s) SEM oferta relâmpago agendada`,
-      liSemRelampago,
-      (semRelampago.length>10?`…e mais ${semRelampago.length-10}. `:"")+
-      "A relâmpago é curta e se renova sozinha; o problema é a loja ficar sem nenhuma pela frente.")}
-    ${bloco("#9a3412",
-      `${vence.length} ferramenta(s) vencendo em até 2 dias`,
-      liVence,
-      vence.length>8?`…e mais ${vence.length-8}.`:"")}
-  </div>`;
+  const CORES={
+    crit:  {bg:"#fee2e2",fg:"#991b1b",bd:"#fecaca"},
+    alerta:{bg:"#fef3c7",fg:"#92400e",bd:"#fde68a"},
+    min:   {bg:"#ffedd5",fg:"#9a3412",bd:"#fed7aa"},
+  };
+  const tag=(x)=>{const c=CORES[x.n]||CORES.min;
+    return `<span style="display:inline-block;background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap">${esc(x.t)}</span>`;};
+
+  const linha=(nome,direita)=>`
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid #f5e6d8">
+      <span style="flex:0 0 auto;min-width:172px;font-size:12.5px;font-weight:600;color:#1e293b">${esc(nome)}</span>
+      <span style="display:flex;gap:5px;flex-wrap:wrap">${direita}</span>
+    </div>`;
+
+  const titulo=(txt,n)=>`
+    <div style="display:flex;align-items:center;gap:8px;margin:0 0 2px">
+      <span style="font-size:12.5px;font-weight:700;color:#7c2d12;letter-spacing:-.01em">${txt}</span>
+      <span style="background:#ea580c;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${n}</span>
+    </div>`;
+
+  const rodape=(txt)=>`<div style="font-size:11.5px;color:#a16207;margin-top:8px;line-height:1.6">${txt}</div>`;
+
+  // Loja com UMA pendência só não merece uma linha inteira: dez linhas
+  // repetindo "sem oferta relâmpago" foi justamente o que afogou o aviso
+  // antigo. Elas viram uma linha agrupada, e o espaço fica para quem tem
+  // várias faltas ou já está perdendo venda agora.
+  const destaque=lojas.filter(l=>l.tags.length>1||l.tags.some(t=>t.n==="crit"));
+  const grupos=new Map();
+  for(const l of lojas.filter(l=>!destaque.includes(l))){
+    const k=l.tags[0].t;
+    if(!grupos.has(k))grupos.set(k,{tag:l.tags[0],nomes:[]});
+    grupos.get(k).nomes.push(l.nome);
+  }
+  const linhaGrupo=(g)=>`
+    <div style="padding:8px 0;border-top:1px solid #f5e6d8">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${tag(g.tag)}<span style="font-size:11.5px;color:#78716c">${g.nomes.length} loja(s)</span>
+      </div>
+      <div style="font-size:12px;color:#475569;line-height:1.7;margin-top:3px">${
+        g.nomes.slice(0,AVISO_MAX_NOMES).map(esc).join(" · ")
+      }${g.nomes.length>AVISO_MAX_NOMES?` <span style="color:#94a3b8">…e mais ${g.nomes.length-AVISO_MAX_NOMES}</span>`:""}</div>
+    </div>`;
+
+  let html="";
+  if(lojas.length){
+    html+=titulo("Lojas com ferramenta pendente",lojas.length)
+      +destaque.slice(0,AVISO_MAX_LOJAS).map(l=>linha(l.nome,l.tags.map(tag).join(""))).join("")
+      +[...grupos.values()].sort((a,b)=>b.nomes.length-a.nomes.length).map(linhaGrupo).join("")
+      +rodape((destaque.length>AVISO_MAX_LOJAS?`…e mais ${destaque.length-AVISO_MAX_LOJAS} loja(s) com várias faltas. `:"")
+        +`O combinado é <b>${minimoTxt()}</b> ativos em toda loja. Anúncio sem desconto perde posição na busca, e a relâmpago some do dia seguinte se ninguém agendar — nos dois casos a loja vende menos sem nada dar erro.`);
+  }
+  if(vence.length){
+    html+=`<div style="margin-top:14px">`+titulo("Vencendo em até 2 dias",vence.length)
+      +vence.slice(0,AVISO_MAX_VENCENDO).map(p=>linha(nomeLoja(p.cliente),
+        `<span style="font-size:12px;color:#475569">${esc(p.nome)}</span>`
+        +tag({t:window.prazos.comoFalta(p.horas),n:p.horas<24?"crit":"alerta"}))).join("")
+      +(vence.length>AVISO_MAX_VENCENDO?rodape(`…e mais ${vence.length-AVISO_MAX_VENCENDO}.`):"")
+      +`</div>`;
+  }
+
+  return`<div style="background:#fffaf5;border:1px solid #fed7aa;border-left:4px solid #ea580c;border-radius:12px;padding:14px 18px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(15,23,42,.04)">${html}</div>`;
 }
 
 // Aviso da conferência diária — MANTIDO, mas fora do painel.
