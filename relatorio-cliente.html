@@ -60,6 +60,9 @@
   .rt-pill:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
   /* Quando embutido no sistema (?embed=1), esconde a barra de topo própria */
   body.embed .appbar{display:none;}
+  /* Com ?aba=..., a aba vira uma entrada do menu do sistema: a barra de
+     abas daqui viraria um segundo menu dizendo a mesma coisa. */
+  body.aba-fixa .tabs{display:none;}
   body.embed .content{padding-top:14px;}
   .dtable{width:100%;border-collapse:collapse;font-size:13px;}
   .dtable th{text-align:left;padding:9px 12px;background:var(--bg);color:var(--text-muted);font-weight:500;white-space:nowrap;}
@@ -500,6 +503,10 @@ onAuthStateChanged(auth, async (user) => {
     await loadClients();
     const now = new Date();
     $("monthSel").value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    // Só agora: switchTab("vendas") lê o monthSel e switchTab("ferramentas")
+    // precisa da lista de clientes para dar nome às lojas. Chamar antes disso
+    // desenharia a tela com os dados ainda vazios.
+    if (abaFixa()) switchTab(abaFixa());
   } else {
     $("app").style.display = "none";
     $("login").style.display = "flex";
@@ -897,6 +904,21 @@ $("dashMonth").addEventListener("change", loadDash);
 if (new URLSearchParams(location.search).get("embed") === "1") {
   document.body.classList.add("embed");
 }
+
+// ?aba=cliente|vendas|ferramentas — abre direto numa aba e esconde a barra de
+// abas. É assim que "Vendas" e "Ferramentas" aparecem como entradas próprias no
+// menu do sistema sem duplicar esta tela: cada entrada carrega esta mesma
+// página apontando para a sua aba.
+//
+// Sem o parâmetro nada muda: a página segue com as três abas, como sempre.
+// Declarada como function, e com a lista de abas dentro dela, para poder ser
+// chamada de qualquer ponto do script — inclusive do onAuthStateChanged lá em
+// cima, que roda depois mas está escrito antes.
+function abaFixa() {
+  const a = new URLSearchParams(location.search).get("aba");
+  return ["cliente", "vendas", "ferramentas"].includes(a) ? a : null;
+}
+if (abaFixa()) document.body.classList.add("aba-fixa");
 
 // Período selecionado nas vendas da Shopee: "dia" | "semana" | "mes".
 let rtPeriodo = "dia";

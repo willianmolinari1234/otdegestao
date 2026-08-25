@@ -33,7 +33,7 @@ const ERP_PRESETS={
   outro:   {label:"Outro (personalizado)", url:"", hasId:false}
 };
 const COLORS=["#ea580c","#7c3aed","#db2777","#d97706","#2563eb","#dc2626","#16a34a","#0284c7"];
-const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",planilhas:"Planilhas de Margem",integracoes:"Integrações",relcliente:"Relatório de Cliente"};
+const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",planilhas:"Planilhas de Margem",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja"};
 const PLBL={alta:"Alta",media:"Média",baixa:"Baixa"};
 const SLBL={todo:"A fazer",doing:"Em andamento",done:"Concluído"};
 const SCOL={todo:"#64748b",doing:"#ea580c",done:"#16a34a"};

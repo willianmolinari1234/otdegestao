@@ -902,8 +902,12 @@ function render(){
   if(view==="diagnostico"&&!isAdmin())view="dashboard";
   if(view==="planilhas"&&!isAdmin())view="dashboard";
   if(view==="integracoes"&&!isAdmin())view="dashboard";
+  // Vendas e Ferramentas são só de admin. Esconder o botão no menu não basta:
+  // sem esta guarda a tela continua alcançável por quem tiver a view salva.
+  if(view==="vendas"&&!isAdmin())view="dashboard";
+  if(view==="ferramentas"&&!isAdmin())view="dashboard";
   if(view==="promos")view="dashboard"; // ferramenta de promoções manuais desativada
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,planilhas:rPlanilhas,integracoes:rIntegracoes,relcliente:rRelCliente}[view];
+  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,planilhas:rPlanilhas,integracoes:rIntegracoes,relcliente:rRelCliente,vendas:rVendas,ferramentas:rFerramentas}[view];
   document.getElementById("content").innerHTML=fn();
   bindAll();
   enhanceSearchSelects(document.getElementById("content"));
@@ -1224,11 +1228,21 @@ function rKanban(){
     <div class="kanban-grid">${cols}</div>`;
 }
 
-// ─── RELATÓRIO DE CLIENTE (embutido, sem sair do sistema) ─────────────
-function rRelCliente(){
-  return`<iframe src="relatorio-cliente.html?embed=1" title="Relatório de Cliente"
+// ─── RELATÓRIO DE CLIENTE / VENDAS / FERRAMENTAS ──────────────────────
+// As três eram abas dentro do relatorio-cliente.html. Viraram entradas do menu
+// porque eram três telas diferentes escondidas atrás de um clique extra — quem
+// abria o relatório de um cliente não estava procurando faturamento geral.
+//
+// Continuam sendo a MESMA página, aberta com ?aba=... — duplicar o código em
+// telas separadas criaria duas versões da mesma regra para manter em sincronia,
+// que é exatamente como o painel ficou fora do padrão da oferta relâmpago.
+function telaRelatorio(aba,titulo){
+  return`<iframe src="relatorio-cliente.html?embed=1&aba=${aba}" title="${esc(titulo)}"
      style="width:100%;height:calc(100vh - 132px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;
 }
+function rRelCliente(){ return telaRelatorio("cliente","Relatório de Cliente"); }
+function rVendas(){ return telaRelatorio("vendas","Vendas · Todas as Lojas"); }
+function rFerramentas(){ return telaRelatorio("ferramentas","Ferramentas por Loja"); }
 
 // ─── INTEGRAÇÕES (Shopee) ─────────────────────────────────────────────
 // Conecta cada loja à API da Shopee via OAuth. O botão abre o link de
