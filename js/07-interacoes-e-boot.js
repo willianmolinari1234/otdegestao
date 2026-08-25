@@ -219,7 +219,7 @@ async function boot(){
       // User is signed out
       stopListeners();
       currentUser=null;
-      emps=[];clis=[];tsks=[];proms=[];custs=[];prods=[];
+      emps=[];clis=[];tsks=[];proms=[];custs=[];
       myOnly=false;
       updateUserChip();
       // Esconde o sistema e mostra o login ANTES de tirar o overlay.

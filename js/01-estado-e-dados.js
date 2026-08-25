@@ -33,7 +33,7 @@ const ERP_PRESETS={
   outro:   {label:"Outro (personalizado)", url:"", hasId:false}
 };
 const COLORS=["#ea580c","#7c3aed","#db2777","#d97706","#2563eb","#dc2626","#16a34a","#0284c7"];
-const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",planilhas:"Planilhas de Margem",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja"};
+const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja"};
 const PLBL={alta:"Alta",media:"Média",baixa:"Baixa"};
 const SLBL={todo:"A fazer",doing:"Em andamento",done:"Concluído"};
 const SCOL={todo:"#64748b",doing:"#ea580c",done:"#16a34a"};
@@ -57,7 +57,6 @@ const daysAhead=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISO
 //   clis    → clients      lojas (é o "cliente" no resto do sistema)
 //   tsks    → tasks        tarefas
 //   proms   → promos       promoções acompanhadas à mão
-//   prods   → products     planilha de margem
 //   integs  → integracoes  status das conexões com a Shopee
 //
 // ATENÇÃO à ambiguidade da palavra "cliente":
@@ -66,7 +65,6 @@ const daysAhead=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return d.toISO
 let emps=[];
 let custs=[];
 let clis=[];
-let prods=[];let prodCfg={imposto:7.5,gestao:2,meta:15};let plStore="";let plEditId="";let plSearch="";
 let tsks=[];
 let proms=[];
 let integs=[];
@@ -187,15 +185,10 @@ function startListeners(){
     proms=snap.docs.map(d=>d.data());
     critDone("proms");render();
   },err=>{console.error("proms listener:",err);proms=[];critDone("proms");}));
-  if(isAdmin()){
-    listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"products"),snap=>{
-      const all=snap.docs.map(d=>d.data());
-      const cfg=all.find(d=>d.id==="_config");
-      prodCfg=Object.assign({imposto:7.5,gestao:2,meta:15},cfg||{});
-      prods=all.filter(d=>d.id!=="_config");
-      if(currentUser)render();
-    },err=>console.error("prods listener:",err)));
-  }
+  // A coleção "products" não é mais assinada: a tela de Planilhas de Margem
+  // saiu do sistema e ninguém mais lê esses documentos. Os dados continuam no
+  // Firestore — o que saiu foi o listener em tempo real, que redesenhava a
+  // tela inteira a cada alteração de produto.
   // Ferramentas (promoções) por loja — alimentam o aviso de vencimento no
   // painel. Documento pequeno (uma linha por loja), então assinar é barato.
   listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"tools"),snap=>{
