@@ -152,12 +152,35 @@ export function semFerramentaNemAgendada(lojas, tipo, agoraSeg) {
  */
 export const MINIMO_FERRAMENTAS = { cupom: 4 };
 
-/** Trecho que identifica o cupom de Prêmio de Seguidor no nome digitado na Shopee. */
-export const CUPOM_SEGUIDOR = "seguidor";
+/**
+ * Como reconhecer o cupom de Prêmio de Seguidor.
+ *
+ * Pelo NOME não dá. "Cupom de prêmio do seguidor" é um tipo de cupom da
+ * Shopee, mas o nome quem digita é a loja — e há uma chamando o dela de
+ * "consultoria". Procurar "seguidor" no texto acusa de falta um cupom que
+ * existe, e alerta errado ensina a equipe a ignorar o painel inteiro; era
+ * assim que a oferta relâmpago afogava o aviso.
+ *
+ * O campo da API que marca esse tipo ainda não foi identificado — a
+ * documentação pública não descreve. O backend tem amostraCupons() para
+ * responder isso com os dados reais, e desde já guarda os campos crus de cada
+ * cupom em `bruto`, para a regra passar a olhar o parâmetro certo sem precisar
+ * de outro deploy do backend.
+ *
+ * Enquanto não sabemos, a checagem fica SUSPENSA: não acusar é melhor do que
+ * acusar errado. Preencher aqui a devolve ao ar, e os testes já cobrem o
+ * mecanismo:
+ *
+ *   export const PREMIO_SEGUIDOR = { campo: "voucher_type", valor: 3 };
+ */
+export const PREMIO_SEGUIDOR = null;
 
-/** Minúsculas e sem acento: o nome do cupom é digitado à mão, loja por loja. */
-function normalizar(txt) {
-  return String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+/** Um cupom é o Prêmio de Seguidor? Só responde sim com a regra configurada. */
+export function ehPremioSeguidor(p, regra = PREMIO_SEGUIDOR) {
+  if (!regra || !regra.campo) return false;
+  const v = (p && p.bruto) ? p.bruto[regra.campo] : undefined;
+  if (v === undefined) return false;
+  return Array.isArray(regra.valor) ? regra.valor.includes(v) : v === regra.valor;
 }
 
 /**
@@ -182,13 +205,14 @@ function estaAtiva(p, agora) {
  *
  * O Prêmio de Seguidor é um cupom como outro qualquer para a Shopee: ele conta
  * dentro dos 4 e ainda é exigido à parte. Uma loja com 4 cupons sem o Prêmio
- * está incompleta do mesmo jeito.
+ * está incompleta do mesmo jeito — quando a regra de reconhecê-lo estiver
+ * configurada (ver PREMIO_SEGUIDOR).
  *
  * @param {Array} lojas [{cliente, promocoes:[{tipo,nome,inicio,fim}]}]
  * @param {number} agoraSeg momento de referência, em segundos
  * @param {{cupom:number,desconto:number}} minimos
  */
-export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS) {
+export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS, premio = PREMIO_SEGUIDOR) {
   const agora = Number(agoraSeg || 0);
   const out = [];
   for (const loja of lojas || []) {
@@ -197,11 +221,13 @@ export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS) {
     const ativas = proms.filter((p) => estaAtiva(p, agora));
     const doTipo = (tipo) => ativas.filter((p) => String(p?.tipo || "") === tipo);
     const cupons = doTipo("cupom");
-    const temSeguidor = cupons.some((p) => normalizar(p?.nome).includes(CUPOM_SEGUIDOR));
+    const temSeguidor = cupons.some((p) => ehPremioSeguidor(p, premio));
 
     const faltas = [];
     if (cupons.length < minimos.cupom) faltas.push({ chave: "cupom", texto: `${cupons.length}/${minimos.cupom} cupons` });
-    if (!temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
+    // Sem regra configurada não se cobra o Prêmio: acusar toda loja de não ter
+    // um cupom que talvez ela tenha é pior do que não checar.
+    if (premio && !temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
 
     if (faltas.length) {
       out.push({

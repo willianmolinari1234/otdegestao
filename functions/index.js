@@ -566,7 +566,25 @@ async function fetchFerramentas(shopId, token) {
         const nome = ep.tipo === "flash_sale"
           ? `Oferta relâmpago · ${rotuloHorario(inicio)}${emAndamento(inicio, fim) ? " · em andamento" : ""}`
           : String(p[ep.nameKey] ?? ep.tipo);
-        promocoes.push({ tipo: ep.tipo, nome, inicio, fim });
+        const promo = { tipo: ep.tipo, nome, inicio, fim };
+        // Cupom guarda também os campos crus da Shopee.
+        //
+        // Motivo: o "Cupom de prêmio do seguidor" é um TIPO de cupom, mas cada
+        // loja batiza o dela como quer ("consultoria", por exemplo). Enquanto
+        // só o nome era guardado, a única forma de reconhecê-lo era procurar
+        // "seguidor" no texto — e isso erra em toda loja que escreveu
+        // diferente, calada, dizendo que falta um cupom que existe.
+        //
+        // Guardar os campos crus deixa a regra passar a olhar o parâmetro
+        // certo assim que ele for identificado (ver a função amostraCupons),
+        // sem precisar de outro deploy do backend para só então ter o dado.
+        // São poucos campos numéricos por cupom.
+        if (ep.tipo === "cupom") {
+          promo.bruto = Object.fromEntries(
+            Object.entries(p).filter(([k]) => !["voucher_name", "start_time", "end_time"].includes(k))
+          );
+        }
+        promocoes.push(promo);
       });
     } catch (e) {
       erros[ep.tipo] = e.message;
@@ -1364,6 +1382,65 @@ export const amostraSku = onRequest({ secrets, timeoutSeconds: 300 }, async (req
     });
   } catch (e) {
     logger.error("amostraSku", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Amostra dos cupons (achar o campo do prêmio do seguidor) ----------
+// Existe para responder UMA pergunta: qual campo da Shopee diz que um cupom é
+// o "Cupom de prêmio do seguidor"? O nome não serve — cada loja batiza o dela
+// como quer, e vimos um chamado "consultoria".
+//
+// Devolve os cupons crus, com todos os campos, e o detalhe do primeiro (a
+// lista pode omitir o que só vem no get_voucher). Rode apontando para uma loja
+// que TENHA o cupom e compare com uma que não tenha: o campo que muda entre as
+// duas é o que a regra deve olhar.
+//
+//   /amostraCupons?token=<SYNC_TOKEN>&cliente=<id da loja>
+export const amostraCupons = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtro = req.query.cliente || null;
+  const porLoja = [];
+  try {
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      if (porLoja.length >= 3) return;   // amostra: não precisa varrer tudo
+      const r = await shopCall(cfg(), {
+        path: "/api/v2/voucher/get_voucher_list", accessToken: token, shopId,
+        params: { status: "ongoing", page_no: 1, page_size: 100 },
+      });
+      const lista = r.response?.voucher_list || [];
+
+      // Detalhe de CADA cupom: é o get_voucher que costuma trazer os campos
+      // que a listagem resume. Poucos cupons por loja, então dá para pedir
+      // todos e não ter que adivinhar qual olhar.
+      const detalhes = [];
+      for (const v of lista.slice(0, 8)) {
+        try {
+          const d = await shopCall(cfg(), {
+            path: "/api/v2/voucher/get_voucher", accessToken: token, shopId,
+            params: { voucher_id: v.voucher_id },
+          });
+          detalhes.push(d.response || null);
+        } catch (e) { detalhes.push({ voucher_id: v.voucher_id, erro: e.message }); }
+      }
+      porLoja.push({
+        cliente,
+        quantos: lista.length,
+        camposDaLista: [...new Set(lista.flatMap((v) => Object.keys(v)))],
+        camposDoDetalhe: [...new Set(detalhes.flatMap((d) => Object.keys(d || {})))],
+        lista,
+        detalhes,
+      });
+    }, { cliente: filtro });
+
+    res.json({
+      ok: true,
+      oQueProcurar: "o campo que difere entre o cupom de prêmio do seguidor e os demais — provavelmente algo como voucher_type, reward_type, voucher_purpose ou display_channel_list",
+      porLoja,
+    });
+  } catch (e) {
+    logger.error("amostraCupons", e);
     res.status(500).json({ erro: e.message });
   }
 });
