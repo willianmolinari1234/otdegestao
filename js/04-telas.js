@@ -956,15 +956,6 @@ document.addEventListener("keydown",e=>{
 // todas repetindo a mesma frase. Quem lê quer saber o que fazer NA LOJA, não
 // percorrer três listas para juntar as partes — por isso agora é uma linha por
 // loja, com as faltas dela em etiquetas.
-// Texto do combinado, montado a partir da própria regra: se o mínimo mudar em
-// prazos.js, o rodapé do aviso muda junto em vez de mentir.
-//
-// É função, não constante: este arquivo é script comum e roda ANTES do módulo
-// que preenche window.prazos, então ler a regra na carga pegaria undefined.
-function minimoTxt(){
-  const m=(window.prazos&&window.prazos.MINIMO_FERRAMENTAS)||{cupom:4,desconto:3};
-  return `${m.cupom} cupons ativos, um deles o Prêmio de Seguidor`;
-}
 const AVISO_MAX_LOJAS=12;
 const AVISO_MAX_VENCENDO=6;
 const AVISO_MAX_NOMES=14;
@@ -1053,17 +1044,17 @@ function avisoFerramentasHTML(){
           ${semNenhum.length===1?"1 loja está":`${semNenhum.length} lojas estão`} SEM NENHUM DESCONTO ATIVO</span>
       </div>
       ${semNenhum.map(l=>linha(l.nome,l.tags.map(tag).join(""),"#fbdcdc")).join("")}
-      <div style="font-size:11.5px;color:#b91c1c;margin-top:8px;line-height:1.6">
-        Anúncio sem desconto perde posição na busca e sai do "ofertas" — a loja vende menos sem nada dar erro.
-        <b>É a única falta desta caixa que já está custando venda agora</b>; o resto é o combinado por cumprir.</div>
     </div>`;
   }
   if(resto.length){
     html+=titulo("Lojas com ferramenta pendente",resto.length)
       +destaque.slice(0,AVISO_MAX_LOJAS).map(l=>linha(l.nome,l.tags.map(tag).join(""))).join("")
       +[...grupos.values()].sort((a,b)=>b.nomes.length-a.nomes.length).map(linhaGrupo).join("")
-      +rodape((destaque.length>AVISO_MAX_LOJAS?`…e mais ${destaque.length-AVISO_MAX_LOJAS} loja(s) com várias faltas. `:"")
-        +`O combinado é <b>${minimoTxt()}</b> em toda loja. A relâmpago some do dia seguinte se ninguém agendar. Quantidade de descontos não é cobrada — uma campanha só, com todos os anúncios dentro, está certa.`);
+      // Do rodapé só sobra o que foi CORTADO da lista: aviso que esconde parte
+      // dela sem dizer vira "está tudo aqui" mentindo. O texto explicativo saiu
+      // — o painel diz se a ferramenta está no ar, não repete o porquê.
+      +(destaque.length>AVISO_MAX_LOJAS
+        ?rodape(`…e mais ${destaque.length-AVISO_MAX_LOJAS} loja(s) com várias faltas.`):"");
   }
   if(vence.length){
     html+=`<div style="margin-top:14px">`+titulo("Vencendo em até 2 dias",vence.length)
