@@ -161,19 +161,20 @@ export const MINIMO_FERRAMENTAS = { cupom: 4 };
  * existe, e alerta errado ensina a equipe a ignorar o painel inteiro; era
  * assim que a oferta relâmpago afogava o aviso.
  *
- * O campo da API que marca esse tipo ainda não foi identificado — a
- * documentação pública não descreve. O backend tem amostraCupons() para
- * responder isso com os dados reais, e desde já guarda os campos crus de cada
- * cupom em `bruto`, para a regra passar a olhar o parâmetro certo sem precisar
- * de outro deploy do backend.
+ * O campo saiu de amostraCupons() rodado numa loja real (qu48bsm40, 4 cupons
+ * ativos). Três marcas separam o prêmio dos outros três cupons da mesma loja,
+ * e as três concordam:
  *
- * Enquanto não sabemos, a checagem fica SUSPENSA: não acusar é melhor do que
- * acusar errado. Preencher aqui a devolve ao ar, e os testes já cobrem o
- * mecanismo:
+ *   voucher_purpose  3  (os outros: 0)
+ *   usecase          9  (os outros: 1)
+ *   voucher_code     "SFP-1495009333751808"  (os outros: MANU15, MANU70…)
  *
- *   export const PREMIO_SEGUIDOR = { campo: "voucher_type", valor: 3 };
+ * Fica voucher_purpose porque é o campo que declara a FINALIDADE do cupom —
+ * usecase parece derivado dele, e o código, embora seja gerado pela Shopee
+ * ("SFP" de Shopee Follower Prize) e não pela loja, é texto: casar por prefixo
+ * de string é o mesmo erro do nome, só que mais bem disfarçado.
  */
-export const PREMIO_SEGUIDOR = null;
+export const PREMIO_SEGUIDOR = { campo: "voucher_purpose", valor: 3 };
 
 /** Um cupom é o Prêmio de Seguidor? Só responde sim com a regra configurada. */
 export function ehPremioSeguidor(p, regra = PREMIO_SEGUIDOR) {
@@ -222,12 +223,19 @@ export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS, pr
     const doTipo = (tipo) => ativas.filter((p) => String(p?.tipo || "") === tipo);
     const cupons = doTipo("cupom");
     const temSeguidor = cupons.some((p) => ehPremioSeguidor(p, premio));
+    // O Prêmio só é reconhecível pelos campos crus, que passaram a ser
+    // guardados depois. Loja cujos cupons ainda não têm `bruto` é loja não
+    // ressincronizada: dá para contar quantos cupons ela tem, mas não dá para
+    // dizer se um deles é o Prêmio. Acusar aí seria acusar a base inteira por
+    // um dado que ainda não chegou — o mesmo erro do "3 descontos", que
+    // disparava em 35 de 40 lojas. Some sozinho no próximo sync.
+    const daParaSaber = cupons.some((p) => p && p.bruto && Object.keys(p.bruto).length);
 
     const faltas = [];
     if (cupons.length < minimos.cupom) faltas.push({ chave: "cupom", texto: `${cupons.length}/${minimos.cupom} cupons` });
     // Sem regra configurada não se cobra o Prêmio: acusar toda loja de não ter
     // um cupom que talvez ela tenha é pior do que não checar.
-    if (premio && !temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
+    if (premio && daParaSaber && !temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
 
     if (faltas.length) {
       out.push({
