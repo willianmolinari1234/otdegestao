@@ -143,8 +143,14 @@ export function semFerramentaNemAgendada(lojas, tipo, agoraSeg) {
  * deixar sempre ativo em toda loja. Ficar abaixo disso não quebra nada nem
  * aparece em relatório — a loja só rende menos, em silêncio, até alguém
  * reparar. É a mesma falha silenciosa do desconto, contada por outro lado.
+ *
+ * Não há mínimo de DESCONTOS de propósito. Contar campanhas de desconto não
+ * mede nada: uma loja pode ter todos os anúncios dentro de uma campanha só e
+ * estar perfeita, e outra pode ter cinco. Exigir três acusava quase toda a
+ * base — alerta que dispara em todo mundo não separa nada e ensina a rolar a
+ * tela. O que importa no desconto é o zero, e disso cuida semFerramenta().
  */
-export const MINIMO_FERRAMENTAS = { cupom: 4, desconto: 3 };
+export const MINIMO_FERRAMENTAS = { cupom: 4 };
 
 /** Trecho que identifica o cupom de Prêmio de Seguidor no nome digitado na Shopee. */
 export const CUPOM_SEGUIDOR = "seguidor";
@@ -191,18 +197,16 @@ export function abaixoDoMinimo(lojas, agoraSeg, minimos = MINIMO_FERRAMENTAS) {
     const ativas = proms.filter((p) => estaAtiva(p, agora));
     const doTipo = (tipo) => ativas.filter((p) => String(p?.tipo || "") === tipo);
     const cupons = doTipo("cupom");
-    const descontos = doTipo("desconto").length;
     const temSeguidor = cupons.some((p) => normalizar(p?.nome).includes(CUPOM_SEGUIDOR));
 
     const faltas = [];
     if (cupons.length < minimos.cupom) faltas.push({ chave: "cupom", texto: `${cupons.length}/${minimos.cupom} cupons` });
-    if (descontos < minimos.desconto) faltas.push({ chave: "desconto", texto: `${descontos}/${minimos.desconto} descontos` });
     if (!temSeguidor) faltas.push({ chave: "seguidor", texto: "sem Prêmio de Seguidor" });
 
     if (faltas.length) {
       out.push({
         cliente: loja.cliente || loja.id,
-        cupons: cupons.length, descontos, temSeguidor, faltas,
+        cupons: cupons.length, descontos: doTipo("desconto").length, temSeguidor, faltas,
       });
     }
   }

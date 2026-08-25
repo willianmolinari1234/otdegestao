@@ -963,7 +963,7 @@ document.addEventListener("keydown",e=>{
 // que preenche window.prazos, então ler a regra na carga pegaria undefined.
 function minimoTxt(){
   const m=(window.prazos&&window.prazos.MINIMO_FERRAMENTAS)||{cupom:4,desconto:3};
-  return `${m.cupom} cupons (um deles o Prêmio de Seguidor) e ${m.desconto} descontos`;
+  return `${m.cupom} cupons ativos, um deles o Prêmio de Seguidor`;
 }
 const AVISO_MAX_LOJAS=12;
 const AVISO_MAX_VENCENDO=6;
@@ -985,19 +985,19 @@ function avisoFerramentasHTML(){
   const ids=[...new Set([...semDesc,...semRel,...minimos.keys()])];
   const lojas=ids.map(id=>{
     const tags=[];
-    // Ordem fixa: o que já custa venda agora vem antes do que é combinado.
-    if(semDesc.has(id))tags.push({t:"sem desconto ativo",n:"crit"});
     if(semRel.has(id))tags.push({t:"sem oferta relâmpago",n:"alerta"});
-    for(const f of ((minimos.get(id)||{}).faltas||[])){
-      // "0/3 descontos" não acrescenta nada em quem já está marcado como sem
-      // desconto ativo — seria a mesma notícia duas vezes na mesma linha.
-      if(f.chave==="desconto"&&semDesc.has(id))continue;
-      tags.push({t:f.texto,n:"min"});
-    }
-    return {id,nome:nomeLoja(id),tags,
-            peso:(semDesc.has(id)?100:0)+(semRel.has(id)?50:0)+tags.length};
-  }).filter(x=>x.tags.length)
+    for(const f of ((minimos.get(id)||{}).faltas||[]))tags.push({t:f.texto,n:"min"});
+    return {id,nome:nomeLoja(id),tags,semDesc:semDesc.has(id),
+            peso:(semRel.has(id)?50:0)+tags.length};
+  }).filter(x=>x.tags.length||x.semDesc)
     .sort((a,b)=>b.peso-a.peso||a.nome.localeCompare(b.nome));
+
+  // Loja sem NENHUM desconto ativo sai da lista comum e ganha faixa própria.
+  // É a única falta aqui que já está custando venda neste momento: as outras
+  // são o combinado não cumprido. Misturar as duas na mesma lista faz a urgente
+  // ter o mesmo peso visual da rotineira, e quem lê trata tudo como rotina.
+  const semNenhum=lojas.filter(l=>l.semDesc);
+  const resto=lojas.filter(l=>!l.semDesc);
 
   if(!lojas.length&&!vence.length)return "";
 
@@ -1009,8 +1009,8 @@ function avisoFerramentasHTML(){
   const tag=(x)=>{const c=CORES[x.n]||CORES.min;
     return `<span style="display:inline-block;background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap">${esc(x.t)}</span>`;};
 
-  const linha=(nome,direita)=>`
-    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid #f5e6d8">
+  const linha=(nome,direita,sep="#f5e6d8")=>`
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid ${sep}">
       <span style="flex:0 0 auto;min-width:172px;font-size:12.5px;font-weight:600;color:#1e293b">${esc(nome)}</span>
       <span style="display:flex;gap:5px;flex-wrap:wrap">${direita}</span>
     </div>`;
@@ -1027,9 +1027,9 @@ function avisoFerramentasHTML(){
   // repetindo "sem oferta relâmpago" foi justamente o que afogou o aviso
   // antigo. Elas viram uma linha agrupada, e o espaço fica para quem tem
   // várias faltas ou já está perdendo venda agora.
-  const destaque=lojas.filter(l=>l.tags.length>1||l.tags.some(t=>t.n==="crit"));
+  const destaque=resto.filter(l=>l.tags.length>1);
   const grupos=new Map();
-  for(const l of lojas.filter(l=>!destaque.includes(l))){
+  for(const l of resto.filter(l=>!destaque.includes(l))){
     const k=l.tags[0].t;
     if(!grupos.has(k))grupos.set(k,{tag:l.tags[0],nomes:[]});
     grupos.get(k).nomes.push(l.nome);
@@ -1045,12 +1045,25 @@ function avisoFerramentasHTML(){
     </div>`;
 
   let html="";
-  if(lojas.length){
-    html+=titulo("Lojas com ferramenta pendente",lojas.length)
+  if(semNenhum.length){
+    html+=`<div style="background:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:10px;padding:12px 15px 13px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+        <span style="font-size:15px;line-height:1">⛔</span>
+        <span style="font-size:13.5px;font-weight:800;color:#991b1b;letter-spacing:-.01em">
+          ${semNenhum.length===1?"1 loja está":`${semNenhum.length} lojas estão`} SEM NENHUM DESCONTO ATIVO</span>
+      </div>
+      ${semNenhum.map(l=>linha(l.nome,l.tags.map(tag).join(""),"#fbdcdc")).join("")}
+      <div style="font-size:11.5px;color:#b91c1c;margin-top:8px;line-height:1.6">
+        Anúncio sem desconto perde posição na busca e sai do "ofertas" — a loja vende menos sem nada dar erro.
+        <b>É a única falta desta caixa que já está custando venda agora</b>; o resto é o combinado por cumprir.</div>
+    </div>`;
+  }
+  if(resto.length){
+    html+=titulo("Lojas com ferramenta pendente",resto.length)
       +destaque.slice(0,AVISO_MAX_LOJAS).map(l=>linha(l.nome,l.tags.map(tag).join(""))).join("")
       +[...grupos.values()].sort((a,b)=>b.nomes.length-a.nomes.length).map(linhaGrupo).join("")
       +rodape((destaque.length>AVISO_MAX_LOJAS?`…e mais ${destaque.length-AVISO_MAX_LOJAS} loja(s) com várias faltas. `:"")
-        +`O combinado é <b>${minimoTxt()}</b> ativos em toda loja. Anúncio sem desconto perde posição na busca, e a relâmpago some do dia seguinte se ninguém agendar — nos dois casos a loja vende menos sem nada dar erro.`);
+        +`O combinado é <b>${minimoTxt()}</b> em toda loja. A relâmpago some do dia seguinte se ninguém agendar. Quantidade de descontos não é cobrada — uma campanha só, com todos os anúncios dentro, está certa.`);
   }
   if(vence.length){
     html+=`<div style="margin-top:14px">`+titulo("Vencendo em até 2 dias",vence.length)

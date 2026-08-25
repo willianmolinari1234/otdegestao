@@ -1,8 +1,12 @@
 // Testes do mínimo de ferramentas por loja.
 //
-// A combinação da operação: 4 cupons, 3 descontos e o Prêmio de Seguidor,
-// todos ativos. Ficar abaixo não quebra nada — a loja só rende menos, calada,
-// até alguém reparar. Por isso vira alerta.
+// A combinação da operação: 4 cupons ativos, um deles o Prêmio de Seguidor.
+// Ficar abaixo não quebra nada — a loja só rende menos, calada, até alguém
+// reparar. Por isso vira alerta.
+//
+// Desconto NÃO tem mínimo: contar campanhas não mede nada (uma loja pode ter
+// todos os anúncios numa campanha só e estar perfeita). O que importa ali é o
+// zero, e disso cuida semFerramenta, testada no prazos.test.js.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,8 +35,8 @@ test("loja completa não aparece", () => {
   assert.deepEqual(abaixoDoMinimo([completa()], AGORA), []);
 });
 
-test("o mínimo combinado é 4 cupons e 3 descontos", () => {
-  assert.deepEqual(MINIMO_FERRAMENTAS, { cupom: 4, desconto: 3 });
+test("o mínimo combinado é 4 cupons, e desconto não tem mínimo", () => {
+  assert.deepEqual(MINIMO_FERRAMENTAS, { cupom: 4 });
 });
 
 test("cupom a menos aparece com a contagem", () => {
@@ -40,9 +44,19 @@ test("cupom a menos aparece com a contagem", () => {
   assert.deepEqual(textos(r), ["3/4 cupons"]);
 });
 
-test("desconto a menos aparece com a contagem", () => {
-  const r = abaixoDoMinimo([semAs(6)], AGORA);   // tira o terceiro desconto
-  assert.deepEqual(textos(r), ["2/3 descontos"]);
+test("quantidade de descontos não é cobrada", () => {
+  // O caso que derrubou a regra antiga: loja com UM desconto só, com todos os
+  // anúncios dentro dele, está certa. Exigir três acusava quase toda a base.
+  const l = completa();
+  l.promocoes = l.promocoes.filter((p) => p.tipo !== "desconto")
+    .concat([{ tipo: "desconto", nome: "todos os anuncios", inicio: h(-10), fim: h(100) }]);
+  assert.deepEqual(abaixoDoMinimo([l], AGORA), []);
+});
+
+test("nem loja sem desconto nenhum entra aqui — quem cuida do zero é semFerramenta", () => {
+  const l = completa();
+  l.promocoes = l.promocoes.filter((p) => p.tipo !== "desconto");
+  assert.deepEqual(abaixoDoMinimo([l], AGORA), []);
 });
 
 test("4 cupons mas sem o Prêmio de Seguidor ainda é falta", () => {
@@ -86,9 +100,9 @@ test("cupom sem datas conta como ativo", () => {
   assert.deepEqual(abaixoDoMinimo([l], AGORA), []);
 });
 
-test("loja sem nenhuma ferramenta acusa as três faltas", () => {
+test("loja sem nenhuma ferramenta acusa cupons e Prêmio", () => {
   const r = abaixoDoMinimo([{ cliente: "Vazia", promocoes: [] }], AGORA);
-  assert.deepEqual(textos(r), ["0/4 cupons", "0/3 descontos", "sem Prêmio de Seguidor"]);
+  assert.deepEqual(textos(r), ["0/4 cupons", "sem Prêmio de Seguidor"]);
   assert.equal(r[0].cliente, "Vazia");
 });
 
@@ -98,7 +112,7 @@ test("avalia várias lojas e devolve só quem falha", () => {
 });
 
 test("dá para apertar o mínimo sem mexer no código da tela", () => {
-  const r = abaixoDoMinimo([completa()], AGORA, { cupom: 5, desconto: 3 });
+  const r = abaixoDoMinimo([completa()], AGORA, { cupom: 5 });
   assert.deepEqual(textos(r), ["4/5 cupons"]);
 });
 
