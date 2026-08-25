@@ -6,3 +6,6 @@ node_modules/
 # Backups e artefatos locais
 backup-app-monolitico.html
 app-modular-quebrado.html
+
+# Dumps de diagnóstico (dados crus da Shopee, não versionar)
+_diagnostico/
