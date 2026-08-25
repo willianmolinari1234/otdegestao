@@ -63,6 +63,14 @@
   /* Com ?aba=..., a aba vira uma entrada do menu do sistema: a barra de
      abas daqui viraria um segundo menu dizendo a mesma coisa. */
   body.aba-fixa .tabs{display:none;}
+  /* Com ?loja=..., a tela vira um fechamento embutido dentro do modo cliente:
+     quem escolhe a loja é o pai, então o seletor daqui seria um controle que
+     não comanda nada. */
+  body.loja-fixa .controls{display:none;}
+  .lote-topo{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+             box-shadow:var(--shadow-md);overflow:hidden;margin-bottom:16px;}
+  .lote-loja{margin-bottom:14px;}
+  .lote-loja iframe{width:100%;border:1px solid var(--border);border-radius:14px;background:#fff;display:block;}
   body.embed .content{padding-top:14px;}
   .dtable{width:100%;border-collapse:collapse;font-size:13px;}
   .dtable th{text-align:left;padding:9px 12px;background:var(--bg);color:var(--text-muted);font-weight:500;white-space:nowrap;}
@@ -239,6 +247,8 @@
       <span class="chips" id="calcChips" aria-live="polite"></span>
     </div>
   </details>
+
+  <div id="lote" style="display:none;"></div>
 
   <div id="report">
     <div class="empty" id="emptyState"><div class="ico">📊</div>Selecione um cliente e um mês para ver o relatório.</div>
@@ -513,6 +523,18 @@ onAuthStateChanged(auth, async (user) => {
     // precisa da lista de clientes para dar nome às lojas. Chamar antes disso
     // desenharia a tela com os dados ainda vazios.
     if (abaFixa()) switchTab(abaFixa());
+
+    // ?loja=... — esta tela é um fechamento embutido no modo cliente. O mês
+    // vem junto para as lojas do lote não abrirem em meses diferentes do topo.
+    const p = new URLSearchParams(location.search);
+    const loja = p.get("loja"), mes = p.get("mes");
+    if (loja && clients.some((c) => c.id === loja)) {
+      document.body.classList.add("loja-fixa");
+      if (mes) $("monthSel").value = mes;
+      $("clientSel").value = loja;
+      $("formPanel").open = true;   // o lote existe para PREENCHER, não só olhar
+      loadPerf();
+    }
   } else {
     $("app").style.display = "none";
     $("login").style.display = "flex";
@@ -533,13 +555,123 @@ async function loadClients() {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((c) => !c._deleted)
       .sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
-    const sel = $("clientSel");
-    sel.innerHTML = '<option value="">Selecione um cliente…</option>' +
-      clients.map((c) => `<option value="${c.id}">${escapeHtml(c.name || "(sem nome)")}${c.mkt ? " · " + escapeHtml(c.mkt) : ""}</option>`).join("");
+    montarSeletor();
   } catch (err) {
     $("clientSel").innerHTML = '<option value="">Erro ao carregar clientes</option>';
     console.error(err);
   }
+}
+
+// ---------- Fechamento por cliente (dono de várias lojas) ----------
+// O fechamento é feito loja a loja, mas o cliente é um só. Quem atende um dono
+// de três lojas trocava de seleção três vezes e ainda somava na mão para dizer
+// quanto ele faturou no total.
+//
+// O seletor passa a listar as duas coisas na MESMA lista, separadas por título,
+// em vez de um botão Loja/Cliente. Um modo escondido é um jeito silencioso de
+// a pessoa não achar a loja e achar que sumiu; a lista agrupada mostra tudo o
+// que existe de uma vez.
+//
+// Só entram aqui os donos com mais de uma loja: para quem tem uma só, escolher
+// o cliente daria exatamente a mesma tela que escolher a loja.
+const PREFIXO_CLIENTE = "cust:";
+const ehModoCliente = () => String($("clientSel").value || "").startsWith(PREFIXO_CLIENTE);
+const lojasDoDono = (custId) => clients.filter((c) => c.custId === custId);
+
+function montarSeletor() {
+  const sel = $("clientSel");
+  const opcaoLoja = (c) => `<option value="${c.id}">${escapeHtml(c.name || "(sem nome)")}${c.mkt ? " · " + escapeHtml(c.mkt) : ""}</option>`;
+  const donos = customers
+    .map((cu) => ({ cu, lojas: lojasDoDono(cu.id) }))
+    .filter((x) => x.lojas.length > 1)
+    .sort((a, b) => (a.cu.name || "").localeCompare(b.cu.name || "", "pt-BR"));
+
+  sel.innerHTML = '<option value="">Selecione…</option>'
+    + (donos.length ? `<optgroup label="Clientes — fecha todas as lojas de uma vez">${
+        donos.map(({ cu, lojas }) =>
+          `<option value="${PREFIXO_CLIENTE}${cu.id}">${escapeHtml(cu.name || "(sem nome)")} · ${lojas.length} lojas</option>`
+        ).join("")}</optgroup>` : "")
+    + `<optgroup label="Lojas">${clients.map(opcaoLoja).join("")}</optgroup>`;
+}
+
+// Troca de seleção: cliente abre o lote, loja segue o caminho de sempre.
+function aoTrocarSelecao() {
+  const emLote = ehModoCliente();
+  $("formPanel").style.display = emLote ? "none" : "";
+  $("report").style.display = emLote ? "none" : "";
+  $("lote").style.display = emLote ? "block" : "none";
+  if (emLote) renderLote($("clientSel").value.slice(PREFIXO_CLIENTE.length));
+  else { $("lote").innerHTML = ""; loadPerf(); }
+}
+
+// Cada loja é a PRÓPRIA tela, aberta com ?loja=... num iframe. Reaproveitar em
+// vez de duplicar: o formulário, o salvamento e o "Baixar imagem" já funcionam
+// e continuam sendo um código só. Clonar essa máquina toda para caber três na
+// mesma página criaria duas versões da mesma regra para manter em sincronia.
+async function renderLote(custId) {
+  const dono = customers.find((c) => c.id === custId) || {};
+  const lojas = lojasDoDono(custId);
+  const mon = $("monthSel").value;
+  $("lote").innerHTML = `<div class="lote-topo" id="loteTopo"></div>`
+    + lojas.map((l) => `<div class="lote-loja"><iframe loading="lazy" title="${escapeHtml(l.name || "")}"
+         src="relatorio-cliente.html?embed=1&aba=cliente&loja=${encodeURIComponent(l.id)}&mes=${encodeURIComponent(mon)}"
+         style="height:900px"></iframe></div>`).join("");
+
+  // Altura: o relatório de cada loja tem tamanho próprio (mais ou menos
+  // gráficos, solicitações longas). Sem ajustar, sobra tarja branca ou o
+  // conteúdo fica cortado dentro de uma barra de rolagem interna.
+  $("lote").querySelectorAll("iframe").forEach((f) => {
+    const ajustar = () => {
+      try { const h = f.contentDocument.body.scrollHeight; if (h > 80) f.style.height = (h + 24) + "px"; } catch {}
+    };
+    f.addEventListener("load", () => { ajustar(); setTimeout(ajustar, 900); setTimeout(ajustar, 2500); });
+  });
+
+  await renderConsolidado(dono, lojas, mon);
+}
+
+// Soma do cliente. Lê o mesmo performance/<loja>_<mes> que cada fechamento usa,
+// com o faturamento da Shopee entrando quando ninguém ajustou à mão — a mesma
+// precedência do loadPerf, para o total não contar uma coisa e a loja outra.
+async function renderConsolidado(dono, lojas, mon) {
+  const alvo = $("loteTopo");
+  if (!alvo) return;
+  alvo.innerHTML = `<div class="rep-header"><div class="who"><div class="avatar">Σ</div><div>
+      <div class="cli-name">${escapeHtml(dono.name || "Cliente")}</div>
+      <div class="cli-sub">${lojas.length} lojas · ${monthLabel(mon)} · somado</div>
+    </div></div></div>
+    <div class="rep-body"><div style="font-size:13px;color:var(--text-muted)">Somando as lojas…</div></div>`;
+
+  let fat = 0, custo = 0, rec = 0, anuncios = 0, comissao = 0;
+  const semDados = [];
+  for (const l of lojas) {
+    let d = {};
+    try {
+      const snap = await getDoc(doc(db, "performance", `${l.id}_${mon}`));
+      if (snap.exists()) d = snap.data();
+    } catch (err) { console.error(err); }
+    if (d.faturamentoOrigem !== "manual") {
+      const sh = await faturamentoShopee(l.id, mon);
+      if (sh) d = { ...d, faturamento: Number(sh.gmv.toFixed(2)) };
+    }
+    const f = num(d.faturamento);
+    if (!f && !num(d.custoAds)) semDados.push(l.name || l.id);
+    fat += f; custo += num(d.custoAds); rec += num(d.receitaAds); anuncios += num(d.anuncios);
+    comissao += f * pctDaLojaCampo(l.id, "comissao", "fee", 2) / 100;
+  }
+
+  const kpi = (lbl, val, cls = "") => `<div class="kpi"><div class="lbl">${lbl}</div><div class="val ${cls}">${val}</div></div>`;
+  alvo.querySelector(".rep-body").innerHTML = `
+    <div class="kpis">
+      ${kpi("Faturamento somado", brl(fat))}
+      ${kpi("Custo de Ads somado", brl(custo))}
+      ${kpi("ROAS geral", custo > 0 ? (rec / custo).toFixed(2).replace(".", ",") : "0,00", "good")}
+      ${kpi("TACOS geral", fat > 0 ? (custo / fat * 100).toFixed(1).replace(".", ",") + "%" : "0%")}
+      ${kpi("Anúncios novos", String(anuncios))}
+      ${kpi("Comissão somada", brl(comissao))}
+    </div>
+    ${semDados.length ? `<div style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px">
+      Ainda sem dados em ${escapeHtml(semDados.join(" · "))} — o total está incompleto até preencher abaixo.</div>` : ""}`;
 }
 
 function escapeHtml(s) {
@@ -1377,8 +1509,8 @@ function updateChips() {
 ["fFat","fRec","fCusto","fPercent","fRoasManual"].forEach((id) => $(id).addEventListener("input", updateChips));
 updateChips();
 
-$("clientSel").addEventListener("change", loadPerf);
-$("monthSel").addEventListener("change", loadPerf);
+$("clientSel").addEventListener("change", aoTrocarSelecao);
+$("monthSel").addEventListener("change", aoTrocarSelecao);
 $("fatLabel").addEventListener("change", () => {
   // Troca a base: o campo passa a mostrar (e editar) o período selecionado.
   sincronizarCampoComBase();
