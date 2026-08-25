@@ -956,8 +956,14 @@ function avisoFerramentasHTML(){
   const semDesc=window.prazos.semFerramenta(tools,"desconto",agora)
     .map(x=>({...x,nome:nomeLoja(x.cliente)}))
     .sort((a,b)=>a.nome.localeCompare(b.nome));
+  // Oferta relâmpago tem regra própria: ela se renova sozinha, então o alerta
+  // é a AUSÊNCIA (nem rodando nem agendada), não o prazo. Uma agendada para
+  // amanhã já cobre a loja — cobrar de novo só ensina a ignorar o painel.
+  const semRelampago=window.prazos.semFerramentaNemAgendada(tools,"flash_sale",agora)
+    .map(x=>({...x,nome:nomeLoja(x.cliente)}))
+    .sort((a,b)=>a.nome.localeCompare(b.nome));
   const vence=window.prazos.vencendo(tools,agora,2);
-  if(!semDesc.length&&!vence.length)return "";
+  if(!semDesc.length&&!semRelampago.length&&!vence.length)return "";
 
   const bloco=(cor,titulo,itens,rodape)=>itens?`
     <div style="margin-bottom:${rodape?"10px":"0"}">
@@ -968,6 +974,8 @@ function avisoFerramentasHTML(){
 
   const liSemDesc=semDesc.slice(0,10).map(x=>
     `<li><b>${esc(x.nome)}</b>${x.total?` — tem ${x.total} outra(s) ferramenta(s), mas nenhum desconto`:" — sem nenhuma ferramenta ativa"}.</li>`).join("");
+  const liSemRelampago=semRelampago.slice(0,10).map(x=>
+    `<li><b>${esc(x.nome)}</b> — nenhuma oferta relâmpago em andamento nem agendada.</li>`).join("");
   const liVence=vence.slice(0,8).map(p=>
     `<li><b>${esc(nomeLoja(p.cliente))}</b>: ${esc(p.nome)} — ${esc(window.prazos.comoFalta(p.horas))}.</li>`).join("");
 
@@ -977,6 +985,11 @@ function avisoFerramentasHTML(){
       liSemDesc,
       (semDesc.length>10?`…e mais ${semDesc.length-10}. `:"")+
       "Anúncio sem desconto perde posição na busca — a loja vende menos sem nada dar erro.")}
+    ${bloco("#b45309",
+      `${semRelampago.length} loja(s) SEM oferta relâmpago agendada`,
+      liSemRelampago,
+      (semRelampago.length>10?`…e mais ${semRelampago.length-10}. `:"")+
+      "A relâmpago é curta e se renova sozinha; o problema é a loja ficar sem nenhuma pela frente.")}
     ${bloco("#9a3412",
       `${vence.length} ferramenta(s) vencendo em até 2 dias`,
       liVence,

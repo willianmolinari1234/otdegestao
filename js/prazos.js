@@ -14,6 +14,16 @@ export function diaLocal(segundos) {
 }
 
 /**
+ * Tipos de promoção que a Shopee renova sozinha todos os dias.
+ *
+ * A oferta relâmpago é curta por natureza: ela expira e volta no dia
+ * seguinte sem ninguém mexer. Avisar "vence em 2h" todo santo dia é ruído,
+ * e aviso que a equipe aprende a ignorar deixa de proteger os outros.
+ * O que importa nesse tipo não é o fim de uma — é a AUSÊNCIA de qualquer uma.
+ */
+export const RENOVA_DIARIAMENTE = new Set(["flash_sale"]);
+
+/**
  * Promoções que terminam dentro da janela.
  *
  * Inclui apenas as que JÁ COMEÇARAM ou começam dentro da janela — promoção
@@ -21,6 +31,9 @@ export function diaLocal(segundos) {
  *
  * Exclui as que já venceram: nada a fazer, e poluir o aviso com passado faz
  * a equipe parar de ler o aviso.
+ *
+ * Exclui também os tipos de RENOVA_DIARIAMENTE — eles têm alerta próprio
+ * (semFerramentaNemAgendada), baseado em ausência e não em prazo.
  *
  * @param {Array} lojas  [{cliente, promocoes:[{tipo,nome,inicio,fim}]}]
  * @param {number} agoraSeg  momento de referência, em segundos
@@ -33,6 +46,8 @@ export function vencendo(lojas, agoraSeg, dias = 2) {
 
   for (const loja of lojas || []) {
     for (const p of (loja?.promocoes || [])) {
+      // Renova sozinha: o fim dela não é notícia.
+      if (RENOVA_DIARIAMENTE.has(String(p?.tipo || ""))) continue;
       const fim = Number(p?.fim || 0);
       if (!fim) continue;              // sem data de fim: não dá para avisar
       if (fim <= agora) continue;      // já venceu
@@ -84,6 +99,39 @@ export function semFerramenta(lojas, tipo, agoraSeg) {
       return true;
     });
     if (!temAtiva) out.push({ cliente: loja.cliente || loja.id, total: proms.length });
+  }
+  return out;
+}
+
+/**
+ * Lojas sem nenhuma promoção de um tipo RODANDO NEM AGENDADA.
+ *
+ * Feita para a oferta relâmpago. Como ela se renova sozinha, a pergunta útil
+ * não é "quando acaba a de hoje?" e sim "existe alguma pela frente?". Uma
+ * relâmpago agendada para amanhã já resolve o problema: a loja está coberta e
+ * cobrar a equipe de novo só ensina a ignorar o painel.
+ *
+ * Por isso conta como coberta qualquer promoção do tipo com fim > agora —
+ * em andamento ou ainda por começar, tanto faz. É a mesma regra que o
+ * relatorio-cliente.html já usa; o painel era o único fora do padrão.
+ *
+ * Promoção sem data de fim também conta como coberta: a API só devolve as
+ * vigentes, então falta de data é falta de dado, não falta de promoção —
+ * e inventar um alerta em cima disso é o mesmo ruído por outro caminho.
+ */
+export function semFerramentaNemAgendada(lojas, tipo, agoraSeg) {
+  const agora = Number(agoraSeg || 0);
+  const out = [];
+  for (const loja of lojas || []) {
+    if (!loja) continue;
+    const proms = Array.isArray(loja.promocoes) ? loja.promocoes : [];
+    const coberta = proms.some((p) => {
+      if (String(p?.tipo || "") !== tipo) return false;
+      const fim = Number(p?.fim || 0);
+      if (!fim) return true;   // sem data de fim: falta de dado, não de promoção
+      return fim > agora;      // rodando OU agendada
+    });
+    if (!coberta) out.push({ cliente: loja.cliente || loja.id, total: proms.length });
   }
   return out;
 }
