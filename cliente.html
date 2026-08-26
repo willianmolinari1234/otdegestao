@@ -143,7 +143,13 @@ const COR = {
 };
 const cor = (m) => COR[String(m || "").toLowerCase().trim()] || { bg: "#f1f5f9", fg: "#475569", bd: "#e2e8f0" };
 
-let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [], busca: "", soFalta: false, aberto: null };
+// "na Shein", "no Mercado Livre". Português não perdoa: "Quero anunciar no
+// Shein" faz a tela parecer feita às pressas — e ela fala com o cliente.
+const FEMININO = new Set(["shopee", "shein", "amazon", "americanas", "netshoes"]);
+const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " : "no ") + m;
+
+let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
+  busca: "", faltaEm: "", ordem: "falta", aberto: null };
 
 // ─── entrar ───────────────────────────────────────────────────────────
 $("entrar").onclick = async () => {
@@ -233,61 +239,130 @@ document.querySelectorAll("[data-aba]").forEach((b) => {
   };
 });
 
+// Dados por produto que a lista precisa. Calculados uma vez por desenho, em
+// vez de dentro de cada célula: com 60 produtos e 4 marketplaces isso é a
+// diferença entre a tela abrir e a tela engasgar.
+function resumoDoProduto(p) {
+  const meus = anunciosDe(p);
+  const mkts = [...new Set(meus.map((a) => a.mkt || a.storeMkt).filter(Boolean))];
+  const precos = meus.map((a) => a.preco).filter((x) => x !== null && x !== undefined);
+  const comMargem = meus.filter((a) => a.margem !== null && a.margem !== undefined);
+  // A melhor margem entre os anúncios, com o marketplace dela: é a informação
+  // que responde "vale a pena repetir isso em outro lugar?".
+  const melhor = comMargem.sort((a, b) => b.margem - a.margem)[0] || null;
+  return { meus, mkts, precos, melhor, falta: estado.mkts.filter((m) => !mkts.includes(m)) };
+}
+
 function telaLista() {
   $("titulo").textContent = "Meus produtos";
   const lojas = [...new Set(estado.anuncios.map((a) => a.storeNome).filter(Boolean))];
-  $("resumo").textContent = `${estado.produtos.length} produtos${lojas.length ? " · " + lojas.length + " loja(s)" : ""} · ${estado.mkts.length} marketplace(s)`;
+  $("resumo").textContent = `${estado.produtos.length} produtos${lojas.length ? " · " + lojas.length + (lojas.length === 1 ? " loja" : " lojas") : ""}`;
 
-  const busca = estado.busca.toLowerCase();
-  const lista = estado.produtos.filter((p) => {
-    if (busca && !((p.nome || "") + " " + (p.sku || "")).toLowerCase().includes(busca)) return false;
-    if (estado.soFalta && mktsDe(p).length >= estado.mkts.length) return false;
-    return true;
-  });
+  const info = new Map(estado.produtos.map((p) => [p.id, resumoDoProduto(p)]));
 
-  const cartoes = estado.mkts.map((m) => {
-    const c = cor(m), n = estado.produtos.filter((p) => mktsDe(p).includes(m)).length;
-    return `<div class="card" style="padding:12px 14px;border-top:3px solid ${c.bd}">
-      <div style="font-size:12px;color:#64748b;margin-bottom:4px">Em ${esc(m)}</div>
-      <div style="font-size:22px;font-weight:600">${n}<span style="font-size:13px;color:var(--muted);font-weight:500"> de ${estado.produtos.length}</span></div>
-    </div>`;
+  // ── cobertura: a pergunta que traz o cliente aqui ──────────────────
+  const cobertura = estado.mkts.map((m) => {
+    const c = cor(m);
+    const n = estado.produtos.filter((p) => info.get(p.id).mkts.includes(m)).length;
+    const pct = estado.produtos.length ? Math.round((n / estado.produtos.length) * 100) : 0;
+    const ativo = estado.faltaEm === m;
+    return `<button data-mkt="${esc(m)}" style="text-align:left;background:${ativo ? "#f8fafc" : "#fff"};border:1px solid ${ativo ? c.bd : "var(--border)"};box-shadow:${ativo ? "inset 0 0 0 1px " + c.bd : "0 1px 2px rgba(15,23,42,.05)"};border-radius:12px;padding:12px 14px;display:block;width:100%">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <span style="font-size:12.5px;font-weight:700;color:${c.fg === "#ffffff" ? "#0f172a" : c.fg}">${esc(m)}</span>
+        <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">${n}/${estado.produtos.length}</span>
+      </div>
+      <div style="height:6px;border-radius:99px;background:#eef2f7;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${c.fg === "#ffffff" ? "#1a1a1a" : c.fg};border-radius:99px"></div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:7px">${n === estado.produtos.length ? "tudo anunciado" : `faltam ${estado.produtos.length - n}`}</div>
+    </button>`;
   }).join("");
 
+  // ── quando um marketplace está zerado, isso é o assunto da tela ────
+  const zerado = estado.mkts.find((m) => !estado.produtos.some((p) => info.get(p.id).mkts.includes(m)));
+  const chamada = zerado ? `
+    <div class="card" style="padding:15px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-left:3px solid ${cor(zerado).fg === "#ffffff" ? "#1a1a1a" : cor(zerado).fg}">
+      <div>
+        <div style="font-weight:700;font-size:13.5px">Nenhum produto seu está anunciado ${esc(naNo(zerado))}</div>
+        <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">São ${estado.produtos.length} produtos que já vendem em outro lugar e ainda não estão lá.</div>
+      </div>
+      <button data-querytodos="${esc(zerado)}" class="btnsm" style="background:var(--brand);color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">Quero anunciar ${esc(naNo(zerado))}</button>
+    </div>` : "";
+
+  // ── filtro e ordem ─────────────────────────────────────────────────
+  const busca = estado.busca.toLowerCase();
+  let lista = estado.produtos.filter((p) => {
+    if (busca && !((p.nome || "") + " " + (p.sku || "")).toLowerCase().includes(busca)) return false;
+    if (estado.faltaEm && !info.get(p.id).falta.includes(estado.faltaEm)) return false;
+    return true;
+  });
+  const ordens = {
+    falta: (a, b) => info.get(b.id).falta.length - info.get(a.id).falta.length
+      || (a.nome || "").localeCompare(b.nome || "", "pt-BR"),
+    margem: (a, b) => (info.get(b.id).melhor?.margem ?? -1) - (info.get(a.id).melhor?.margem ?? -1),
+    nome: (a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"),
+  };
+  lista = lista.slice().sort(ordens[estado.ordem] || ordens.nome);
+
   $("corpo").innerHTML = `
-    ${cartoes ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px">${cartoes}</div>` : ""}
-    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-      <input id="busca" class="finput" style="width:260px" placeholder="Buscar por nome ou SKU…" value="${esc(estado.busca)}">
-      <button id="fFalta" class="btnsm${estado.soFalta ? " on" : ""}">Só o que falta anunciar</button>
+    ${cobertura ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px">${cobertura}</div>` : ""}
+    ${chamada}
+    <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <input id="busca" class="finput" style="width:250px" placeholder="Buscar por nome ou SKU…" value="${esc(estado.busca)}">
+      <select id="ordem" class="finput" style="width:auto;padding-right:30px">
+        <option value="falta"${estado.ordem === "falta" ? " selected" : ""}>Onde falta anunciar</option>
+        <option value="margem"${estado.ordem === "margem" ? " selected" : ""}>Maior margem</option>
+        <option value="nome"${estado.ordem === "nome" ? " selected" : ""}>Nome</option>
+      </select>
+      ${estado.faltaEm ? `<button id="limpar" class="btnsm on">Só o que falta em ${esc(estado.faltaEm)} ✕</button>` : ""}
     </div>
     <div class="card" style="overflow:hidden">
       <table>
         <thead style="background:#f8fafc"><tr>
-          <th style="width:46%">Produto</th><th style="width:16%">SKU</th><th>Onde está anunciado</th>
+          <th style="width:38%">Produto</th>
+          <th style="width:11%">SKU</th>
+          <th style="width:15%">Preço</th>
+          <th style="width:16%">Melhor margem</th>
+          <th>Onde está anunciado</th>
         </tr></thead>
-        <tbody>${lista.map(linha).join("") || `<tr><td colspan="3" style="color:var(--muted);padding:26px 16px">Nenhum produto encontrado.</td></tr>`}</tbody>
+        <tbody>${lista.map((p) => linha(p, info.get(p.id))).join("") || `<tr><td colspan="5" style="color:var(--muted);padding:26px 16px">Nenhum produto encontrado.</td></tr>`}</tbody>
       </table>
     </div>
     <div style="margin-top:12px;font-size:12px;color:var(--muted)">Mostrando ${lista.length} de ${estado.produtos.length} produtos</div>`;
 
-  $("busca").oninput = (e) => { estado.busca = e.target.value; const p = e.target.selectionStart; desenhar(); const b = $("busca"); b.focus(); b.setSelectionRange(p, p); };
-  $("fFalta").onclick = () => { estado.soFalta = !estado.soFalta; desenhar(); };
+  $("busca").oninput = (e) => { estado.busca = e.target.value; const c = e.target.selectionStart; desenhar(); const b = $("busca"); b.focus(); b.setSelectionRange(c, c); };
+  $("ordem").onchange = (e) => { estado.ordem = e.target.value; desenhar(); };
+  const lp = $("limpar"); if (lp) lp.onclick = () => { estado.faltaEm = ""; desenhar(); };
+  document.querySelectorAll("[data-mkt]").forEach((b) => {
+    b.onclick = () => { estado.faltaEm = estado.faltaEm === b.dataset.mkt ? "" : b.dataset.mkt; desenhar(); };
+  });
+  document.querySelectorAll("[data-querytodos]").forEach((b) => {
+    b.onclick = () => popup(b.dataset.querytodos, { nome: `${estado.produtos.length} produtos` });
+  });
   document.querySelectorAll("[data-prod]").forEach((tr) => {
     tr.onclick = () => { estado.aberto = estado.produtos.find((p) => p.id === tr.dataset.prod); desenhar(); };
   });
 }
 
-function linha(p) {
-  const tem = mktsDe(p);
+function linha(p, i) {
   const selos = estado.mkts.map((m) => {
     const c = cor(m);
-    return tem.includes(m)
+    return i.mkts.includes(m)
       ? `<span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${esc(m)}</span>`
       : `<span class="falta">${esc(m)}</span>`;
   }).join(" ");
+  const preco = !i.precos.length ? "—"
+    : i.precos.length === 1 || Math.min(...i.precos) === Math.max(...i.precos) ? moeda(i.precos[0])
+    : `${moeda(Math.min(...i.precos))}<span style="color:var(--muted)"> a </span>${moeda(Math.max(...i.precos))}`;
   return `<tr data-prod="${esc(p.id)}">
     <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
       ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}</td>
     <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
+    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${preco}</td>
+    <td>${i.melhor
+      ? `<span style="font-weight:600;color:#3b6d11;font-variant-numeric:tabular-nums">${Number(i.melhor.margem).toFixed(1)}%</span>
+         <span style="font-size:11.5px;color:var(--muted)"> ${esc(i.melhor.mkt || i.melhor.storeMkt || "")}</span>`
+      : `<span style="font-size:12px;color:var(--muted)">—</span>`}</td>
     <td><div style="display:flex;gap:5px;flex-wrap:wrap">${selos}</div></td>
   </tr>`;
 }
@@ -324,7 +399,7 @@ function telaProduto() {
       <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div><div style="font-size:14px;font-weight:600;color:var(--ink-2)">${esc(m)}</div>
           <div style="font-size:11.5px;color:var(--muted)">Este produto ainda não está anunciado aqui</div></div>
-        <button data-quero="${esc(m)}" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700">Quero anunciar no ${esc(m)}</button>
+        <button data-quero="${esc(m)}" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700">Quero anunciar ${esc(naNo(m))}</button>
       </div>
     </div>`;
   }).join("");
