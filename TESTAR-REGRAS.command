@@ -15,28 +15,44 @@ echo "=================================================="
 echo
 
 # ── Java ────────────────────────────────────────────────────────────────
-# O emulador do Firestore é um programa Java, e o macOS não vem com Java.
-# O Homebrew instala numa pasta que ele NÃO coloca no PATH ("keg-only"), o
-# que faz o `java` continuar sumido mesmo depois de instalado. Por isso
-# procuramos nos lugares conhecidos e ajustamos o PATH aqui dentro, em vez
-# de pedir configuração de ambiente a quem só quer rodar um teste.
-if ! command -v java >/dev/null 2>&1; then
+# O emulador do Firestore e um programa Java, e o macOS nao vem com Java.
+#
+# A pegadinha: o macOS TEM um /usr/bin/java falso. Ele existe, e executavel e
+# esta no PATH — so que a unica coisa que ele faz e dizer "instale o Java".
+# Entao perguntar "existe o comando java?" responde SIM numa maquina sem Java
+# nenhum. A pergunta certa e se ele RODA.
+temjava() { java -version >/dev/null 2>&1; }
+
+if ! temjava; then
+  # O resolvedor oficial da Apple sabe de JDKs que nao estao no PATH.
+  JH=$(/usr/libexec/java_home 2>/dev/null)
+  [ -n "$JH" ] && [ -x "$JH/bin/java" ] && export PATH="$JH/bin:$PATH"
+fi
+
+if ! temjava; then
+  # O Homebrew instala o openjdk "keg-only": fora do PATH de proposito. Por
+  # isso muita gente instala e continua vendo "Unable to locate a Java
+  # Runtime" — esta instalado, so nao esta visivel.
   for P in /opt/homebrew/opt/openjdk/bin /usr/local/opt/openjdk/bin \
            /Library/Java/JavaVirtualMachines/*/Contents/Home/bin; do
-    [ -x "$P/java" ] && { export PATH="$P:$PATH"; break; }
+    if [ -x "$P/java" ]; then
+      export PATH="$P:$PATH"
+      temjava && break
+    fi
   done
 fi
 
-if ! command -v java >/dev/null 2>&1; then
-  echo "❌ Falta o Java — o emulador do Firestore é um programa Java."
+if ! temjava; then
+  echo "X  Falta o Java — o emulador do Firestore e um programa Java."
+  echo "   (o /usr/bin/java que o macOS tem e so um aviso, nao roda nada)"
   echo
   if command -v brew >/dev/null 2>&1; then
-    echo "   Você tem Homebrew. Rode isto no Terminal e depois abra este"
+    echo "   Voce tem Homebrew. Rode isto no Terminal e depois abra este"
     echo "   arquivo de novo:"
     echo
     echo "       brew install openjdk"
     echo
-    echo "   Não precisa de senha nem de configurar nada: este script acha"
+    echo "   Nao precisa de senha nem de configurar nada: este script acha"
     echo "   sozinho onde o Homebrew instalou."
   else
     echo "   Caminho mais curto, sem Terminal: baixe o instalador da Adoptium,"
@@ -44,11 +60,11 @@ if ! command -v java >/dev/null 2>&1; then
     echo
     echo "       https://adoptium.net/temurin/releases/?os=mac"
     echo
-    echo "   Escolha JDK 21, tipo de pacote .pkg, e a arquitetura do seu Mac"
+    echo "   Escolha JDK 21, pacote .pkg, e a arquitetura do seu Mac"
     echo "   (aarch64 para M1/M2/M3, x64 para Intel)."
   fi
   echo
-  echo "   É uma vez só. Depois disso este teste roda sempre que você quiser."
+  echo "   E uma vez so. Depois disso este teste roda sempre que voce quiser."
   echo
   read -r -p "Enter para fechar..." _
   exit 1
