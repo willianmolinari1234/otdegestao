@@ -17,7 +17,6 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
@@ -116,33 +115,71 @@ export const removerFuncionario = onRequest({ secrets, cors: ["https://otdegesta
 
 const PAPEIS = new Set(["cliente", "especialista"]);
 
-/** accounts/{uid} → custom claims. Documento apagado, claims limpas. */
-export const sincronizarClaims = onDocumentWritten("accounts/{uid}", async (event) => {
-  const uid = event.params.uid;
-  const depois = event.data?.after?.data() || null;
-
-  if (!depois || !PAPEIS.has(depois.papel) || depois.ativo === false) {
-    // Some da claim antes de sumir de qualquer outro lugar: enquanto a claim
-    // existir, o acesso existe, mesmo sem documento.
-    await getAuth().setCustomUserClaims(uid, null).catch((e) => logger.warn("limpar claims " + uid, e));
+/**
+ * Espelha um documento de accounts nas custom claims do usuário.
+ *
+ * Isto era um gatilho do Firestore (onDocumentWritten) e virou uma função
+ * comum, chamada direto por quem grava. Dois motivos, nessa ordem:
+ *
+ * 1. O gatilho não tinha o que vigiar. As regras dizem `allow write: if false`
+ *    em accounts — o navegador não escreve ali. Quem escreve são as duas
+ *    funções abaixo, que já sabem o que mudou. Um gatilho para observar uma
+ *    escrita que a própria função acabou de fazer é uma volta em torno de si
+ *    mesma.
+ * 2. Ele custava caro em infraestrutura: gatilho de Firestore em 2ª geração
+ *    exige Eventarc, Pub/Sub e agentes de serviço próprios, e a região dele é
+ *    a do banco (southamerica-east1) e não a do resto (us-central1). O
+ *    primeiro deploy quebrou exatamente aí, com o Eventarc ainda propagando
+ *    permissões. Dependência que não paga o próprio custo.
+ *
+ * O que se perde: alguém editando accounts/{uid} à mão no console do Firebase
+ * não veria a claim acompanhar. Para esse caso existe ressincronizarClaims().
+ */
+async function aplicarClaims(uid, dados) {
+  if (!dados || !PAPEIS.has(dados.papel) || dados.ativo === false) {
+    await getAuth().setCustomUserClaims(uid, null);
     logger.info("claims limpas", { uid });
-    return;
+    return null;
   }
+  const claims = dados.papel === "cliente"
+    ? { papel: "cliente", custId: String(dados.custId || "") }
+    : { papel: "especialista", mkt: String(dados.mkt || "") };
 
-  const claims = depois.papel === "cliente"
-    ? { papel: "cliente", custId: String(depois.custId || "") }
-    : { papel: "especialista", mkt: String(depois.mkt || "") };
-
-  // Conta sem o campo que dá escopo ficaria com acesso indefinido. Melhor
-  // sem claim nenhuma: nega tudo, em vez de negar quase tudo.
+  // Conta sem o campo que dá escopo ficaria com acesso indefinido. Melhor sem
+  // claim nenhuma: nega tudo, em vez de negar quase tudo.
   if (!claims.custId && !claims.mkt) {
-    await getAuth().setCustomUserClaims(uid, null).catch(() => {});
-    logger.error("conta sem escopo, claims limpas", { uid, papel: depois.papel });
-    return;
+    await getAuth().setCustomUserClaims(uid, null);
+    logger.error("conta sem escopo, claims limpas", { uid, papel: dados.papel });
+    return null;
   }
-
   await getAuth().setCustomUserClaims(uid, claims);
-  logger.info("claims espelhadas", { uid, ...claims });
+  logger.info("claims aplicadas", { uid, ...claims });
+  return claims;
+}
+
+/**
+ * Reaplica as claims a partir do que está em accounts. Rede de segurança para
+ * o documento editado fora das funções — no console, por exemplo.
+ * Uso: /ressincronizarClaims?token=<SYNC_TOKEN>[&uid=<uid>]
+ */
+export const ressincronizarClaims = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  try {
+    const uid = String(req.query.uid || "");
+    const docs = uid
+      ? [await db.collection("accounts").doc(uid).get()]
+      : (await db.collection("accounts").get()).docs;
+    const feitas = [];
+    for (const d of docs) {
+      const claims = await aplicarClaims(d.id, d.exists ? d.data() : null);
+      feitas.push({ uid: d.id, claims });
+    }
+    res.json({ ok: true, total: feitas.length, contas: feitas });
+  } catch (e) {
+    logger.error("ressincronizarClaims", e);
+    res.status(500).json({ erro: e.message });
+  }
 });
 
 export const criarAcesso = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
@@ -173,8 +210,9 @@ export const criarAcesso = onRequest({ secrets, cors: ["https://otdegestao.web.a
     };
     if (papel === "cliente") dados.custId = String(custId); else dados.mkt = String(mkt);
     await db.collection("accounts").doc(user.uid).set(dados);
-    // As claims saem do gatilho acima. Como a conta ainda não fez login
-    // nenhum, o primeiro token dela já nasce com elas.
+    // A conta ainda não fez login nenhum, então o primeiro token dela já nasce
+    // com as claims.
+    await aplicarClaims(user.uid, dados);
     res.json({ ok: true, uid: user.uid });
   } catch (e) {
     logger.error("criarAcesso", e);
