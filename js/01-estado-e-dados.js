@@ -33,7 +33,7 @@ const ERP_PRESETS={
   outro:   {label:"Outro (personalizado)", url:"", hasId:false}
 };
 const COLORS=["#ea580c","#7c3aed","#db2777","#d97706","#2563eb","#dc2626","#16a34a","#0284c7"];
-const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja"};
+const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja",produtos:"Produtos do Cliente"};
 const PLBL={alta:"Alta",media:"Média",baixa:"Baixa"};
 const SLBL={todo:"A fazer",doing:"Em andamento",done:"Concluído"};
 const SCOL={todo:"#64748b",doing:"#ea580c",done:"#16a34a"};
@@ -70,6 +70,7 @@ let proms=[];
 let integs=[];
 let tools=[];         // promoções ativas por loja (vindas da Shopee)
 let conferencia=null; // último resultado da conferência diária (só admin)
+let prodCliente=lsGet("prodCliente","");
 let fIntegBusca="",fIntegFiltro="all";
 // Base das Cloud Functions (backend da integração Shopee).
 // Aponta para o backend do MESMO ambiente em que a página está rodando.

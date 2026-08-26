@@ -113,7 +113,7 @@ tbody tr:hover{background:#fcfcfd}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { getFirestore, collection, query, where, getDocs }
+import { getFirestore, collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 // Mesma configuração do app da equipe. A apiKey do front é pública por
@@ -149,7 +149,13 @@ const FEMININO = new Set(["shopee", "shein", "amazon", "americanas", "netshoes"]
 const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " : "no ") + m;
 
 let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
-  busca: "", faltaEm: "", ordem: "falta", aberto: null };
+  busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false };
+
+// ?cliente= abre a área de um cliente para quem é da EQUIPE; ?embed=1 esconde
+// a barra lateral, porque nesse caso a página vive dentro do app da equipe,
+// que já tem a dele.
+const params = new URLSearchParams(location.search);
+const EMBUTIDO = params.get("embed") === "1";
 
 // ─── entrar ───────────────────────────────────────────────────────────
 $("entrar").onclick = async () => {
@@ -183,20 +189,54 @@ onAuthStateChanged(auth, async (user) => {
   // regras do Firestore usam para decidir o que este login pode ler, então não
   // há como a tela mostrar uma coisa e a regra permitir outra.
   const t = await user.getIdTokenResult();
-  if (t.claims.papel !== "cliente" || !t.claims.custId) {
-    await signOut(auth);
-    $("loginErro").textContent = "Esta conta não é de cliente.";
-    $("loginErro").classList.add("ver");
-    return;
+  const pedido = params.get("cliente") || "";
+
+  if (t.claims.papel === "cliente" && t.claims.custId) {
+    estado.custId = t.claims.custId;
+    estado.souEquipe = false;
+  } else {
+    // Não é cliente: só entra se for da equipe E disser de quem quer ver.
+    // Um "senão" que deixasse passar abriria a área de qualquer cliente para
+    // qualquer conta logada — e as regras do Firestore, que de fato barram,
+    // só devolveriam uma tela vazia sem explicar nada.
+    let daEquipe = false;
+    try {
+      const emp = await getDoc(doc(db, "employees", user.uid));
+      daEquipe = emp.exists();
+    } catch (e) { daEquipe = false; }
+    if (!daEquipe || !pedido) {
+      await signOut(auth);
+      $("loginErro").textContent = daEquipe
+        ? "Falta dizer de qual cliente (?cliente=...)."
+        : "Esta conta não é de cliente.";
+      $("loginErro").classList.add("ver");
+      return;
+    }
+    estado.custId = pedido;
+    estado.souEquipe = true;
   }
-  estado.custId = t.claims.custId;
-  estado.nome = user.displayName || t.claims.nome || "";
+  estado.nome = params.get("nome") || user.displayName || "";
   $("login").style.display = "none";
   $("app").classList.add("ver");
+  if (EMBUTIDO) document.querySelector("aside").style.display = "none";
+  if (estado.souEquipe) marcarSessaoDaEquipe();
   $("nomeCliente").textContent = estado.nome;
   $("avatar").textContent = (estado.nome || "?").split(" ").slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
   await carregar();
 });
+
+// Faixa âmbar atravessando o topo: a cor não diz "estou olhando", diz "isto
+// não é meu". Sem ela é fácil confundir a área do cliente com a sua e achar
+// que o sistema está mostrando dado errado.
+function marcarSessaoDaEquipe() {
+  if (document.getElementById("faixaEquipe")) return;
+  const f = document.createElement("div");
+  f.id = "faixaEquipe";
+  f.style.cssText = "background:#b45309;color:#fff7ed;padding:7px 20px;display:flex;align-items:center;gap:10px;font-size:12.5px;flex-wrap:wrap";
+  f.innerHTML = `<span style="background:#fff;color:#b45309;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800">EQUIPE</span>
+    <span>Você está vendo e editando a área de <b style="color:#fff">${esc(estado.nome || "um cliente")}</b>. O cliente não vê nada disto.</span>`;
+  document.querySelector(".principal").prepend(f);
+}
 
 async function carregar() {
   $("corpo").innerHTML = `<div style="color:var(--muted);font-size:13px;padding:30px 0">Carregando seus produtos…</div>`;
@@ -339,6 +379,9 @@ function telaLista() {
   document.querySelectorAll("[data-querytodos]").forEach((b) => {
     b.onclick = () => popup(b.dataset.querytodos, { nome: `${estado.produtos.length} produtos` });
   });
+  document.querySelectorAll("[data-editar]").forEach((b) => {
+    b.onclick = (ev) => { ev.stopPropagation(); abrirEdicao(estado.produtos.find((p) => p.id === b.dataset.editar)); };
+  });
   document.querySelectorAll("[data-prod]").forEach((tr) => {
     tr.onclick = () => { estado.aberto = estado.produtos.find((p) => p.id === tr.dataset.prod); desenhar(); };
   });
@@ -363,7 +406,8 @@ function linha(p, i) {
       ? `<span style="font-weight:600;color:#3b6d11;font-variant-numeric:tabular-nums">${Number(i.melhor.margem).toFixed(1)}%</span>
          <span style="font-size:11.5px;color:var(--muted)"> ${esc(i.melhor.mkt || i.melhor.storeMkt || "")}</span>`
       : `<span style="font-size:12px;color:var(--muted)">—</span>`}</td>
-    <td><div style="display:flex;gap:5px;flex-wrap:wrap">${selos}</div></td>
+    <td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${selos}
+      ${estado.souEquipe ? `<button data-editar="${esc(p.id)}" class="btnsm" style="padding:3px 9px;font-size:11.5px;margin-left:2px">editar</button>` : ""}</div></td>
   </tr>`;
 }
 
@@ -454,6 +498,8 @@ function telaLojas() {
 // ─── pop-up do "quero anunciar" ───────────────────────────────────────
 // Sem formulário e sem fila: a conversa continua onde ela já acontece.
 function popup(mkt, p) {
+  $("popConteudo").style.maxWidth = "470px";
+  $("popConteudo").style.textAlign = "center";
   $("popConteudo").innerHTML = `
     <div style="width:60px;height:60px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">✓</div>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px">Excelente!</div>
@@ -466,6 +512,112 @@ function popup(mkt, p) {
 const fechar = () => $("mask").classList.remove("ver");
 $("mask").onclick = (e) => { if (e.target === $("mask")) fechar(); };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") fechar(); });
+
+// ─── EDIÇÃO (só quem é da equipe) ─────────────────────────────────────
+//
+// Existe porque importação de planilha erra: nome que não bate, SKU que veio
+// do anúncio errado, anúncio que foi parar na loja trocada. Sem uma tela para
+// desfazer, o conserto seria mexer no banco direto — e aí ninguém mexe, e o
+// dado errado fica.
+//
+// O cliente não vê nada disto: as regras do Firestore só deixam funcionário
+// escrever em products e listings, e o botão nem é desenhado para ele.
+
+function abrirEdicao(p) {
+  const meus = anunciosDe(p);
+  const campo = (id, rot, val, ph) => `
+    <div style="margin-bottom:11px">
+      <span class="rot">${rot}</span>
+      <input id="ed-${id}" class="finput" value="${esc(val ?? "")}" placeholder="${esc(ph || "")}">
+    </div>`;
+
+  $("popConteudo").style.maxWidth = "560px";
+  $("popConteudo").style.textAlign = "left";
+  $("popConteudo").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:800">Editar produto</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Só a equipe vê esta tela.</div>
+      </div>
+      <button id="ed-x" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    ${campo("nome", "Nome", p.nome, "Nome do produto")}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${campo("sku", "SKU", p.sku, "vazio = sem SKU")}
+      ${campo("custo", "Custo", p.custo ?? "", "0,00")}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${campo("peso", "Peso", p.peso, "")}
+      ${campo("medidas", "Medidas da embalagem", p.medidas, "")}
+    </div>
+    ${campo("fotos", "Link das fotos (Drive)", p.fotos, "https://drive.google.com/...")}
+
+    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px">Anúncios deste produto</div>
+      ${meus.length ? meus.map((a) => {
+        const c = cor(a.mkt || a.storeMkt);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${esc(a.mkt || a.storeMkt || "—")}</span>
+            <span style="font-size:12px;color:var(--ink-2);margin-left:7px">${esc(a.storeNome || "")}</span>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:3px;font-family:ui-monospace,Menlo,monospace">${esc(a.sku || a.itemId || "sem código")} · ${moeda(a.preco)}</div>
+          </div>
+          <button data-desv="${esc(a.id)}" class="btnsm" style="color:#b91c1c;white-space:nowrap">Desvincular</button>
+        </div>`;
+      }).join("") : `<div style="font-size:12.5px;color:var(--muted)">Nenhum anúncio.</div>`}
+      <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:6px">Desvincular apaga o anúncio daqui. O anúncio no marketplace continua no ar — some só desta tela, e volta se você reimportar a planilha.</div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:18px;flex-wrap:wrap">
+      <button id="ed-apagar" class="btnsm" style="color:#b91c1c">Apagar produto</button>
+      <div style="display:flex;gap:8px">
+        <button id="ed-cancelar" class="btnsm">Cancelar</button>
+        <button id="ed-salvar" class="btn" style="width:auto;padding:9px 20px">Salvar</button>
+      </div>
+    </div>`;
+  $("mask").classList.add("ver");
+
+  $("ed-x").onclick = $("ed-cancelar").onclick = fechar;
+  document.querySelectorAll("[data-desv]").forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = "…";
+      try {
+        await deleteDoc(doc(db, "listings", b.dataset.desv));
+        estado.anuncios = estado.anuncios.filter((x) => x.id !== b.dataset.desv);
+        abrirEdicao(p);
+      } catch (e) { alert("Não consegui desvincular: " + (e.message || "")); b.disabled = false; b.textContent = "Desvincular"; }
+    };
+  });
+  $("ed-apagar").onclick = async () => {
+    if (!confirm(`Apagar "${p.nome}"? Os anúncios dele ficam sem produto.`)) return;
+    try {
+      await deleteDoc(doc(db, "products", p.id));
+      estado.produtos = estado.produtos.filter((x) => x.id !== p.id);
+      estado.aberto = null; fechar(); desenhar();
+    } catch (e) { alert("Não consegui apagar: " + (e.message || "")); }
+  };
+  $("ed-salvar").onclick = async () => {
+    const v = (id) => ($(`ed-${id}`) || {}).value ?? "";
+    const custoTexto = v("custo").replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+    const custo = custoTexto === "" ? null : Number(custoTexto);
+    if (custo !== null && !isFinite(custo)) { alert("Custo inválido."); return; }
+    const b = $("ed-salvar"); b.disabled = true; b.textContent = "Salvando...";
+    const patch = {
+      nome: v("nome").trim(), sku: v("sku").trim(), peso: v("peso").trim(),
+      medidas: v("medidas").trim(), fotos: v("fotos").trim(),
+      atualizadoEm: new Date().toISOString(), editadoPelaEquipe: true,
+    };
+    if (custo !== null) patch.custo = custo;
+    try {
+      await setDoc(doc(db, "products", p.id), patch, { merge: true });
+      Object.assign(p, patch);
+      fechar(); desenhar();
+    } catch (e) {
+      alert("Não consegui salvar: " + (e.message || ""));
+      b.disabled = false; b.textContent = "Salvar";
+    }
+  };
+}
 </script>
 </body>
 </html>

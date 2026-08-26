@@ -269,7 +269,10 @@ function render(){
   // continua com view="planilhas" na memória, e sem isto o próximo
   // redesenho chamaria uma função que não existe mais e quebraria a tela.
   if(view==="planilhas")view="dashboard";
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,vendas:rVendas,ferramentas:rFerramentas}[view];
+  // Produtos é só do admin: quem não é cai no dashboard em vez de ver um
+  // iframe que as regras do Firestore vão esvaziar sem explicar por quê.
+  if(view==="produtos"&&!isAdmin())view="dashboard";
+  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
   document.getElementById("content").innerHTML=fn();
   bindAll();
   enhanceSearchSelects(document.getElementById("content"));
@@ -669,6 +672,36 @@ function telaRelatorio(aba,titulo){
   return`<iframe src="relatorio-cliente.html?embed=1&aba=${aba}" title="${esc(titulo)}"
      style="width:100%;height:calc(100vh - 132px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;
 }
+// ─── PRODUTOS DO CLIENTE ──────────────────────────────────────────────
+// A MESMA página que o cliente vê (cliente.html), embutida aqui. Não é uma
+// segunda tela parecida: é a de verdade, com ?cliente= dizendo de quem, e
+// ?embed=1 escondendo a barra lateral dela porque esta já tem uma.
+//
+// Duas coisas se ganham de graça com isso: você enxerga exatamente o que o
+// cliente enxerga (sem "na minha tela aparecia certo"), e qualquer melhoria
+// na área do cliente aparece aqui no mesmo instante.
+//
+// Dentro dela, por ser funcionário, aparecem os botões de editar e desvincular
+// que o cliente não tem.
+function rProdutos(){
+  const donos=custs.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"));
+  if(!donos.length)return`<div class="empty">Nenhum cliente cadastrado ainda.</div>`;
+  if(!prodCliente||!donos.some(d=>d.id===prodCliente))prodCliente=donos[0].id;
+  const dono=getCust(prodCliente);
+  const lojas=storesOfCust(prodCliente);
+  const url=`cliente.html?embed=1&cliente=${encodeURIComponent(prodCliente)}&nome=${encodeURIComponent(dono?dono.name:"")}`;
+  return`
+  <div class="filter-bar" style="margin-bottom:14px">
+    <span style="font-size:11px;color:#64748b;font-weight:600">👤 CLIENTE</span>
+    <select id="prod-cliente" data-search data-placeholder="Buscar cliente...">
+      ${donos.map(d=>`<option value="${esc(d.id)}"${d.id===prodCliente?" selected":""}>${esc(d.name)}</option>`).join("")}
+    </select>
+    <span style="font-size:12px;color:#94a3b8">${lojas.length} loja${lojas.length!==1?"s":""}${lojas.length?" · "+lojas.map(l=>esc(l.name)).join(", "):""}</span>
+  </div>
+  <iframe id="prod-frame" src="${url}" title="Produtos de ${esc(dono?dono.name:"")}"
+    style="width:100%;height:calc(100vh - 178px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;
+}
+
 function rRelCliente(){ return telaRelatorio("cliente","Relatório de Cliente"); }
 function rVendas(){ return telaRelatorio("vendas","Vendas · Todas as Lojas"); }
 function rFerramentas(){ return telaRelatorio("ferramentas","Ferramentas por Loja"); }
