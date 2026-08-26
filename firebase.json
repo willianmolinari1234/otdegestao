@@ -27,6 +27,11 @@
         "//": "SÓ a raiz abre o sistema. Antes havia um catch-all ** que devolvia o app inteiro (154 KB) para QUALQUER endereço — inclusive /wp-login.php e afins de robô. Endereço desconhecido agora cai no 404.html, de ~1 KB.",
         "source": "/",
         "destination": "/app.html"
+      },
+      {
+        "//": "Endereco limpo da area do cliente. Explicito, nao catch-all: endereco desconhecido continua caindo no 404.",
+        "source": "/cliente",
+        "destination": "/cliente.html"
       }
     ],
     "headers": [
@@ -34,31 +39,55 @@
         "//": "HTML sempre revalidado, mas SEM no-store. Com no-store o navegador é proibido de guardar, então cada abertura rebaixava os 154 KB inteiros. Com no-cache ele guarda e pergunta 'mudou?': se não mudou, a resposta é 304 com ~0 byte. A frescura é a mesma; a conta é outra.",
         "source": "**/*.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
         ]
       },
       {
         "source": "/",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
         ]
       },
       {
         "//": "JS carimbado com ?v= a cada publicação (ver redeploy.command), então pode ficar guardado por muito tempo sem risco de versão velha.",
         "source": "**/*.js",
         "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=604800" }
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
         ]
       },
       {
         "//": "Cabeçalhos de segurança em todas as respostas.",
         "source": "**",
         "headers": [
-          { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-          { "key": "X-Content-Type-Options", "value": "nosniff" },
-          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-          { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-          { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(), microphone=(), geolocation=()"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains"
+          }
         ]
       }
     ]

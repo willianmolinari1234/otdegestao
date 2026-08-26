@@ -111,6 +111,7 @@ function showCustomersPanel(){
           <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${stores.length} loja${stores.length!==1?"s":""}${stores.length?" · "+stores.map(s=>esc(s.name)).join(", "):""}</div>
         </div>
         <button data-acust="${cu.id}" title="Informações de login" style="background:${hasLogin?"#fff7ed":"none"};border:1px solid ${hasLogin?"#fed7aa":"transparent"};color:${hasLogin?"#ea580c":"#94a3b8"};font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px;font-weight:600">🔑${hasLogin?"":""}</button>
+        <button data-syscust="${cu.id}" title="Acesso do cliente ao sistema" style="background:none;border:1px solid transparent;color:#94a3b8;font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px">👤</button>
         <button data-ecust="${cu.id}" title="Renomear" style="background:none;border:none;color:#94a3b8;font-size:15px;cursor:pointer;padding:4px 7px;border-radius:6px">✎</button>
         <button data-dcust="${cu.id}" title="Excluir" style="background:none;border:none;color:#fca5a5;font-size:15px;cursor:pointer;padding:4px 7px;border-radius:6px">✕</button>
       </div>`;

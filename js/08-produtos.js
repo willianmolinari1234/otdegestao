@@ -268,7 +268,15 @@ async function plImportar(entram, conflitos) {
         batch.set(window.fb.doc(window.fb.db, "listings", idAnuncio), {
           id: idAnuncio, custId: cust.id, produtoId: idProduto, chave: p.chave,
           mkt: a.mkt || loja.mkt || "", storeId: loja.id, itemId: a.id || "",
+          // Nome e marketplace da loja copiados para dentro do anúncio: a área
+          // do cliente precisa dizer "está na Reana Tricot" e NÃO pode ler a
+          // coleção clients, onde mora a senha da loja. Copiar dois campos
+          // evita uma projeção inteira só para mostrar um nome.
+          storeNome: loja.name || "", storeMkt: loja.mkt || "",
           preco: a.preco === null ? null : a.preco, link: a.link || "",
+          // Vindos da planilha, já com as taxas daquela loja descontadas.
+          lucro: a.lucro === null || a.lucro === undefined ? null : a.lucro,
+          margem: a.margem === null || a.margem === undefined ? null : a.margem,
           atualizadoEm: agora,
         }, { merge: true });
         n++;
@@ -371,5 +379,125 @@ async function plGravarSku() {
   } catch (e) {
     showToast("Erro ao gravar: " + (e.message || ""), "error");
     botao.disabled = false; botao.textContent = "Gravar";
+  }
+}
+
+
+// ─── ACESSO DO CLIENTE AO SISTEMA ─────────────────────────────────────
+//
+// Não confundir com o 🔑 do lado: aquele guarda a senha do cliente NO
+// MARKETPLACE, para a equipe operar a loja. Este cria a conta com que o
+// próprio cliente entra aqui — coisa que até agora não existia.
+//
+// A senha vai para o backend e some: quem grava é o Admin SDK, e o navegador
+// nunca guarda nem relê. Por isso ela é mostrada uma vez e só.
+
+async function abrirAcessoDoCliente(custId) {
+  const cust = getCust(custId);
+  if (!cust) return;
+  let contas = [];
+  try {
+    const q = window.fb.query(window.fb.collection(window.fb.db, "accounts"),
+      window.fb.where("custId", "==", custId));
+    contas = (await window.fb.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error("accounts:", e); }
+
+  const jaTem = contas.length > 0;
+  showFormModal(`
+    <div class="form-modal-header">
+      <h3>Acesso ao sistema · ${esc(cust.name)}</h3>
+      <button id="ac-close" class="modal-close">×</button>
+    </div>
+    <div class="form-modal-body">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#475569;line-height:1.6">
+        Esta é a conta com que <b>o próprio cliente</b> entra no sistema e vê os
+        produtos dele. Não é a senha da loja no marketplace — essa fica no 🔑.
+      </div>
+
+      ${jaTem ? contas.map((c) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:11px;padding:13px 16px;margin-bottom:10px">
+          <div style="min-width:0">
+            <div style="font-weight:600;font-size:13px">${esc(c.nome || "sem nome")}</div>
+            <div style="font-size:12px;color:#166534;overflow:hidden;text-overflow:ellipsis">${esc(c.email || "")}</div>
+          </div>
+          <button data-remac="${esc(c.id)}" class="btn-sm" style="color:#b91c1c;white-space:nowrap">Remover acesso</button>
+        </div>`).join("") : `
+        <div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Nenhum acesso criado ainda.</div>`}
+
+      <div style="border-top:1px solid #f1f5f9;margin-top:14px;padding-top:16px">
+        <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">${jaTem ? "Criar outro acesso" : "Criar o acesso"}</div>
+        <div class="form-row">
+          <div class="form-group"><label>Nome de quem vai entrar</label><input id="ac-nome" class="finput" value="${esc(cust.name)}"/></div>
+          <div class="form-group"><label>E-mail</label><input id="ac-email" class="finput" type="email" placeholder="cliente@exemplo.com"/></div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label>Senha inicial (mínimo 8)</label>
+          <div style="display:flex;gap:6px">
+            <input id="ac-senha" class="finput" style="flex:1" placeholder="Ele troca depois, por 'Esqueci minha senha'"/>
+            <button id="ac-gerar" type="button" class="btn-sm" style="white-space:nowrap">Gerar</button>
+          </div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:6px;line-height:1.5">Anote agora e mande para o cliente: depois de salvar, nem eu nem você conseguimos ler essa senha de novo.</div>
+        </div>
+      </div>
+
+      <div class="form-actions" style="margin-top:18px">
+        <button id="ac-cancel" class="btn-sm">Fechar</button>
+        <button id="ac-criar" class="btn-primary">Criar acesso</button>
+      </div>
+    </div>`);
+
+  setTimeout(() => {
+    document.getElementById("ac-close").onclick = document.getElementById("ac-cancel").onclick = closeFormModal;
+    document.getElementById("ac-gerar").onclick = () => {
+      const abc = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const n = new Uint32Array(12); crypto.getRandomValues(n);
+      const senha = [...n].map((x) => abc[x % abc.length]).join("");
+      const campo = document.getElementById("ac-senha");
+      campo.value = senha; campo.select();
+    };
+    document.getElementById("ac-criar").onclick = () => acCriar(custId);
+    document.querySelectorAll("#form-modal-content [data-remac]").forEach((b) => {
+      b.onclick = () => askConfirm("Remover acesso",
+        "O cliente perde o login imediatamente. Os produtos e anúncios dele continuam aqui. Continuar?",
+        () => acRemover(b.dataset.remac, custId));
+    });
+  }, 0);
+}
+
+async function acCriar(custId) {
+  const v = (id) => (document.getElementById(id) || {}).value || "";
+  const nome = v("ac-nome").trim(), email = v("ac-email").trim().toLowerCase(), senha = v("ac-senha");
+  if (!nome || !email || !senha) { showToast("Preencha nome, e-mail e senha.", "error"); return; }
+  if (senha.length < 8) { showToast("A senha precisa de pelo menos 8 caracteres.", "error"); return; }
+  const botao = document.getElementById("ac-criar");
+  botao.disabled = true; botao.textContent = "Criando...";
+  try {
+    const tk = await window.fb.auth.currentUser.getIdToken();
+    const r = await fetch(`${FN_BASE}/criarAcesso`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + tk, "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, email, senha, papel: "cliente", custId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || "falha");
+    closeFormModal();
+    showToast("Acesso criado. Mande o e-mail e a senha para o cliente.");
+  } catch (e) {
+    showToast("Erro: " + (e.message || ""), "error");
+    botao.disabled = false; botao.textContent = "Criar acesso";
+  }
+}
+
+async function acRemover(uid, custId) {
+  try {
+    const tk = await window.fb.auth.currentUser.getIdToken();
+    const r = await fetch(`${FN_BASE}/removerAcesso?uid=${encodeURIComponent(uid)}`,
+      { method: "POST", headers: { Authorization: "Bearer " + tk } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || "falha");
+    showToast("Acesso removido");
+    abrirAcessoDoCliente(custId);
+  } catch (e) {
+    showToast("Erro: " + (e.message || ""), "error");
   }
 }

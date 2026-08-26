@@ -154,6 +154,7 @@ function bindAll(){
     // Access modal
     const ac=ev.target.closest("[data-acc]");if(ac){showAccessModal(ac.dataset.acc);return;}
     const pl=ev.target.closest("[data-plan]");if(pl){abrirImportacaoPlanilha(pl.dataset.plan);return;}
+    const sc=ev.target.closest("[data-syscust]");if(sc){abrirAcessoDoCliente(sc.dataset.syscust);return;}
     // Customer actions
     const ecu=ev.target.closest("[data-ecust]");if(ecu){renameCust(ecu.dataset.ecust);return;}
     const dcu=ev.target.closest("[data-dcust]");if(dcu){deleteCust(dcu.dataset.dcust);return;}

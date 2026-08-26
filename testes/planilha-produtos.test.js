@@ -27,7 +27,7 @@ test("lê os produtos de uma aba", () => {
   assert.equal(r.produtos[0].nome, "MANTA TRICOT");
   assert.equal(r.produtos[0].custo, 24.5);
   assert.deepEqual(r.produtos[0].anuncios[0], {
-    id: "58204670969", preco: 44.9,
+    id: "58204670969", preco: 44.9, lucro: null, margem: null,
     link: "https://shopee.com.br/product/1721461854/58204670969/",
     mkt: "Shopee", foraDoMarketplace: false,
   });
@@ -211,4 +211,23 @@ test("id do produto é previsível: reimportar atualiza, não duplica", () => {
 test("id do anúncio usa o do marketplace quando existe", () => {
   assert.equal(idDoAnuncioNaLoja("loja1", "58204670969", "X"), "loja1__58204670969");
   assert.equal(idDoAnuncioNaLoja("loja1", "", "MANTA TRICOT"), "loja1__manta-tricot");
+});
+
+test("lucro e margem vêm da planilha, não de preço menos custo", () => {
+  // A conta certa desconta taxa do marketplace, imposto, taxa fixa e gestão.
+  // Preço menos custo daria 45% neste produto, e a planilha diz 7,53%.
+  const r = lerAba(aba([
+    ["ID", "PRODUTO VENDIDO", "VALOR DA VENDA", "CUSTO PRODUTO", "LUCRO VENDA", "MARGEM CONTRI. (%)"],
+    ["58204670969", "ROMPER BOTAO", "44.9", "24.5", "3.379", "7.525612472"],
+  ]));
+  const a = r.produtos[0].anuncios[0];
+  assert.equal(a.lucro, 3.379);
+  assert.ok(Math.abs(a.margem - 7.5256) < 0.001);
+  assert.notEqual(Math.round(a.margem), Math.round((1 - 24.5 / 44.9) * 100));
+});
+
+test("sem colunas de lucro e margem, os campos ficam nulos — não inventados", () => {
+  const r = lerAba(simples());
+  assert.equal(r.produtos[0].anuncios[0].margem, null);
+  assert.equal(r.produtos[0].anuncios[0].lucro, null);
 });

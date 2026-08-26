@@ -29,6 +29,13 @@ const SINONIMOS = {
   nome:     ["produto", "produtovendido", "descricao", "nome", "item"],
   preco:    ["valordavenda", "valorvenda", "preco", "precodevenda", "venda"],
   custo:    ["custoproduto", "custodoproduto", "custo", "customercadoria"],
+  // Lucro e margem SAEM DA PLANILHA, não são recalculados aqui. A conta certa
+  // desconta taxa do marketplace, imposto, taxa fixa e gestão — tudo que muda
+  // de loja para loja e que esta tela não tem. Preço menos custo daria 52% num
+  // produto de 7,5% de margem real, e esse número iria parar na frente do
+  // cliente como se fosse verdade.
+  lucro:    ["lucrovenda", "lucro", "lucrodavenda"],
+  margem:   ["margemcontri", "margem", "margemcontribuicao", "margemdecontribuicao"],
   // Link e ID são colunas DIFERENTES e a planilha real tem as duas: a do ID
   // guarda só o número, a do link guarda o endereço — e é o endereço que diz
   // de qual marketplace é o anúncio. Juntar as duas num sinônimo só fazia a
@@ -194,6 +201,8 @@ export function lerAba(colado, mktEsperado = "") {
     // O link vale mais que o id: traz o número E o marketplace.
     const anuncioBruto = texto(linha, col.link) || texto(linha, col.anuncio);
     const preco = numero(texto(linha, col.preco));
+    const lucro = numero(texto(linha, col.lucro));
+    const margem = numero(texto(linha, col.margem));
     const custo = numero(texto(linha, col.custo));
 
     // Fórmula arrastada: sem nome, sem sku, sem anúncio de verdade e sem
@@ -237,7 +246,7 @@ export function lerAba(colado, mktEsperado = "") {
       // metade dos links da aba da Shein aponta para a Shopee. Marcar em vez de
       // corrigir sozinho: quem sabe qual dos dois está certo é o dono.
       const fora = Boolean(mktEsperado && mkt && mkt !== mktEsperado);
-      p.anuncios.push({ id, preco, link: ehUrl(anuncioBruto) ? anuncioBruto : "", mkt, foraDoMarketplace: fora });
+      p.anuncios.push({ id, preco, lucro, margem, link: ehUrl(anuncioBruto) ? anuncioBruto : "", mkt, foraDoMarketplace: fora });
       if (fora) p.avisos.push({ tipo: "linkDeOutroMarketplace", mkt, linha: numeroDaLinha });
     }
 

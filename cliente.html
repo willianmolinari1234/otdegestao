@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OTDE · Meus produtos</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#ea580c; --brand-50:#fff7ed; --brand-100:#ffedd5; --brand-200:#fed7aa; --brand-tint:#9a3412;
+  --bg:#f5f6f8; --surface:#fff; --border:#e5e7eb; --ink:#0f172a; --ink-2:#475569; --muted:#94a3b8;
+  --escuro:#0f172a; --escuro-2:#1e293b;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.5;letter-spacing:-.005em;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit}
+
+/* ── login ── */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.caixa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 10px 40px -20px rgba(15,23,42,.3)}
+.logo{width:46px;height:46px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;margin-bottom:18px}
+.finput{border:1px solid var(--border);border-radius:9px;padding:11px 13px;font-size:14px;width:100%;background:#fff;color:var(--ink)}
+.finput:focus{outline:2px solid var(--brand-200);border-color:var(--brand)}
+.rot{display:block;font-size:12px;color:var(--ink-2);margin-bottom:5px}
+.btn{background:var(--brand);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;width:100%}
+.btn:disabled{opacity:.6}
+.btnsm{background:#f1f5f9;color:var(--ink-2);border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:500}
+.btnsm.on{background:var(--brand-50);color:var(--brand-tint);box-shadow:inset 0 0 0 1px var(--brand-200)}
+.erro{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12.5px;margin-top:12px;display:none}
+.erro.ver{display:block}
+
+/* ── esqueleto ── */
+#app{display:none;min-height:100vh}
+#app.ver{display:flex}
+aside{width:210px;background:var(--escuro);display:flex;flex-direction:column;padding:18px 10px;flex-shrink:0;min-height:100vh}
+.nav{background:transparent;color:#94a3b8;border:none;border-radius:9px;padding:10px 12px;text-align:left;font-size:13px;display:block;width:100%;font-weight:500}
+.nav.on{background:linear-gradient(90deg,rgba(234,88,12,.18) 0%,rgba(30,41,59,.5) 100%);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--brand)}
+.principal{flex:1;display:flex;flex-direction:column;min-width:0}
+.topo{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 26px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.corpo{padding:22px 26px;flex:1}
+.card{background:var(--surface);border-radius:14px;border:1px solid var(--border);box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.selo{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
+.falta{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block;background:#f8fafc;color:var(--muted);border:1px dashed #cbd5e1}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#64748b;border-bottom:1px solid #e2e8f0}
+td{padding:12px 16px;border-bottom:1px solid #f8fafc;font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#fcfcfd}
+.lin{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #f1f5f9;font-size:13px}
+.lin b{font-weight:600}
+
+/* ── pop-up ── */
+#mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+#mask.ver{display:flex}
+.pop{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.35);width:100%;max-width:470px;padding:34px 36px 26px;text-align:center}
+@media (max-width:720px){
+  aside{display:none}
+  .corpo,.topo{padding-left:16px;padding-right:16px}
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="caixa">
+    <div class="logo">O</div>
+    <h1 style="font-size:19px;font-weight:800;letter-spacing:-.02em">Área do cliente</h1>
+    <p style="font-size:13px;color:var(--ink-2);margin:6px 0 20px">Entre para ver seus produtos e onde cada um está anunciado.</p>
+    <div style="margin-bottom:12px"><span class="rot">E-mail</span><input id="email" class="finput" type="email" autocomplete="email"></div>
+    <div style="margin-bottom:16px"><span class="rot">Senha</span><input id="senha" class="finput" type="password" autocomplete="current-password"></div>
+    <button id="entrar" class="btn">Entrar</button>
+    <div id="loginErro" class="erro"></div>
+    <a href="#" id="esqueci" style="display:inline-block;margin-top:14px;font-size:12px;color:var(--brand);text-decoration:none;font-weight:600">Esqueci minha senha</a>
+  </div>
+</div>
+
+<div id="app">
+  <aside>
+    <div style="display:flex;align-items:center;gap:9px;padding:0 6px;margin-bottom:26px">
+      <div id="avatar" style="width:40px;height:40px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0">—</div>
+      <div style="min-width:0">
+        <p id="nomeCliente" style="color:#f1f5f9;font-weight:800;font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis"></p>
+        <span style="color:#334155;font-size:9.5px">Área do cliente</span>
+      </div>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <button class="nav on" data-aba="produtos">Meus produtos</button>
+      <button class="nav" data-aba="lojas">Minhas lojas</button>
+    </nav>
+    <div style="margin-top:auto;padding:12px 6px 0;border-top:1px solid var(--escuro-2)">
+      <button id="sair" class="nav" style="color:#64748b">Sair</button>
+    </div>
+  </aside>
+
+  <div class="principal">
+    <div class="topo">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h1 id="titulo" style="font-size:16px;font-weight:800">Meus produtos</h1>
+        <span id="resumo" style="background:var(--brand-50);color:var(--brand-tint);border:1px solid var(--brand-100);border-radius:999px;padding:4px 12px;font-size:12px"></span>
+      </div>
+      <button id="voltar" class="btnsm" style="display:none">← Voltar</button>
+    </div>
+    <div class="corpo" id="corpo"></div>
+  </div>
+</div>
+
+<div id="mask"><div class="pop" id="popConteudo"></div></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail }
+  from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { getFirestore, collection, query, where, getDocs }
+  from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+// Mesma configuração do app da equipe. A apiKey do front é pública por
+// desenho: quem decide o que este login enxerga são as regras do Firestore,
+// e elas já foram testadas contra exatamente este caso.
+const app = initializeApp({
+  apiKey: "AIzaSyDQ1-LndQtPvZ6zkO6CAt1fD4LQkZeI95A",
+  authDomain: "otdegestao.firebaseapp.com",
+  projectId: "otdegestao",
+  storageBucket: "otdegestao.firebasestorage.app",
+  messagingSenderId: "529737654679",
+  appId: "1:529737654679:web:b7aa1d86e1a23d769564d2",
+});
+const auth = getAuth(app), db = getFirestore(app);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const moeda = (n) => (n === null || n === undefined || n === "") ? "—"
+  : "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Cores por marketplace, iguais às do sistema da equipe: o cliente e a OTDE
+// falando do mesmo lugar enxergam a mesma cor.
+const COR = {
+  "shopee":        { bg: "#fff1e9", fg: "#ee4d2d", bd: "#ffd4c2" },
+  "shein":         { bg: "#1a1a1a", fg: "#ffffff", bd: "#1a1a1a" },
+  "mercado livre": { bg: "#fff8e1", fg: "#b78a00", bd: "#ffe9a8" },
+  "tiktok":        { bg: "#1a1a1a", fg: "#ffffff", bd: "#1a1a1a" },
+};
+const cor = (m) => COR[String(m || "").toLowerCase().trim()] || { bg: "#f1f5f9", fg: "#475569", bd: "#e2e8f0" };
+
+let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [], busca: "", soFalta: false, aberto: null };
+
+// ─── entrar ───────────────────────────────────────────────────────────
+$("entrar").onclick = async () => {
+  const b = $("entrar"); $("loginErro").classList.remove("ver");
+  b.disabled = true; b.textContent = "Entrando...";
+  try {
+    await signInWithEmailAndPassword(auth, $("email").value.trim().toLowerCase(), $("senha").value);
+  } catch (e) {
+    $("loginErro").textContent = "E-mail ou senha incorretos.";
+    $("loginErro").classList.add("ver");
+    b.disabled = false; b.textContent = "Entrar";
+  }
+};
+[$("email"), $("senha")].forEach((el) => el.addEventListener("keydown", (e) => { if (e.key === "Enter") $("entrar").click(); }));
+$("esqueci").onclick = async (e) => {
+  e.preventDefault();
+  const em = $("email").value.trim().toLowerCase();
+  if (!em) { $("loginErro").textContent = "Digite seu e-mail primeiro."; $("loginErro").classList.add("ver"); return; }
+  try {
+    await sendPasswordResetEmail(auth, em);
+    $("loginErro").style.background = "#f0fdf4"; $("loginErro").style.color = "#15803d";
+    $("loginErro").textContent = "Enviamos um link para " + em;
+  } catch (err) { $("loginErro").textContent = "Não consegui enviar o e-mail."; }
+  $("loginErro").classList.add("ver");
+};
+$("sair").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { $("app").classList.remove("ver"); $("login").style.display = "flex"; return; }
+  // O custId vem da CLAIM do token, não de uma consulta: é o mesmo dado que as
+  // regras do Firestore usam para decidir o que este login pode ler, então não
+  // há como a tela mostrar uma coisa e a regra permitir outra.
+  const t = await user.getIdTokenResult();
+  if (t.claims.papel !== "cliente" || !t.claims.custId) {
+    await signOut(auth);
+    $("loginErro").textContent = "Esta conta não é de cliente.";
+    $("loginErro").classList.add("ver");
+    return;
+  }
+  estado.custId = t.claims.custId;
+  estado.nome = user.displayName || t.claims.nome || "";
+  $("login").style.display = "none";
+  $("app").classList.add("ver");
+  $("nomeCliente").textContent = estado.nome;
+  $("avatar").textContent = (estado.nome || "?").split(" ").slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
+  await carregar();
+});
+
+async function carregar() {
+  $("corpo").innerHTML = `<div style="color:var(--muted);font-size:13px;padding:30px 0">Carregando seus produtos…</div>`;
+  try {
+    const [ps, as] = await Promise.all([
+      getDocs(query(collection(db, "products"), where("custId", "==", estado.custId))),
+      getDocs(query(collection(db, "listings"), where("custId", "==", estado.custId))),
+    ]);
+    estado.produtos = ps.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"));
+    estado.anuncios = as.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Os marketplaces em que o cliente opera vêm dos próprios produtos: a
+    // equipe copia a lista do proprietário para cada produto na importação.
+    // Assim esta tela nunca precisa ler a ficha do cliente, onde há dado que
+    // não é para sair daqui.
+    estado.mkts = [...new Set(estado.produtos.flatMap((p) => p.mkts || []))];
+    if (!estado.mkts.length) estado.mkts = [...new Set(estado.anuncios.map((a) => a.mkt).filter(Boolean))];
+    desenhar();
+  } catch (e) {
+    console.error(e);
+    $("corpo").innerHTML = `<div class="card" style="padding:20px">Não consegui carregar seus produtos. Tente recarregar a página.</div>`;
+  }
+}
+
+const anunciosDe = (p) => estado.anuncios.filter((a) => a.produtoId === p.id || (a.chave && a.chave === p.chave));
+const mktsDe = (p) => [...new Set(anunciosDe(p).map((a) => a.mkt || a.storeMkt).filter(Boolean))];
+
+// ─── telas ────────────────────────────────────────────────────────────
+function desenhar() {
+  $("voltar").style.display = estado.aberto ? "" : "none";
+  if (estado.aberto) return telaProduto();
+  if (estado.aba === "lojas") return telaLojas();
+  telaLista();
+}
+$("voltar").onclick = () => { estado.aberto = null; desenhar(); };
+document.querySelectorAll("[data-aba]").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("[data-aba]").forEach((x) => x.classList.toggle("on", x === b));
+    estado.aba = b.dataset.aba; estado.aberto = null; desenhar();
+  };
+});
+
+function telaLista() {
+  $("titulo").textContent = "Meus produtos";
+  const lojas = [...new Set(estado.anuncios.map((a) => a.storeNome).filter(Boolean))];
+  $("resumo").textContent = `${estado.produtos.length} produtos${lojas.length ? " · " + lojas.length + " loja(s)" : ""} · ${estado.mkts.length} marketplace(s)`;
+
+  const busca = estado.busca.toLowerCase();
+  const lista = estado.produtos.filter((p) => {
+    if (busca && !((p.nome || "") + " " + (p.sku || "")).toLowerCase().includes(busca)) return false;
+    if (estado.soFalta && mktsDe(p).length >= estado.mkts.length) return false;
+    return true;
+  });
+
+  const cartoes = estado.mkts.map((m) => {
+    const c = cor(m), n = estado.produtos.filter((p) => mktsDe(p).includes(m)).length;
+    return `<div class="card" style="padding:12px 14px;border-top:3px solid ${c.bd}">
+      <div style="font-size:12px;color:#64748b;margin-bottom:4px">Em ${esc(m)}</div>
+      <div style="font-size:22px;font-weight:600">${n}<span style="font-size:13px;color:var(--muted);font-weight:500"> de ${estado.produtos.length}</span></div>
+    </div>`;
+  }).join("");
+
+  $("corpo").innerHTML = `
+    ${cartoes ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px">${cartoes}</div>` : ""}
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <input id="busca" class="finput" style="width:260px" placeholder="Buscar por nome ou SKU…" value="${esc(estado.busca)}">
+      <button id="fFalta" class="btnsm${estado.soFalta ? " on" : ""}">Só o que falta anunciar</button>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead style="background:#f8fafc"><tr>
+          <th style="width:46%">Produto</th><th style="width:16%">SKU</th><th>Onde está anunciado</th>
+        </tr></thead>
+        <tbody>${lista.map(linha).join("") || `<tr><td colspan="3" style="color:var(--muted);padding:26px 16px">Nenhum produto encontrado.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">Mostrando ${lista.length} de ${estado.produtos.length} produtos</div>`;
+
+  $("busca").oninput = (e) => { estado.busca = e.target.value; const p = e.target.selectionStart; desenhar(); const b = $("busca"); b.focus(); b.setSelectionRange(p, p); };
+  $("fFalta").onclick = () => { estado.soFalta = !estado.soFalta; desenhar(); };
+  document.querySelectorAll("[data-prod]").forEach((tr) => {
+    tr.onclick = () => { estado.aberto = estado.produtos.find((p) => p.id === tr.dataset.prod); desenhar(); };
+  });
+}
+
+function linha(p) {
+  const tem = mktsDe(p);
+  const selos = estado.mkts.map((m) => {
+    const c = cor(m);
+    return tem.includes(m)
+      ? `<span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${esc(m)}</span>`
+      : `<span class="falta">${esc(m)}</span>`;
+  }).join(" ");
+  return `<tr data-prod="${esc(p.id)}">
+    <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
+      ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}</td>
+    <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
+    <td><div style="display:flex;gap:5px;flex-wrap:wrap">${selos}</div></td>
+  </tr>`;
+}
+
+function telaProduto() {
+  const p = estado.aberto;
+  $("titulo").textContent = p.nome || "Produto";
+  $("resumo").textContent = p.sku ? "SKU " + p.sku : "";
+  const meus = anunciosDe(p);
+  const tem = mktsDe(p);
+
+  const cartaoAnuncio = (a) => {
+    const c = cor(a.mkt || a.storeMkt);
+    return `<div class="card" style="overflow:hidden;margin-bottom:12px">
+      <div style="padding:11px 18px;background:${c.bg};border-bottom:1px solid ${c.bd};display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <b style="color:${c.fg};font-size:13.5px">${esc(a.mkt || a.storeMkt || "—")}</b>
+        <span style="font-size:11.5px;color:${c.fg};opacity:.85">${esc(a.storeNome || "")}</span>
+      </div>
+      <div style="padding:13px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;align-items:center">
+        <div><div style="font-size:11.5px;color:#64748b">Preço</div><div style="font-size:15px;font-weight:600">${moeda(a.preco)}</div></div>
+        ${(a.margem !== null && a.margem !== undefined) || (a.lucro !== null && a.lucro !== undefined)
+          ? `<div><div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>
+             <div style="font-size:15px;font-weight:600;color:#3b6d11">${a.lucro !== null && a.lucro !== undefined ? moeda(a.lucro) : ""}${a.margem !== null && a.margem !== undefined ? `<span style="font-size:12px;color:#64748b;font-weight:500">${a.lucro !== null && a.lucro !== undefined ? " · " : ""}${Number(a.margem).toFixed(1)}%</span>` : ""}</div></div>`
+          : `<div><div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>
+             <div style="font-size:13px;color:var(--muted)">ainda não informada</div></div>`}
+        ${a.link ? `<div style="text-align:right"><a href="${esc(a.link)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">Ver anúncio</a></div>` : ""}
+      </div>
+    </div>`;
+  };
+
+  const faltando = estado.mkts.filter((m) => !tem.includes(m)).map((m) => {
+    const c = cor(m);
+    return `<div class="card" style="overflow:hidden;border-style:dashed;box-shadow:none;background:#fcfcfd;margin-bottom:12px">
+      <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div><div style="font-size:14px;font-weight:600;color:var(--ink-2)">${esc(m)}</div>
+          <div style="font-size:11.5px;color:var(--muted)">Este produto ainda não está anunciado aqui</div></div>
+        <button data-quero="${esc(m)}" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:9px;padding:9px 18px;font-size:13px;font-weight:700">Quero anunciar no ${esc(m)}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  $("corpo").innerHTML = `
+    <div style="display:grid;grid-template-columns:290px minmax(0,1fr);gap:18px;align-items:start" id="grade">
+      <div class="card" style="padding:18px 20px">
+        <div style="font-size:15px;font-weight:700;line-height:1.3;margin-bottom:8px">${esc(p.nome || "")}</div>
+        ${p.sku ? `<div style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--brand-tint);background:var(--brand-50);border:1px solid var(--brand-100);border-radius:6px;padding:2px 8px;margin-bottom:12px">${esc(p.sku)}</div>` : ""}
+        <div class="lin" style="border-top:none"><span style="color:#64748b">Custo</span><b>${moeda(p.custo)}</b></div>
+        ${p.peso ? `<div class="lin"><span style="color:#64748b">Peso</span><b>${esc(p.peso)}</b></div>` : ""}
+        ${p.medidas ? `<div class="lin"><span style="color:#64748b">Medidas da embalagem</span><b style="text-align:right">${esc(p.medidas)}</b></div>` : ""}
+        ${p.tamanhos ? `<div class="lin"><span style="color:#64748b">Tamanhos</span><b style="text-align:right">${esc(p.tamanhos)}</b></div>` : ""}
+        ${p.cores ? `<div class="lin"><span style="color:#64748b">Cores</span><b style="text-align:right">${esc(p.cores)}</b></div>` : ""}
+        ${p.fotos ? `<div style="margin-top:14px"><a href="${esc(p.fotos)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">📁 Fotos e vídeos</a></div>` : ""}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:11.5px;color:var(--muted);line-height:1.6">
+          Estes dados valem para todos os marketplaces onde você vende.
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">Anúncios deste produto</div>
+        ${meus.map(cartaoAnuncio).join("") || `<div class="card" style="padding:16px;color:var(--muted);font-size:13px;margin-bottom:12px">Nenhum anúncio registrado ainda.</div>`}
+        ${faltando}
+      </div>
+    </div>`;
+  if (window.matchMedia("(max-width:720px)").matches) $("grade").style.gridTemplateColumns = "1fr";
+  document.querySelectorAll("[data-quero]").forEach((b) => { b.onclick = () => popup(b.dataset.quero, p); });
+}
+
+function telaLojas() {
+  $("titulo").textContent = "Minhas lojas";
+  $("resumo").textContent = "";
+  const porLoja = new Map();
+  for (const a of estado.anuncios) {
+    const k = a.storeNome || a.mkt || "—";
+    const v = porLoja.get(k) || { nome: k, mkt: a.mkt || a.storeMkt || "", anuncios: 0, produtos: new Set() };
+    v.anuncios++; if (a.produtoId) v.produtos.add(a.produtoId);
+    porLoja.set(k, v);
+  }
+  const lojas = [...porLoja.values()];
+  $("corpo").innerHTML = lojas.length ? `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+      ${lojas.map((l) => { const c = cor(l.mkt); return `
+        <div class="card" style="padding:16px 18px;border-top:3px solid ${c.bd}">
+          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${esc(l.nome)}</div>
+          <span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${esc(l.mkt || "—")}</span>
+          <div style="margin-top:12px;font-size:13px;color:var(--ink-2)">${l.produtos.size || l.anuncios} produto(s) · ${l.anuncios} anúncio(s)</div>
+        </div>`; }).join("")}
+    </div>` : `<div class="card" style="padding:20px;color:var(--muted);font-size:13px">Ainda não há lojas registradas.</div>`;
+}
+
+// ─── pop-up do "quero anunciar" ───────────────────────────────────────
+// Sem formulário e sem fila: a conversa continua onde ela já acontece.
+function popup(mkt, p) {
+  $("popConteudo").innerHTML = `
+    <div style="width:60px;height:60px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">✓</div>
+    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px">Excelente!</div>
+    <div style="font-size:14.5px;color:var(--ink-2);line-height:1.6;margin-bottom:22px">Entre em contato com nossa equipe através do grupo,<br>iremos te auxiliar.</div>
+    <div style="font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;padding:9px 14px;margin-bottom:22px;line-height:1.5">Pedido registrado: <b style="color:var(--ink-2)">${esc(mkt)}</b> · ${esc(p.nome || "")}</div>
+    <button id="popOk" class="btn">Entendi</button>`;
+  $("mask").classList.add("ver");
+  $("popOk").onclick = fechar;
+}
+const fechar = () => $("mask").classList.remove("ver");
+$("mask").onclick = (e) => { if (e.target === $("mask")) fechar(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") fechar(); });
+</script>
+</body>
+</html>
