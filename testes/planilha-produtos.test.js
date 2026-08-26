@@ -7,7 +7,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lerAba, chaveDoNome, idDoAnuncio, marketplaceDoLink, numero } from "../js/planilha-produtos.js";
+import {
+  lerAba, chaveDoNome, idDoAnuncio, marketplaceDoLink, numero,
+  idDoProduto, idDoAnuncioNaLoja,
+} from "../js/planilha-produtos.js";
 
 const aba = (linhas) => linhas.map((l) => l.join("\t")).join("\n");
 
@@ -195,4 +198,17 @@ test("números em português e em inglês", () => {
   assert.equal(numero("1.234,56"), 1234.56);
   assert.equal(numero(""), null);
   assert.equal(chaveDoNome("  Saída   de Maternidade "), "SAIDA DE MATERNIDADE");
+});
+
+test("id do produto é previsível: reimportar atualiza, não duplica", () => {
+  const a = idDoProduto("cust1", "SAIDA DE MATERNIDADE");
+  assert.equal(a, "cust1__saida-de-maternidade");
+  assert.equal(idDoProduto("cust1", chaveDoNome(" Saída  de Maternidade ")), a);
+  assert.equal(idDoProduto("cust1", ""), "cust1__sem-nome");
+  assert.match(idDoProduto("cust1", "MANTA 80×90 / BEBÊ"), /^cust1__[a-z0-9-]+$/);
+});
+
+test("id do anúncio usa o do marketplace quando existe", () => {
+  assert.equal(idDoAnuncioNaLoja("loja1", "58204670969", "X"), "loja1__58204670969");
+  assert.equal(idDoAnuncioNaLoja("loja1", "", "MANTA TRICOT"), "loja1__manta-tricot");
 });

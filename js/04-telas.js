@@ -849,6 +849,7 @@ function rClientes(){
       <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:13px;color:${open>0?"#dc2626":"#16a34a"}"><span style="width:7px;height:7px;border-radius:50%;background:${open>0?"#dc2626":"#16a34a"};display:inline-block"></span>${open}</span></td>
       <td><div style="display:flex;gap:6px;align-items:center">
         <button data-acc="${c.id}" title="Ver acessos da loja" class="acc-btn${hasAcc?" has":""}">🔑 Acesso</button>
+        ${isAdmin()&&c.custId?`<button data-plan="${c.id}" title="Importar a planilha desta loja" class="acc-btn">📄 Planilha</button>`:''}
         ${isAdmin()?`<button data-ecli="${c.id}" title="Editar" class="icon-btn">✎</button>
         <button data-dcli="${c.id}" title="Excluir" class="icon-btn danger">✕</button>`:''}
       </div></td>

@@ -611,8 +611,10 @@ tr:last-child td{border-bottom:none}
      guarda — na prática ele já está pronto quando alguém faz login. -->
 <script type="module">
   import * as custos from "./js/custos.js?v=0b61a8ef";
-  import * as prazos from "./js/prazos.js?v=06e5da5d";
+  import * as planilha from "./js/planilha-produtos.js";
+  import * as prazos from "./js/prazos.js?v=4e2cdbf6";
   window.custos = custos;
+  window.planilha = planilha;
   window.prazos = prazos;
 </script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
@@ -624,6 +626,7 @@ tr:last-child td{border-bottom:none}
 <script src="js/05-clientes-e-acesso.js?v=375de987"></script>
 <script src="js/06-formularios.js?v=c176f68d"></script>
 <script src="js/07-interacoes-e-boot.js?v=f7bf6d2d"></script>
+<script src="js/08-produtos.js"></script>
 <div id="diag-report"></div>
 </body>
 </html>

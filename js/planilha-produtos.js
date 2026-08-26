@@ -275,3 +275,22 @@ export function lerAba(colado, mktEsperado = "") {
 
   return { colunas: col, produtos, conflitos, semIdentidade, vazias, porMarketplace };
 }
+
+/**
+ * Id previsível do produto: reimportar a mesma planilha ATUALIZA, não duplica.
+ *
+ * Id aleatório faria cada importação criar tudo de novo, e o cliente veria o
+ * mesmo produto três vezes — uma por aba. Como a chave já é estável (SKU ou
+ * nome normalizado), o id sai dela.
+ */
+export function idDoProduto(custId, chave) {
+  const s = String(chave || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+  return `${custId}__${s || "sem-nome"}`;
+}
+
+/** Id do anúncio dentro de uma loja. Sem id do marketplace, cai na chave. */
+export function idDoAnuncioNaLoja(lojaId, anuncioId, chave) {
+  if (anuncioId) return `${lojaId}__${anuncioId}`;
+  return `${lojaId}__${idDoProduto("x", chave).slice(3)}`;
+}

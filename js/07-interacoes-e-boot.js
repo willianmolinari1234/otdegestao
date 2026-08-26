@@ -153,6 +153,7 @@ function bindAll(){
     const ren=ev.target.closest("[data-renew]");if(ren){renewPromo(ren.dataset.renew);return;}
     // Access modal
     const ac=ev.target.closest("[data-acc]");if(ac){showAccessModal(ac.dataset.acc);return;}
+    const pl=ev.target.closest("[data-plan]");if(pl){abrirImportacaoPlanilha(pl.dataset.plan);return;}
     // Customer actions
     const ecu=ev.target.closest("[data-ecust]");if(ecu){renameCust(ecu.dataset.ecust);return;}
     const dcu=ev.target.closest("[data-dcust]");if(dcu){deleteCust(dcu.dataset.dcust);return;}
