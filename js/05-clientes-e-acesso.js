@@ -140,7 +140,12 @@ function showCustomersPanel(){
     const search=document.getElementById("cust-search");
     const rowsBox=document.getElementById("cust-rows");
     function rebind(){
+      // ATENÇÃO ao mexer aqui: este painel é um MODAL, e modal fica fora do
+      // #content — que é onde vive a delegação de cliques do resto do sistema.
+      // Botão novo desenhado acima só funciona se for ligado nesta função.
+      // Foi exatamente esse o furo do 👤: o HTML existia e o clique não.
       rowsBox.querySelectorAll("[data-acust]").forEach(b=>{b.onclick=()=>openCustAccessForm(b.dataset.acust);});
+      rowsBox.querySelectorAll("[data-syscust]").forEach(b=>{b.onclick=()=>abrirAcessoDoCliente(b.dataset.syscust);});
       rowsBox.querySelectorAll("[data-ecust]").forEach(b=>{b.onclick=()=>renameCust(b.dataset.ecust);});
       rowsBox.querySelectorAll("[data-dcust]").forEach(b=>{b.onclick=()=>deleteCust(b.dataset.dcust);});
     }
@@ -169,10 +174,6 @@ function openCustAccessForm(custId){
     }else erpProvider="expedy";
   }
   const storeLogins=lg.stores||{};
-  // Enquanto ninguém marcou nada, mostra o que dá para deduzir das lojas — a
-  // tela abre já preenchida com o que o sistema sabe, em vez de vazia.
-  const semCampoProprio=!(Array.isArray(cu.marketplaces)&&cu.marketplaces.length);
-  const mktsAtuais=mktsDoCliente(cu);
   // Backward-compat: migrate legacy flat {url,user,pass} into the first store block on display
   let legacyHint=null;
   if((lg.user||lg.pass||lg.url)&&!lg.erp&&!lg.stores&&!lg.sheet){
@@ -236,20 +237,6 @@ function openCustAccessForm(custId){
       </div>
     </div>
 
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🛒 Marketplaces em que opera</div>
-      <div style="font-size:11.5px;color:#94a3b8;margin-bottom:11px;line-height:1.5">Decide o que ele vê na área do cliente e qual especialista atende ele. Marque também onde ainda não tem loja cadastrada aqui.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${MKTS.map((m,i)=>{
-          const st=mktStyle(m),on=mktsAtuais.includes(m);
-          return `<label for="ca-mkt-${i}" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:${on?"700":"500"};border:1.5px solid ${on?st.border:"#e2e8f0"};background:${on?st.bg:"#fff"};color:${on?st.fg:"#94a3b8"}">
-            <input type="checkbox" id="ca-mkt-${i}" data-mkt="${esc(m)}" ${on?"checked":""} style="margin:0;accent-color:#ea580c"/>${esc(m)}
-          </label>`;
-        }).join("")}
-      </div>
-      ${semCampoProprio?`<div style="font-size:11.5px;color:#b45309;margin-top:10px;line-height:1.5">Deduzido das lojas cadastradas. Salve para confirmar.</div>`:""}
-    </div>
-
     <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:11px;color:#9a3412;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">🧾 ERP — Sistema de emissão de notas</div>
       <div class="form-group" style="margin-bottom:10px">
@@ -288,17 +275,6 @@ function openCustAccessForm(custId){
   setTimeout(()=>{
     const close=()=>{closeFormModal();setTimeout(showCustomersPanel,120);};
     document.getElementById("ca-close").onclick=document.getElementById("ca-cancel").onclick=close;
-    // A pilha do marketplace acende e apaga junto com a caixinha — sem isso
-    // o clique marca mas a tela continua igual, e a pessoa clica de novo.
-    document.querySelectorAll("#form-modal-content [data-mkt]").forEach(cx=>{
-      cx.onchange=()=>{
-        const st=mktStyle(cx.dataset.mkt),on=cx.checked,lb=cx.parentElement;
-        lb.style.fontWeight=on?"700":"500";
-        lb.style.border="1.5px solid "+(on?st.border:"#e2e8f0");
-        lb.style.background=on?st.bg:"#fff";
-        lb.style.color=on?st.fg:"#94a3b8";
-      };
-    });
     // Wire all password toggles
     document.querySelectorAll("#form-modal-content [data-pwtoggle]").forEach(btn=>{
       btn.onclick=()=>{const f=document.getElementById(btn.dataset.pwtoggle);if(f)f.type=f.type==="password"?"text":"password";};
@@ -336,9 +312,7 @@ function openCustAccessForm(custId){
         notes:v("ca-notes").trim()
       };
       try{
-        const marketplaces=[...document.querySelectorAll("#form-modal-content [data-mkt]")]
-          .filter(c=>c.checked).map(c=>c.dataset.mkt);
-        await fbUpdate("customers",custId,{login,fee:v("ca-fee").trim(),imposto:v("ca-imposto").trim(),marketplaces});
+        await fbUpdate("customers",custId,{login,fee:v("ca-fee").trim(),imposto:v("ca-imposto").trim()});
         closeFormModal();setTimeout(showCustomersPanel,120);
         showToast("Informações de acesso salvas");
       }catch(e){showToast("Erro: "+(e.message||""),"error");}
