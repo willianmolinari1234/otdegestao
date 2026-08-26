@@ -35,11 +35,11 @@ function abrirImportacaoPlanilha(lojaId) {
 function plDesenharColar() {
   const { loja, cust } = plEstado;
   showFormModal(`
-    <div class="form-modal-header">
-      <h3>Importar planilha · ${esc(loja.name)}</h3>
-      <button id="pl-close" class="modal-close">×</button>
+  <div class="form-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Importar planilha · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-    <div class="form-modal-body">
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:14px;font-size:12.5px;color:#475569;line-height:1.6">
         Os produtos entram para <b>${esc(cust.name)}</b>, e os anúncios para a loja
         <b>${esc(loja.name)}</b> (${esc(loja.mkt || "sem marketplace")}).
@@ -145,7 +145,7 @@ function plDesenharConferencia() {
       <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px">
         ${p.anuncios.map((a) => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:2px 8px;margin:1px 3px 1px 0;${a.foraDoMarketplace ? "border-color:#fca5a5;background:#fef2f2;color:#b91c1c" : ""}">${plMoeda(a.preco)}${a.foraDoMarketplace ? " · " + esc(a.mkt) : ""}</span>`).join("") || "<span style='color:#cbd5e1'>sem anúncio</span>"}
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8">${p.fotos ? "📁 fotos" : ""}${p.peso ? " ⚖️" : ""}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8">${p.fotos ? "📁 fotos" : ""}${p.fotos && p.peso ? " · " : ""}${p.peso ? "peso" : ""}</td>
     </tr>`;
 
   const blocoConflito = (c, i) => `
@@ -163,11 +163,11 @@ function plDesenharConferencia() {
     </div>`;
 
   showFormModal(`
-    <div class="form-modal-header">
-      <h3>Conferir antes de importar · ${esc(loja.name)}</h3>
-      <button id="pl-close" class="modal-close">×</button>
+  <div class="form-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Conferir antes de importar · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-    <div class="form-modal-body">
       <div style="display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap">
         ${cartao("#16a34a", "#f0fdf4", "#bbf7d0", entram.length, "produtos entram")}
         ${cartao("#0f172a", "#f8fafc", "#e2e8f0", anuncios, "anúncios")}
@@ -332,11 +332,11 @@ function plMostrarSku(j) {
     </div>`;
 
   showFormModal(`
-    <div class="form-modal-header">
-      <h3>SKU do marketplace · ${esc(loja.name)}</h3>
-      <button id="pl-close" class="modal-close">×</button>
+  <div class="form-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">SKU do marketplace · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-    <div class="form-modal-body">
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:13px 16px;margin-bottom:6px;font-size:13px;color:#0f172a;line-height:1.6">
         ${esc(j.veredito)}
       </div>
@@ -404,11 +404,11 @@ async function abrirAcessoDoCliente(custId) {
 
   const jaTem = contas.length > 0;
   showFormModal(`
-    <div class="form-modal-header">
-      <h3>Acesso ao sistema · ${esc(cust.name)}</h3>
-      <button id="ac-close" class="modal-close">×</button>
+  <div class="form-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Acesso ao sistema · ${esc(cust.name)}</div></div>
+      <button id="ac-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-    <div class="form-modal-body">
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#475569;line-height:1.6">
         Esta é a conta com que <b>o próprio cliente</b> entra no sistema e vê os
         produtos dele. Não é a senha da loja no marketplace — essa fica no 🔑.
