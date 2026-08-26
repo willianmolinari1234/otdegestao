@@ -242,6 +242,100 @@ export const removerAcesso = onRequest({ secrets, cors: ["https://otdegestao.web
   }
 });
 
+// ---------- SKU vem do MARKETPLACE, não da planilha ----------
+// O SKU que vale é o que está cadastrado no anúncio, e ele já chega aqui: o
+// sync de vendas guarda, por item, `s` (item_sku), `m` (model_sku) e `i` (id
+// do anúncio) dentro de sales/{loja}_{dia}. Ou seja, o dado existe desde
+// sempre — o que faltava era costurar com os anúncios importados da planilha,
+// que trazem o id do anúncio no link.
+//
+// Nenhuma chamada nova à Shopee: só leitura do que já foi sincronizado. Por
+// isso é barato e pode rodar quantas vezes quiser.
+//
+// Sem `aplicar=1` só relata. Ver antes de gravar é a regra da casa.
+export const skusDoMarketplace = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"], timeoutSeconds: 300 }, async (req, res) => {
+  try {
+    const admin = await exigirAdmin(req);
+    if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+    const loja = String(req.query.loja || req.body?.loja || "");
+    const aplicar = String(req.query.aplicar || req.body?.aplicar || "") === "1";
+    if (!loja) { res.status(400).json({ erro: "falta a loja" }); return; }
+
+    // 1) O que o marketplace diz: id do anúncio -> SKU.
+    const vendas = await db.collection("sales").where("cliente", "==", loja).get();
+    const porAnuncio = new Map();
+    let itensLidos = 0;
+    for (const d of vendas.docs) {
+      for (const it of (d.data().itens || [])) {
+        const id = String(it.i || "").trim();
+        if (!id) continue;
+        itensLidos++;
+        const atual = porAnuncio.get(id) || { sku: "", modelo: "", nome: "", vezes: 0 };
+        atual.vezes++;
+        // Primeiro SKU não vazio ganha: se o vendedor preencheu depois, o
+        // valor mais recente também aparece nos dias mais recentes, e
+        // qualquer um deles é o mesmo código.
+        if (!atual.sku && it.s) atual.sku = String(it.s).trim();
+        if (!atual.modelo && it.m) atual.modelo = String(it.m).trim();
+        if (!atual.nome && it.n) atual.nome = String(it.n).trim();
+        porAnuncio.set(id, atual);
+      }
+    }
+    const comSku = [...porAnuncio.values()].filter((x) => x.sku).length;
+
+    // 2) Os anúncios que a planilha trouxe para esta loja.
+    const anuncios = await db.collection("listings").where("storeId", "==", loja).get();
+    const casados = [], semSku = [], semVenda = [];
+    for (const d of anuncios.docs) {
+      const a = d.data();
+      const id = String(a.itemId || "").trim();
+      const achado = id ? porAnuncio.get(id) : null;
+      if (!achado) { semVenda.push({ id: d.id, itemId: id, chave: a.chave || "" }); continue; }
+      if (!achado.sku) { semSku.push({ id: d.id, itemId: id, chave: a.chave || "", nome: achado.nome }); continue; }
+      casados.push({ id: d.id, itemId: id, chave: a.chave || "", produtoId: a.produtoId || "", sku: achado.sku, modelo: achado.modelo });
+    }
+
+    let gravados = 0, produtos = 0;
+    if (aplicar && casados.length) {
+      let lote = db.batch(), n = 0;
+      const solta = async () => { if (n) { await lote.commit(); lote = db.batch(); n = 0; } };
+      const jaVistos = new Set();
+      for (const c of casados) {
+        lote.set(db.collection("listings").doc(c.id),
+          { sku: c.sku, modelo: c.modelo || "", skuDe: "marketplace" }, { merge: true });
+        gravados++; n++;
+        // O SKU do anúncio sobe para o produto só se ele ainda não tem um. Um
+        // produto pode estar em duas lojas com códigos diferentes, e nesse
+        // caso quem manda é o anúncio, não o produto.
+        if (c.produtoId && !jaVistos.has(c.produtoId)) {
+          jaVistos.add(c.produtoId);
+          const p = await db.collection("products").doc(c.produtoId).get();
+          if (p.exists && !String(p.data().sku || "").trim()) {
+            lote.set(db.collection("products").doc(c.produtoId), { sku: c.sku, skuDe: "marketplace" }, { merge: true });
+            produtos++; n++;
+          }
+        }
+        if (n >= 400) await solta();
+      }
+      await solta();
+    }
+
+    res.json({
+      ok: true,
+      aplicado: aplicar,
+      veredito: `${comSku} de ${porAnuncio.size} anúncios vendidos têm SKU no marketplace; ${casados.length} dos ${anuncios.size} anúncios importados casaram`,
+      lidos: { diasDeVenda: vendas.size, itens: itensLidos, anunciosVendidos: porAnuncio.size, comSku },
+      anunciosImportados: anuncios.size,
+      casados: casados.length, semSku: semSku.length, semVenda: semVenda.length,
+      gravados, produtos,
+      amostra: { casados: casados.slice(0, 8), semSku: semSku.slice(0, 8), semVenda: semVenda.slice(0, 8) },
+    });
+  } catch (e) {
+    logger.error("skusDoMarketplace", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ---------- Bloquear auto-cadastro no Firebase Auth ----------
 // Mesmo com as regras fechadas, qualquer pessoa ainda conseguia CRIAR uma
 // conta no Auth (ela não acessaria nada, mas polui a base e é degrau para

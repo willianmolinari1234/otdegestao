@@ -50,10 +50,20 @@ function plDesenharColar() {
         <button id="pl-cancel" class="btn-sm">Cancelar</button>
         <button id="pl-ler" class="btn-primary">Ler planilha</button>
       </div>
+
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #f1f5f9">
+        <div style="font-size:12.5px;color:#475569;line-height:1.6;margin-bottom:10px">
+          <b>SKU vem do marketplace, não da planilha.</b> O código cadastrado no
+          anúncio já chega junto com cada venda — isto só costura com os anúncios
+          que você importou. Nenhuma chamada nova à Shopee.
+        </div>
+        <button id="pl-sku" class="btn-sm">🏷️ Puxar SKU do marketplace</button>
+      </div>
     </div>`);
   setTimeout(() => {
     document.getElementById("pl-close").onclick = document.getElementById("pl-cancel").onclick = closeFormModal;
     document.getElementById("pl-ler").onclick = plLer;
+    document.getElementById("pl-sku").onclick = plPuxarSku;
   }, 0);
 }
 
@@ -272,5 +282,94 @@ async function plImportar(entram, conflitos) {
     console.error("importar:", e);
     showToast("Erro ao importar: " + (e.message || ""), "error");
     botao.disabled = false; botao.textContent = "Importar";
+  }
+}
+
+
+/**
+ * Puxa o SKU do marketplace para os anúncios já importados desta loja.
+ *
+ * Duas passadas de propósito: a primeira só conta e mostra, a segunda grava.
+ * Ver antes de gravar é a regra da casa, e aqui ela paga: se o cliente não
+ * preenche SKU no anúncio, não há o que puxar — e é melhor descobrir isso num
+ * relatório do que numa base meio preenchida.
+ */
+async function plPuxarSku() {
+  const botao = document.getElementById("pl-sku");
+  const antes = botao.textContent;
+  botao.disabled = true; botao.textContent = "Consultando...";
+  try {
+    const tk = await window.fb.auth.currentUser.getIdToken();
+    const r = await fetch(`${FN_BASE}/skusDoMarketplace?loja=${encodeURIComponent(plEstado.loja.id)}`,
+      { method: "POST", headers: { Authorization: "Bearer " + tk } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || "falha");
+    plMostrarSku(j);
+  } catch (e) {
+    showToast("Erro ao consultar SKU: " + (e.message || ""), "error");
+  } finally {
+    botao.disabled = false; botao.textContent = antes;
+  }
+}
+
+function plMostrarSku(j) {
+  const { loja } = plEstado;
+  const lista = (titulo, itens, cor) => !itens.length ? "" : `
+    <div style="font-size:11px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin:14px 0 7px">${titulo}</div>
+    <div style="border:1px solid #e2e8f0;border-radius:10px;max-height:150px;overflow:auto">
+      ${itens.map((x) => `<div style="padding:6px 12px;font-size:12px;border-bottom:1px solid #f8fafc">
+        <span style="font-family:ui-monospace,Menlo,monospace;color:#475569">${esc(x.sku || x.itemId || "—")}</span>
+        <span style="color:#94a3b8"> · ${esc(x.chave || x.nome || "")}</span>
+      </div>`).join("")}
+    </div>`;
+
+  showFormModal(`
+    <div class="form-modal-header">
+      <h3>SKU do marketplace · ${esc(loja.name)}</h3>
+      <button id="pl-close" class="modal-close">×</button>
+    </div>
+    <div class="form-modal-body">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:13px 16px;margin-bottom:6px;font-size:13px;color:#0f172a;line-height:1.6">
+        ${esc(j.veredito)}
+      </div>
+      <div style="font-size:11.5px;color:#94a3b8;line-height:1.7;margin-bottom:4px">
+        ${j.lidos.diasDeVenda} dia(s) de venda lidos · ${j.lidos.itens} item(ns) ·
+        ${j.anunciosImportados} anúncio(s) importado(s) nesta loja
+      </div>
+
+      ${lista("Vão receber SKU", j.amostra.casados, "#16a34a")}
+      ${j.semSku ? `<div style="margin-top:14px;font-size:12.5px;color:#b45309;line-height:1.6">
+        ${j.semSku} anúncio(s) venderam mas <b>não têm SKU preenchido no marketplace</b>. Não há o que puxar para eles — o campo está vazio no próprio anúncio.
+      </div>` : ""}
+      ${j.semVenda ? `<div style="margin-top:10px;font-size:12.5px;color:#94a3b8;line-height:1.6">
+        ${j.semVenda} anúncio(s) importado(s) ainda não venderam nada no período sincronizado, então o marketplace não me contou o SKU deles.
+      </div>` : ""}
+
+      <div class="form-actions" style="margin-top:18px">
+        <button id="pl-voltar" class="btn-sm">Voltar</button>
+        <button id="pl-gravar" class="btn-primary"${j.casados ? "" : " disabled"}>Gravar ${j.casados} SKU(s)</button>
+      </div>
+    </div>`);
+  setTimeout(() => {
+    document.getElementById("pl-close").onclick = closeFormModal;
+    document.getElementById("pl-voltar").onclick = plDesenharColar;
+    document.getElementById("pl-gravar").onclick = plGravarSku;
+  }, 0);
+}
+
+async function plGravarSku() {
+  const botao = document.getElementById("pl-gravar");
+  botao.disabled = true; botao.textContent = "Gravando...";
+  try {
+    const tk = await window.fb.auth.currentUser.getIdToken();
+    const r = await fetch(`${FN_BASE}/skusDoMarketplace?loja=${encodeURIComponent(plEstado.loja.id)}&aplicar=1`,
+      { method: "POST", headers: { Authorization: "Bearer " + tk } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || "falha");
+    closeFormModal();
+    showToast(`${j.gravados} anúncio(s) e ${j.produtos} produto(s) com SKU do marketplace`);
+  } catch (e) {
+    showToast("Erro ao gravar: " + (e.message || ""), "error");
+    botao.disabled = false; botao.textContent = "Gravar";
   }
 }
