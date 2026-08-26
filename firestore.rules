@@ -15,6 +15,31 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == "admin";
     }
 
+    // ── Papéis externos: cliente e especialista ────────────────────────
+    // Vêm da CLAIM do token, não de um documento. Cada get() dentro de uma
+    // regra é uma leitura cobrada e um atraso em TODA consulta da tela — e a
+    // área do cliente vai listar produtos, que é justamente onde isso doeria.
+    // A fonte da verdade é accounts/{uid}; uma Cloud Function espelha nas
+    // claims a cada escrita.
+    //
+    // .get(campo, padrão) e não .campo: token sem a claim (todo funcionário,
+    // por exemplo) faria a regra ERRAR em vez de simplesmente negar.
+    function papel()   { return request.auth != null ? request.auth.token.get("papel", "") : ""; }
+    function ehCliente()      { return papel() == "cliente"; }
+    function ehEspecialista() { return papel() == "especialista"; }
+    function meuCust() { return request.auth.token.get("custId", ""); }
+    function meuMkt()  { return request.auth.token.get("mkt", ""); }
+
+    // ── Contas externas ────────────────────────────────────────────────
+    // O dono lê a própria conta — a tela precisa saber quem ele é. Escrita
+    // NUNCA pelo navegador: é a gravação aqui que dispara o espelho das
+    // claims, então um cliente que pudesse editar o próprio custId trocaria
+    // de dono numa linha e levaria a claim junto.
+    match /accounts/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || ehFuncionario());
+      allow write: if false;
+    }
+
     // ── Funcionários ───────────────────────────────────────────────────
     // Criação/edição/exclusão SÓ pelo backend (Admin SDK, ignora as regras)
     // ou por um admin já existente. Ninguém se auto-cadastra.
@@ -32,9 +57,58 @@ service cloud.firestore {
     match /tasks/{id}       { allow read, write: if ehFuncionario(); }
     match /clients/{id}     { allow read, write: if ehFuncionario(); }
     match /customers/{id}   { allow read, write: if ehFuncionario(); }
-    match /products/{id}    { allow read, write: if ehFuncionario(); }
     match /promos/{id}      { allow read, write: if ehFuncionario(); }
     match /config/{id}      { allow read, write: if ehFuncionario(); }
+
+    // ── Produtos e anúncios: as coleções da área do cliente ────────────
+    // O produto é do PROPRIETÁRIO (custId), não da loja: é isso que faz as
+    // três lojas da mesma pessoa aparecerem juntas na tela dele.
+    //
+    // `mkts` é cópia dos marketplaces do proprietário, gravada por trigger e
+    // não pelo cliente. Existe para o especialista filtrar sem que a regra
+    // precise ler o documento do proprietário a cada produto — o mesmo
+    // motivo das claims. Por isso o cliente não pode escrever esse campo:
+    // se pudesse, ele decidiria quem enxerga o produto dele.
+    match /products/{id} {
+      allow read: if ehFuncionario()
+        || (ehCliente() && resource.data.custId == meuCust())
+        || (ehEspecialista() && meuMkt() in resource.data.get("mkts", []));
+      allow create: if ehFuncionario()
+        || (ehCliente()
+            && request.resource.data.custId == meuCust()
+            && !request.resource.data.keys().hasAny(["mkts"]));
+      // O cliente edita o que é dele, mas não muda de dono nem mexe no mkts.
+      allow update: if ehFuncionario()
+        || (ehCliente()
+            && resource.data.custId == meuCust()
+            && request.resource.data.custId == resource.data.custId
+            && request.resource.data.get("mkts", []) == resource.data.get("mkts", []));
+      allow delete: if ehFuncionario();
+    }
+
+    // Um anúncio pertence a um marketplace. O cliente LÊ os dele e não
+    // escreve nenhum: quem anuncia é a OTDE ou o especialista. O
+    // especialista escreve só dentro do marketplace dele, e não pode
+    // arrastar um anúncio para outro marketplace nem na criação nem na
+    // edição — as duas pontas são checadas de propósito.
+    match /listings/{id} {
+      allow read: if ehFuncionario()
+        || (ehCliente() && resource.data.custId == meuCust())
+        || (ehEspecialista() && resource.data.mkt == meuMkt());
+      allow create: if ehFuncionario()
+        || (ehEspecialista() && request.resource.data.mkt == meuMkt());
+      allow update: if ehFuncionario()
+        || (ehEspecialista()
+            && resource.data.mkt == meuMkt()
+            && request.resource.data.mkt == meuMkt());
+      allow delete: if ehFuncionario();
+    }
+
+    // NOTA sobre clients e customers: nenhum papel externo lê essas coleções,
+    // e não é esquecimento. `clients.access` guarda a SENHA da loja no
+    // marketplace, e regra do Firestore não esconde campo — ou o documento
+    // inteiro é legível, ou não é. O que a área do cliente precisar de lá vai
+    // por uma projeção escrita pelo backend, com só o que pode sair.
 
     // ── Dados sensíveis: leitura para funcionários, escrita restrita ───
     // performance tem dados financeiros dos clientes: só admin escreve.

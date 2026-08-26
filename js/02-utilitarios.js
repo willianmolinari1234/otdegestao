@@ -55,6 +55,23 @@ function getCliV(t){
 }
 function getCust(id){return custs.find(c=>c.id===id)||null;}
 function storesOfCust(custId){return clis.filter(c=>c.custId===custId);}
+// Em quais marketplaces o cliente opera.
+//
+// Campo próprio, porque nem todo marketplace onde ele quer entrar já tem loja
+// cadastrada aqui — e é essa lista que decide o que ele enxerga na área dele
+// e qual especialista enxerga ele.
+//
+// Vazio NÃO é "nenhum": é "ninguém preencheu ainda". Nesse caso deduz das
+// lojas que já existem, que é o que sabíamos antes do campo existir. Assim
+// nada quebra nos 48 proprietários já cadastrados enquanto a lista não for
+// preenchida à mão, e não foi preciso migração.
+function mktsDoCliente(cust){
+  if(!cust)return[];
+  const lista=Array.isArray(cust.marketplaces)?cust.marketplaces.filter(Boolean):[];
+  if(lista.length)return lista;
+  const daslojas=storesOfCust(cust.id).map(s=>s.mkt).filter(Boolean);
+  return [...new Set(daslojas)];
+}
 // Carimba a data de conclusão (doneDate) num patch, conforme a mudança de status.
 // - Vira "done": marca a data de HOJE (ou preserva a data original se já estava concluída).
 // - Sai de "done" (reaberta): limpa a data.

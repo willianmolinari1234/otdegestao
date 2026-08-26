@@ -17,6 +17,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { initializeApp } from "firebase-admin/app";
@@ -99,6 +100,106 @@ export const removerFuncionario = onRequest({ secrets, cors: ["https://otdegesta
     res.json({ ok: true, uid });
   } catch (e) {
     logger.error("removerFuncionario", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+// ---------- Acessos externos: cliente e especialista ----------
+// Funcionário continua sendo employees/{uid}, intocado: mexer no login de
+// quem usa o sistema todo dia, no primeiro dia de um projeto novo, é risco
+// sem prêmio. accounts/{uid} é para quem AINDA NÃO EXISTE — o cliente e os
+// dois especialistas.
+//
+// O documento é a fonte da verdade; a claim é a cópia que as regras leem. A
+// cópia existe porque regra que faz get() cobra uma leitura e atrasa TODA
+// consulta da tela, e a área do cliente lista produtos.
+
+const PAPEIS = new Set(["cliente", "especialista"]);
+
+/** accounts/{uid} → custom claims. Documento apagado, claims limpas. */
+export const sincronizarClaims = onDocumentWritten("accounts/{uid}", async (event) => {
+  const uid = event.params.uid;
+  const depois = event.data?.after?.data() || null;
+
+  if (!depois || !PAPEIS.has(depois.papel) || depois.ativo === false) {
+    // Some da claim antes de sumir de qualquer outro lugar: enquanto a claim
+    // existir, o acesso existe, mesmo sem documento.
+    await getAuth().setCustomUserClaims(uid, null).catch((e) => logger.warn("limpar claims " + uid, e));
+    logger.info("claims limpas", { uid });
+    return;
+  }
+
+  const claims = depois.papel === "cliente"
+    ? { papel: "cliente", custId: String(depois.custId || "") }
+    : { papel: "especialista", mkt: String(depois.mkt || "") };
+
+  // Conta sem o campo que dá escopo ficaria com acesso indefinido. Melhor
+  // sem claim nenhuma: nega tudo, em vez de negar quase tudo.
+  if (!claims.custId && !claims.mkt) {
+    await getAuth().setCustomUserClaims(uid, null).catch(() => {});
+    logger.error("conta sem escopo, claims limpas", { uid, papel: depois.papel });
+    return;
+  }
+
+  await getAuth().setCustomUserClaims(uid, claims);
+  logger.info("claims espelhadas", { uid, ...claims });
+});
+
+export const criarAcesso = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
+  try {
+    const admin = await exigirAdmin(req);
+    if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+    const { nome, email, senha, papel, custId, mkt } = req.body || {};
+    if (!nome || !email || !senha) { res.status(400).json({ erro: "nome, email e senha são obrigatórios" }); return; }
+    if (String(senha).length < 8) { res.status(400).json({ erro: "a senha precisa de pelo menos 8 caracteres" }); return; }
+    if (!PAPEIS.has(papel)) { res.status(400).json({ erro: "papel inválido" }); return; }
+    if (papel === "cliente" && !custId) { res.status(400).json({ erro: "falta o proprietário" }); return; }
+    if (papel === "especialista" && !mkt) { res.status(400).json({ erro: "falta o marketplace" }); return; }
+
+    // O proprietário tem que existir de verdade: uma conta apontando para um
+    // custId inexistente entra no sistema e não enxerga nada, e a pessoa
+    // reclama que "o login não funciona".
+    if (papel === "cliente") {
+      const cust = await db.collection("customers").doc(String(custId)).get();
+      if (!cust.exists) { res.status(400).json({ erro: "proprietário não encontrado" }); return; }
+    }
+
+    const user = await getAuth().createUser({
+      email: String(email), password: String(senha), displayName: String(nome),
+    });
+    const dados = {
+      papel, nome: String(nome), email: String(email), ativo: true,
+      criadoEm: FieldValue.serverTimestamp(), criadoPor: admin.uid,
+    };
+    if (papel === "cliente") dados.custId = String(custId); else dados.mkt = String(mkt);
+    await db.collection("accounts").doc(user.uid).set(dados);
+    // As claims saem do gatilho acima. Como a conta ainda não fez login
+    // nenhum, o primeiro token dela já nasce com elas.
+    res.json({ ok: true, uid: user.uid });
+  } catch (e) {
+    logger.error("criarAcesso", e);
+    const msg = e.code === "auth/email-already-exists" ? "Este e-mail já está em uso." : e.message;
+    res.status(500).json({ erro: msg });
+  }
+});
+
+export const removerAcesso = onRequest({ secrets, cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"] }, async (req, res) => {
+  try {
+    const admin = await exigirAdmin(req);
+    if (!admin) { res.status(403).json({ erro: "apenas administradores" }); return; }
+    const uid = String(req.query.uid || req.body?.uid || "");
+    if (!uid) { res.status(400).json({ erro: "falta uid" }); return; }
+
+    // Ordem importa: claim primeiro. Um token já emitido vale até uma hora,
+    // e é a claim que abre a porta — apagar o documento antes deixaria uma
+    // janela em que o acesso continua de pé sem nada no banco explicando.
+    await getAuth().setCustomUserClaims(uid, null).catch(() => {});
+    await getAuth().revokeRefreshTokens(uid).catch(() => {});
+    await db.collection("accounts").doc(uid).delete().catch(() => {});
+    await getAuth().deleteUser(uid).catch(() => {});
+    res.json({ ok: true, uid });
+  } catch (e) {
+    logger.error("removerAcesso", e);
     res.status(500).json({ erro: e.message });
   }
 });

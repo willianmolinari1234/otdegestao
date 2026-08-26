@@ -9,3 +9,7 @@ app-modular-quebrado.html
 
 # Dumps de diagnóstico (dados crus da Shopee, não versionar)
 _diagnostico/
+
+# Biblioteca dos testes de regras (baixada pelo TESTAR-REGRAS.command)
+testes/regras/node_modules/
+testes/regras/package-lock.json

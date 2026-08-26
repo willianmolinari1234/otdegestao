@@ -1,0 +1,9 @@
+{
+  "name": "otde-testes-regras",
+  "private": true,
+  "type": "module",
+  "description": "Testes de isolamento das regras do Firestore. Precisam do emulador, por isso vivem fora do node --test do resto.",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1"
+  }
+}
