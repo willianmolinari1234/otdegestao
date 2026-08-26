@@ -96,10 +96,18 @@ function erpOfStore(c){
   const cu=getCust(c.custId);
   return (cu&&cu.login&&cu.login.erp&&cu.login.erp.provider)||"";
 }
+// A tarja do proprietário na linha da loja é CLICÁVEL para o admin: abre o
+// acesso do cliente ao sistema.
+//
+// Ela morava só dentro de "Gerenciar clientes", e na prática ninguém achava —
+// quem procura o acesso de um cliente está olhando a linha da loja dele, e a
+// primeira coisa que a mão acha ali é o 🔑, que é outra coisa (a senha DO
+// MARKETPLACE). O controle passa a ficar onde o olho já está.
 function ownerBadgeHTML(cli,size){
   const cu=cli&&cli.custId?getCust(cli.custId):null;
   if(!cu)return`<div class="owner-badge empty">👤 sem cliente</div>`;
-  return`<div class="owner-badge">👤 ${esc(cu.name)}</div>`;
+  if(!isAdmin())return`<div class="owner-badge">👤 ${esc(cu.name)}</div>`;
+  return`<div class="owner-badge" data-syscust="${esc(cu.id)}" title="Acesso de ${esc(cu.name)} ao sistema" style="cursor:pointer">👤 ${esc(cu.name)} <span style="opacity:.5">›</span></div>`;
 }
 function avHTML(e,sz){
   if(!e)return"";
