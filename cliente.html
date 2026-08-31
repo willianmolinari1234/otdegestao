@@ -149,7 +149,11 @@ const FEMININO = new Set(["shopee", "shein", "amazon", "americanas", "netshoes"]
 const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " : "no ") + m;
 
 let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
-  busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false };
+  busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false,
+  // "cliente" = um dono, vários marketplaces. "especialista" = um marketplace,
+  // vários donos. É o mesmo dado visto pelo eixo oposto, e por isso a mesma
+  // página serve os dois — o que muda é o recorte, não a tela.
+  modo: "cliente", mkt: "", cliente: "" };
 
 // ?cliente= abre a área de um cliente para quem é da EQUIPE; ?embed=1 esconde
 // a barra lateral, porque nesse caso a página vive dentro do app da equipe,
@@ -193,6 +197,11 @@ onAuthStateChanged(auth, async (user) => {
 
   if (t.claims.papel === "cliente" && t.claims.custId) {
     estado.custId = t.claims.custId;
+    estado.modo = "cliente";
+    estado.souEquipe = false;
+  } else if (t.claims.papel === "especialista" && t.claims.mkt) {
+    estado.mkt = t.claims.mkt;
+    estado.modo = "especialista";
     estado.souEquipe = false;
   } else {
     // Não é cliente: só entra se for da equipe E disser de quem quer ver.
@@ -208,19 +217,27 @@ onAuthStateChanged(auth, async (user) => {
       await signOut(auth);
       $("loginErro").textContent = daEquipe
         ? "Falta dizer de qual cliente (?cliente=...)."
-        : "Esta conta não é de cliente.";
+        : "Esta conta não é de cliente nem de especialista.";
       $("loginErro").classList.add("ver");
       return;
     }
     estado.custId = pedido;
+    estado.modo = "cliente";
     estado.souEquipe = true;
   }
-  estado.nome = params.get("nome") || user.displayName || "";
+  estado.nome = estado.modo === "especialista"
+    ? estado.mkt
+    : (params.get("nome") || user.displayName || "");
   $("login").style.display = "none";
   $("app").classList.add("ver");
   if (EMBUTIDO) document.querySelector("aside").style.display = "none";
   if (estado.souEquipe) marcarSessaoDaEquipe();
   $("nomeCliente").textContent = estado.nome;
+  if (estado.modo === "especialista") {
+    document.querySelector("aside span").textContent = "Especialista";
+    document.querySelector("[data-aba=produtos]").textContent = "Fila de trabalho";
+    document.querySelector("[data-aba=lojas]").textContent = "Clientes";
+  }
   $("avatar").textContent = (estado.nome || "?").split(" ").slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
   await carregar();
 });
@@ -241,9 +258,18 @@ function marcarSessaoDaEquipe() {
 async function carregar() {
   $("corpo").innerHTML = `<div style="color:var(--muted);font-size:13px;padding:30px 0">Carregando seus produtos…</div>`;
   try {
+    // O especialista consulta por marketplace, o cliente por dono. As duas
+    // consultas são as únicas que as regras deixam passar em cada caso: filtro
+    // diferente do escopo faz o Firestore recusar a consulta inteira, e é essa
+    // recusa que garante que a tela nunca mostre o que a regra não deixaria.
+    const porMkt = estado.modo === "especialista";
     const [ps, as] = await Promise.all([
-      getDocs(query(collection(db, "products"), where("custId", "==", estado.custId))),
-      getDocs(query(collection(db, "listings"), where("custId", "==", estado.custId))),
+      getDocs(porMkt
+        ? query(collection(db, "products"), where("mkts", "array-contains", estado.mkt))
+        : query(collection(db, "products"), where("custId", "==", estado.custId))),
+      getDocs(porMkt
+        ? query(collection(db, "listings"), where("mkts", "array-contains", estado.mkt))
+        : query(collection(db, "listings"), where("custId", "==", estado.custId))),
     ]);
     estado.produtos = ps.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"));
@@ -252,7 +278,9 @@ async function carregar() {
     // equipe copia a lista do proprietário para cada produto na importação.
     // Assim esta tela nunca precisa ler a ficha do cliente, onde há dado que
     // não é para sair daqui.
-    estado.mkts = [...new Set(estado.produtos.flatMap((p) => p.mkts || []))];
+    estado.mkts = estado.modo === "especialista"
+      ? [estado.mkt]
+      : [...new Set(estado.produtos.flatMap((p) => p.mkts || []))];
     if (!estado.mkts.length) estado.mkts = [...new Set(estado.anuncios.map((a) => a.mkt).filter(Boolean))];
     desenhar();
   } catch (e) {
@@ -294,6 +322,7 @@ function resumoDoProduto(p) {
 }
 
 function telaLista() {
+  if (estado.modo === "especialista") return telaEspecialista();
   $("titulo").textContent = "Meus produtos";
   const lojas = [...new Set(estado.anuncios.map((a) => a.storeNome).filter(Boolean))];
   $("resumo").textContent = `${estado.produtos.length} produtos${lojas.length ? " · " + lojas.length + (lojas.length === 1 ? " loja" : " lojas") : ""}`;
@@ -387,6 +416,103 @@ function telaLista() {
   });
 }
 
+// ─── LISTA DO ESPECIALISTA ────────────────────────────────────────────
+//
+// Um marketplace, muitos clientes. A pergunta aqui não é "onde eu não estou?"
+// e sim "o que ainda não subi?" — então a fila de trabalho é o padrão da tela,
+// e não um filtro escondido.
+function telaEspecialista() {
+  $("titulo").textContent = `Produtos para ${naNo(estado.mkt).replace(/^n[ao] /, "")}`;
+  const info = new Map(estado.produtos.map((p) => [p.id, resumoDoProduto(p)]));
+  const noAr = estado.produtos.filter((p) => info.get(p.id).mkts.includes(estado.mkt));
+  const faltam = estado.produtos.length - noAr.length;
+  const clientes = [...new Set(estado.produtos.map((p) => p.custNome).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  $("resumo").textContent = `${estado.produtos.length} produtos · ${clientes.length} cliente(s)`;
+
+  const busca = estado.busca.toLowerCase();
+  let lista = estado.produtos.filter((p) => {
+    if (busca && !((p.nome || "") + " " + (p.sku || "") + " " + (p.custNome || "")).toLowerCase().includes(busca)) return false;
+    if (estado.cliente && p.custNome !== estado.cliente) return false;
+    if (estado.faltaEm === "ja" && !info.get(p.id).mkts.includes(estado.mkt)) return false;
+    if (estado.faltaEm === "falta" && info.get(p.id).mkts.includes(estado.mkt)) return false;
+    return true;
+  });
+  const ordens = {
+    falta: (a, b) => (info.get(a.id).mkts.includes(estado.mkt) ? 1 : 0) - (info.get(b.id).mkts.includes(estado.mkt) ? 1 : 0)
+      || (a.custNome || "").localeCompare(b.custNome || "", "pt-BR")
+      || (a.nome || "").localeCompare(b.nome || "", "pt-BR"),
+    margem: (a, b) => (info.get(b.id).melhor?.margem ?? -1) - (info.get(a.id).melhor?.margem ?? -1),
+    nome: (a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"),
+  };
+  lista = lista.slice().sort(ordens[estado.ordem] || ordens.falta);
+
+  const c = cor(estado.mkt);
+  const cartao = (chave, n, rot, destaque) => `
+    <button data-fila="${chave}" style="text-align:left;background:${estado.faltaEm === chave ? "#f8fafc" : "#fff"};border:1px solid ${estado.faltaEm === chave ? (destaque || "var(--border)") : "var(--border)"};box-shadow:${estado.faltaEm === chave ? "inset 0 0 0 1px " + (destaque || "#e5e7eb") : "0 1px 2px rgba(15,23,42,.05)"};border-radius:12px;padding:13px 16px;display:block;width:100%">
+      <div style="font-size:24px;font-weight:700;line-height:1.1;color:${destaque || "var(--ink)"};font-variant-numeric:tabular-nums">${n}</div>
+      <div style="font-size:12px;color:#64748b;margin-top:3px">${rot}</div>
+    </button>`;
+
+  $("corpo").innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">
+      ${cartao("falta", faltam, "esperando anúncio", "#b45309")}
+      ${cartao("ja", noAr.length, `já ${naNo(estado.mkt)}`, c.fg === "#ffffff" ? "#1a1a1a" : c.fg)}
+      ${cartao("", estado.produtos.length, "no total", "")}
+    </div>
+    <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <input id="busca" class="finput" style="width:230px" placeholder="Buscar produto, SKU ou cliente…" value="${esc(estado.busca)}">
+      <select id="fcliente" class="finput" style="width:auto;padding-right:30px">
+        <option value="">Todos os clientes</option>
+        ${clientes.map((n) => `<option value="${esc(n)}"${estado.cliente === n ? " selected" : ""}>${esc(n)}</option>`).join("")}
+      </select>
+      <select id="ordem" class="finput" style="width:auto;padding-right:30px">
+        <option value="falta"${estado.ordem === "falta" ? " selected" : ""}>Fila de trabalho</option>
+        <option value="margem"${estado.ordem === "margem" ? " selected" : ""}>Maior margem em outro marketplace</option>
+        <option value="nome"${estado.ordem === "nome" ? " selected" : ""}>Nome</option>
+      </select>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead style="background:#f8fafc"><tr>
+          <th style="width:32%">Produto</th><th style="width:16%">Cliente</th><th style="width:10%">SKU</th>
+          <th style="width:12%">Custo</th><th style="width:18%">Preço em outro marketplace</th><th></th>
+        </tr></thead>
+        <tbody>${lista.map((p) => linhaEsp(p, info.get(p.id))).join("") || `<tr><td colspan="6" style="color:var(--muted);padding:26px 16px">Nada por aqui.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">Mostrando ${lista.length} de ${estado.produtos.length} produtos</div>`;
+
+  $("busca").oninput = (e) => { estado.busca = e.target.value; const k = e.target.selectionStart; desenhar(); const b = $("busca"); b.focus(); b.setSelectionRange(k, k); };
+  $("ordem").onchange = (e) => { estado.ordem = e.target.value; desenhar(); };
+  $("fcliente").onchange = (e) => { estado.cliente = e.target.value; desenhar(); };
+  document.querySelectorAll("[data-fila]").forEach((b) => {
+    b.onclick = () => { estado.faltaEm = estado.faltaEm === b.dataset.fila ? "" : b.dataset.fila; desenhar(); };
+  });
+  document.querySelectorAll("[data-prod]").forEach((tr) => {
+    tr.onclick = () => { estado.aberto = estado.produtos.find((p) => p.id === tr.dataset.prod); desenhar(); };
+  });
+}
+
+function linhaEsp(p, i) {
+  const meu = i.meus.find((a) => (a.mkt || a.storeMkt) === estado.mkt);
+  const outros = i.meus.filter((a) => (a.mkt || a.storeMkt) !== estado.mkt);
+  const ref = outros.map((a) => a.preco).filter((x) => x !== null && x !== undefined);
+  const c = cor(estado.mkt);
+  return `<tr data-prod="${esc(p.id)}">
+    <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
+      ${outros.length ? `<div style="font-size:11.5px;color:var(--muted)">já em ${esc([...new Set(outros.map((a) => a.mkt || a.storeMkt))].join(", "))}</div>` : ""}</td>
+    <td style="font-size:12.5px;color:var(--ink-2)">${esc(p.custNome || "—")}</td>
+    <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
+    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${moeda(p.custo)}</td>
+    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${ref.length
+      ? (Math.min(...ref) === Math.max(...ref) ? moeda(ref[0]) : `${moeda(Math.min(...ref))}<span style="color:var(--muted)"> a </span>${moeda(Math.max(...ref))}`)
+      : `<span style="color:var(--muted)">—</span>`}</td>
+    <td>${meu
+      ? `<span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${moeda(meu.preco)}</span>`
+      : `<span class="falta">falta anunciar</span>`}</td>
+  </tr>`;
+}
+
 function linha(p, i) {
   const selos = estado.mkts.map((m) => {
     const c = cor(m);
@@ -437,7 +563,11 @@ function telaProduto() {
     </div>`;
   };
 
-  const faltando = estado.mkts.filter((m) => !tem.includes(m)).map((m) => {
+  // O especialista não "pede" anúncio: ele cria. Onde o cliente vê o botão de
+  // pedir, ele vê o formulário de registrar o que subiu.
+  const formEsp = estado.modo === "especialista" ? blocoRegistro(p, meus) : "";
+
+  const faltando = estado.modo === "especialista" ? "" : estado.mkts.filter((m) => !tem.includes(m)).map((m) => {
     const c = cor(m);
     return `<div class="card" style="overflow:hidden;border-style:dashed;box-shadow:none;background:#fcfcfd;margin-bottom:12px">
       <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -467,10 +597,12 @@ function telaProduto() {
         <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">Anúncios deste produto</div>
         ${meus.map(cartaoAnuncio).join("") || `<div class="card" style="padding:16px;color:var(--muted);font-size:13px;margin-bottom:12px">Nenhum anúncio registrado ainda.</div>`}
         ${faltando}
+        ${formEsp}
       </div>
     </div>`;
   if (window.matchMedia("(max-width:720px)").matches) $("grade").style.gridTemplateColumns = "1fr";
   document.querySelectorAll("[data-quero]").forEach((b) => { b.onclick = () => popup(b.dataset.quero, p); });
+  if (estado.modo === "especialista") ligarRegistro(p, meus);
 }
 
 function telaLojas() {
@@ -618,6 +750,93 @@ function abrirEdicao(p) {
     }
   };
 }
+
+// ─── O ESPECIALISTA REGISTRA O ANÚNCIO QUE CRIOU ──────────────────────
+//
+// Funciona antes de qualquer integração: ele anuncia no marketplace dele e
+// digita aqui o preço e o link. É o que destrava Mercado Livre e TikTok sem
+// esperar API — e no dia em que a API existir, ela preenche este mesmo campo.
+//
+// A conta que aparece enquanto ele digita é PREÇO MENOS CUSTO, e está escrito
+// que é bruta. As taxas de cada marketplace não estão no sistema, e chamar
+// isso de "margem de contribuição" seria repetir o erro que já quase foi
+// parar na tela do cliente.
+function blocoRegistro(p, meus) {
+  const meu = meus.find((a) => (a.mkt || a.storeMkt) === estado.mkt);
+  const c = cor(estado.mkt);
+  return `
+    <div class="card" style="overflow:hidden;margin-top:4px;border-color:${c.bd}">
+      <div style="padding:11px 18px;background:${c.bg};border-bottom:1px solid ${c.bd}">
+        <b style="color:${c.fg};font-size:13.5px">${meu ? "Atualizar" : "Registrar"} o anúncio ${esc(naNo(estado.mkt))}</b>
+      </div>
+      <div style="padding:15px 18px">
+        <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:end">
+          <div><span class="rot">Preço de venda</span><input id="rg-preco" class="finput" inputmode="decimal" value="${meu && meu.preco != null ? String(meu.preco).replace(".", ",") : ""}" placeholder="0,00"></div>
+          <div><span class="rot">Link do anúncio (opcional)</span><input id="rg-link" class="finput" value="${esc(meu ? meu.link || "" : "")}" placeholder="https://..."></div>
+        </div>
+        <div id="rg-conta" style="font-size:12.5px;color:var(--ink-2);margin-top:11px;min-height:19px"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <button id="rg-salvar" class="btn" style="width:auto;padding:10px 20px">${meu ? "Salvar" : "Registrar anúncio"}</button>
+          ${meu ? `<button id="rg-remover" class="btnsm" style="color:#b91c1c">Remover</button>` : ""}
+          <span id="rg-aviso" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function ligarRegistro(p, meus) {
+  const preco = $("rg-preco"), link = $("rg-link"), conta = $("rg-conta");
+  if (!preco) return;
+  const meu = meus.find((a) => (a.mkt || a.storeMkt) === estado.mkt);
+  const numero = (v) => {
+    const t = String(v || "").replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+    const n = Number(t);
+    return t === "" || !isFinite(n) ? null : n;
+  };
+  const recalcular = () => {
+    const v = numero(preco.value);
+    if (v === null || p.custo === undefined || p.custo === null) { conta.textContent = ""; return; }
+    const bruto = v - Number(p.custo);
+    conta.innerHTML = `Preço menos custo: <b style="color:${bruto >= 0 ? "#3b6d11" : "#b91c1c"}">${moeda(bruto)}</b>
+      <span style="color:var(--muted)">· ${v ? ((bruto / v) * 100).toFixed(1) : "0"}% do preço</span>
+      <span style="color:var(--muted)"> — bruto, ainda sem as taxas do marketplace</span>`;
+  };
+  preco.oninput = recalcular;
+  recalcular();
+
+  $("rg-salvar").onclick = async () => {
+    const v = numero(preco.value);
+    if (v === null) { $("rg-aviso").textContent = "Informe o preço."; return; }
+    const b = $("rg-salvar"); b.disabled = true; b.textContent = "Salvando...";
+    // Id previsível: salvar de novo ATUALIZA o anúncio em vez de criar outro.
+    const id = meu ? meu.id : `esp_${estado.mkt.toLowerCase().replace(/[^a-z0-9]+/g, "-")}__${p.id}`;
+    const doc0 = {
+      id, custId: p.custId, custNome: p.custNome || "", produtoId: p.id, chave: p.chave || "",
+      sku: p.sku || "", mkt: estado.mkt, mkts: p.mkts || [estado.mkt],
+      preco: v, link: link.value.trim(), storeNome: "", storeMkt: estado.mkt,
+      origem: "especialista", atualizadoEm: new Date().toISOString(),
+    };
+    try {
+      await setDoc(doc(db, "listings", id), doc0, { merge: true });
+      const i = estado.anuncios.findIndex((a) => a.id === id);
+      if (i >= 0) estado.anuncios[i] = { ...estado.anuncios[i], ...doc0 }; else estado.anuncios.push(doc0);
+      desenhar();
+    } catch (e) {
+      $("rg-aviso").textContent = "Não consegui salvar: " + (e.message || "");
+      b.disabled = false; b.textContent = meu ? "Salvar" : "Registrar anúncio";
+    }
+  };
+  const rem = $("rg-remover");
+  if (rem) rem.onclick = async () => {
+    if (!confirm("Remover o registro deste anúncio? O anúncio no marketplace continua no ar.")) return;
+    try {
+      await deleteDoc(doc(db, "listings", meu.id));
+      estado.anuncios = estado.anuncios.filter((a) => a.id !== meu.id);
+      desenhar();
+    } catch (e) { $("rg-aviso").textContent = "Não consegui remover: " + (e.message || ""); }
+  };
+}
 </script>
 </body>
 </html>
+

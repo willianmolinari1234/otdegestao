@@ -92,9 +92,18 @@ service cloud.firestore {
     // arrastar um anúncio para outro marketplace nem na criação nem na
     // edição — as duas pontas são checadas de propósito.
     match /listings/{id} {
+      // O especialista LÊ os anúncios de qualquer marketplace do produto que
+      // ele atende, e não só os do dele. Não é folga: preço de anúncio é
+      // público, está na vitrine do marketplace. E sem a referência do que o
+      // produto custa na Shopee ele não tem como precificar no dele — que é
+      // exatamente o trabalho que a conta existe para fazer.
+      //
+      // `mkts` no anúncio é cópia do mesmo campo do produto, gravada na
+      // importação. Existe para a regra não precisar ler o produto a cada
+      // anúncio — o mesmo motivo das claims.
       allow read: if ehFuncionario()
         || (ehCliente() && resource.data.custId == meuCust())
-        || (ehEspecialista() && resource.data.mkt == meuMkt());
+        || (ehEspecialista() && meuMkt() in resource.data.get("mkts", []));
       allow create: if ehFuncionario()
         || (ehEspecialista() && request.resource.data.mkt == meuMkt());
       allow update: if ehFuncionario()

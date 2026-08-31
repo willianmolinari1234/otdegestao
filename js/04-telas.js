@@ -697,6 +697,7 @@ function rProdutos(){
       ${donos.map(d=>`<option value="${esc(d.id)}"${d.id===prodCliente?" selected":""}>${esc(d.name)}</option>`).join("")}
     </select>
     <span style="font-size:12px;color:#94a3b8">${lojas.length} loja${lojas.length!==1?"s":""}${lojas.length?" · "+lojas.map(l=>esc(l.name)).join(", "):""}</span>
+    <button id="prod-especialistas" class="btn-sm" style="margin-left:auto">🤝 Especialistas</button>
   </div>
   <iframe id="prod-frame" src="${url}" title="Produtos de ${esc(dono?dono.name:"")}"
     style="width:100%;height:calc(100vh - 178px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;

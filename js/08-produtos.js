@@ -250,8 +250,11 @@ async function plImportar(entram, conflitos) {
 
     for (const p of lista) {
       const idProduto = plIdProduto(cust.id, p.chave);
-      const doc = { id: idProduto, custId: cust.id, chave: p.chave, nome: p.nome, mkts,
-        origem: "planilha", atualizadoEm: agora, atualizadoPor: currentUser.id };
+      // custNome viaja junto: a tela do especialista lista produtos de vários
+      // clientes e precisa dizer de quem é cada um — e ela não pode ler a
+      // coleção customers, onde há dado que não é para sair daqui.
+      const doc = { id: idProduto, custId: cust.id, custNome: cust.name || "", chave: p.chave,
+        nome: p.nome, mkts, origem: "planilha", atualizadoEm: agora, atualizadoPor: currentUser.id };
       if (p.sku) doc.sku = p.sku;
       if (p.custo !== null) doc.custo = p.custo;
       // Campo vazio não sobrescreve: numa planilha real o peso vem em 3 de 25
@@ -266,7 +269,10 @@ async function plImportar(entram, conflitos) {
       for (const a of p.anuncios) {
         const idAnuncio = plIdAnuncio(loja.id, a.id, p.chave);
         batch.set(window.fb.doc(window.fb.db, "listings", idAnuncio), {
-          id: idAnuncio, custId: cust.id, produtoId: idProduto, chave: p.chave,
+          id: idAnuncio, custId: cust.id, custNome: cust.name || "", produtoId: idProduto, chave: p.chave,
+          // Cópia dos marketplaces do produto: é por ela que a regra deixa o
+          // especialista ver o preço de referência sem ter que ler o produto.
+          mkts,
           mkt: a.mkt || loja.mkt || "", storeId: loja.id, itemId: a.id || "",
           // Nome e marketplace da loja copiados para dentro do anúncio: a área
           // do cliente precisa dizer "está na Reana Tricot" e NÃO pode ler a
@@ -499,5 +505,126 @@ async function acRemover(uid, custId) {
     abrirAcessoDoCliente(custId);
   } catch (e) {
     showToast("Erro: " + (e.message || ""), "error");
+  }
+}
+
+
+// ─── ACESSO DOS ESPECIALISTAS ─────────────────────────────────────────
+//
+// Conta de especialista não pertence a nenhum cliente: ela pertence a um
+// MARKETPLACE. Por isso não fica no painel de proprietários junto do 👤 do
+// cliente — ficaria pendurada num dono qualquer, e a primeira pessoa a
+// procurar não acharia. Fica na tela de Produtos, que é onde o assunto vive.
+
+async function abrirAcessoEspecialistas() {
+  let contas = [];
+  try {
+    const q = window.fb.query(window.fb.collection(window.fb.db, "accounts"),
+      window.fb.where("papel", "==", "especialista"));
+    contas = (await window.fb.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) { console.error("accounts:", e); }
+
+  const opcoes = MKTS.filter((m) => m !== "Shopee");
+  showFormModal(`
+  <div class="form-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#0f172a">🤝 Especialistas</div>
+        <div style="font-size:11.5px;color:#64748b;margin-top:2px">Um acesso por marketplace, para os parceiros</div>
+      </div>
+      <button id="es-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#475569;line-height:1.6">
+      O especialista vê os produtos dos clientes que operam no marketplace dele,
+      com o custo para precificar, e registra o anúncio que criou. Não enxerga
+      nada seu nem de cliente fora do marketplace dele.
+    </div>
+
+    ${contas.length ? contas.map((c) => {
+      const st = mktStyle(c.mkt);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #e5e7eb;border-radius:11px;padding:12px 15px;margin-bottom:9px">
+        <div style="min-width:0">
+          <span style="display:inline-block;background:${st.bg};color:${st.fg};border:1px solid ${st.border};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">${esc(c.mkt || "?")}</span>
+          <div style="font-weight:600;font-size:13px;margin-top:5px">${esc(c.nome || "sem nome")}</div>
+          <div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis">${esc(c.email || "")}</div>
+        </div>
+        <button data-remesp="${esc(c.id)}" class="btn-sm" style="color:#b91c1c;white-space:nowrap">Remover</button>
+      </div>`;
+    }).join("") : `<div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Nenhum especialista cadastrado ainda.</div>`}
+
+    <div style="border-top:1px solid #f1f5f9;margin-top:14px;padding-top:16px">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">Novo acesso</div>
+      <div class="form-row">
+        <div class="form-group"><label>Marketplace</label>
+          <select id="es-mkt" class="finput">${opcoes.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select>
+        </div>
+        <div class="form-group"><label>Nome do parceiro</label><input id="es-nome" class="finput" placeholder="Quem cuida desse marketplace"/></div>
+      </div>
+      <div class="form-row" style="margin-top:10px">
+        <div class="form-group"><label>E-mail</label><input id="es-email" class="finput" type="email" placeholder="parceiro@exemplo.com"/></div>
+        <div class="form-group"><label>Senha inicial (mínimo 8)</label>
+          <div style="display:flex;gap:6px">
+            <input id="es-senha" class="finput" style="flex:1"/>
+            <button id="es-gerar" type="button" class="btn-sm" style="white-space:nowrap">Gerar</button>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:#94a3b8;margin-top:8px;line-height:1.5">Anote a senha agora: depois de salvar, ninguém consegue lê-la de novo.</div>
+    </div>
+
+    <div class="form-actions" style="margin-top:16px">
+      <button id="es-cancel" class="btn-sm">Fechar</button>
+      <button id="es-criar" class="btn-primary">Criar acesso</button>
+    </div>
+  </div>`);
+
+  setTimeout(() => {
+    document.getElementById("es-close").onclick = document.getElementById("es-cancel").onclick = closeFormModal;
+    document.getElementById("es-gerar").onclick = () => {
+      const abc = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const n = new Uint32Array(12); crypto.getRandomValues(n);
+      const campo = document.getElementById("es-senha");
+      campo.value = [...n].map((x) => abc[x % abc.length]).join(""); campo.select();
+    };
+    document.getElementById("es-criar").onclick = esCriar;
+    document.querySelectorAll("#form-modal-content [data-remesp]").forEach((b) => {
+      b.onclick = () => askConfirm("Remover especialista",
+        "Ele perde o acesso imediatamente. Os anúncios que registrou continuam aqui. Continuar?",
+        async () => {
+          try {
+            const tk = await window.fb.auth.currentUser.getIdToken();
+            const r = await fetch(`${FN_BASE}/removerAcesso?uid=${encodeURIComponent(b.dataset.remesp)}`,
+              { method: "POST", headers: { Authorization: "Bearer " + tk } });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.erro || "falha");
+            showToast("Acesso removido");
+            abrirAcessoEspecialistas();
+          } catch (e) { showToast("Erro: " + (e.message || ""), "error"); }
+        });
+    });
+  }, 0);
+}
+
+async function esCriar() {
+  const v = (id) => (document.getElementById(id) || {}).value || "";
+  const nome = v("es-nome").trim(), email = v("es-email").trim().toLowerCase(), senha = v("es-senha"), mkt = v("es-mkt");
+  if (!nome || !email || !senha) { showToast("Preencha nome, e-mail e senha.", "error"); return; }
+  if (senha.length < 8) { showToast("A senha precisa de pelo menos 8 caracteres.", "error"); return; }
+  const b = document.getElementById("es-criar");
+  b.disabled = true; b.textContent = "Criando...";
+  try {
+    const tk = await window.fb.auth.currentUser.getIdToken();
+    const r = await fetch(`${FN_BASE}/criarAcesso`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + tk, "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, email, senha, papel: "especialista", mkt }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || "falha");
+    showToast(`Acesso de ${mkt} criado. Mande o e-mail e a senha para o parceiro.`);
+    abrirAcessoEspecialistas();
+  } catch (e) {
+    showToast("Erro: " + (e.message || ""), "error");
+    b.disabled = false; b.textContent = "Criar acesso";
   }
 }

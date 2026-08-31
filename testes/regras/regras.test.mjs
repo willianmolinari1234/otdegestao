@@ -61,8 +61,9 @@ beforeEach(async () => {
       mkts: ["Shopee", "TikTok"],
     });
 
-    await setDoc(doc(db, "listings/l_reana_ml"), { custId: REANA, sku: "MTB-8090", mkt: "Mercado Livre", preco: 73 });
-    await setDoc(doc(db, "listings/l_manu_tt"), { custId: MANU, sku: "TCU-77", mkt: "TikTok", preco: 49 });
+    await setDoc(doc(db, "listings/l_reana_ml"), { custId: REANA, sku: "MTB-8090", mkt: "Mercado Livre", preco: 73, mkts: ["Shopee", "Mercado Livre"] });
+    await setDoc(doc(db, "listings/l_reana_shopee"), { custId: REANA, sku: "MTB-8090", mkt: "Shopee", preco: 44.9, mkts: ["Shopee", "Mercado Livre"] });
+    await setDoc(doc(db, "listings/l_manu_tt"), { custId: MANU, sku: "TCU-77", mkt: "TikTok", preco: 49, mkts: ["Shopee", "TikTok"] });
 
     await setDoc(doc(db, "customers/" + REANA), { name: "Reana Comércio", login: "senha-da-shopee" });
     await setDoc(doc(db, "clients/loja1"), { name: "Reana Tricot", custId: REANA, access: { pass: "senha" } });
@@ -99,17 +100,26 @@ test("especialista vê só o marketplace dele", async () => {
   await assertFails(getDoc(doc(espTikTok(), "products/p_reana")));
 });
 
+test("especialista lê o anúncio dos OUTROS marketplaces do produto que atende", async () => {
+  // Precisa da referência de preço para precificar, e preço de anúncio é
+  // público — está na vitrine do marketplace. O que ele não pode é ESCREVER
+  // fora do dele, e isso o teste seguinte cobre.
+  await assertSucceeds(getDoc(doc(espML(), "listings/l_reana_shopee")));
+  // E continua sem enxergar anúncio de cliente que não é dele.
+  await assertFails(getDoc(doc(espML(), "listings/l_manu_tt")));
+});
+
 test("especialista NÃO arrasta anúncio para outro marketplace", async () => {
   // Nem criando já no marketplace alheio...
-  await assertFails(setDoc(doc(espML(), "listings/novo"), { custId: REANA, mkt: "TikTok", preco: 10 }));
-  await assertSucceeds(setDoc(doc(espML(), "listings/novo"), { custId: REANA, mkt: "Mercado Livre", preco: 10 }));
+  await assertFails(setDoc(doc(espML(), "listings/novo"), { custId: REANA, mkt: "TikTok", preco: 10, mkts: ["Mercado Livre"] }));
+  await assertSucceeds(setDoc(doc(espML(), "listings/novo"), { custId: REANA, mkt: "Mercado Livre", preco: 10, mkts: ["Mercado Livre"] }));
   // ...nem editando um que é dele para fora.
-  await assertFails(setDoc(doc(espML(), "listings/l_reana_ml"), { custId: REANA, mkt: "TikTok", preco: 10 }));
+  await assertFails(setDoc(doc(espML(), "listings/l_reana_ml"), { custId: REANA, mkt: "TikTok", preco: 10, mkts: ["Shopee", "Mercado Livre"] }));
 });
 
 test("cliente NÃO escreve anúncio: quem anuncia é a OTDE", async () => {
   const db = cliente(REANA);
-  await assertFails(setDoc(doc(db, "listings/x"), { custId: REANA, mkt: "Shopee", preco: 10 }));
+  await assertFails(setDoc(doc(db, "listings/x"), { custId: REANA, mkt: "Shopee", preco: 10, mkts: ["Shopee"] }));
 });
 
 // ─── o cliente não decide quem o enxerga ──────────────────────────────

@@ -109,6 +109,8 @@ function bindAll(){
   // para a tela abrir no mesmo cliente da última vez.
   const pc=C.querySelector("#prod-cliente");
   if(pc)pc.onchange=e=>{prodCliente=e.target.value;lsSet("prodCliente",prodCliente);render();};
+  const pe=C.querySelector("#prod-especialistas");
+  if(pe)pe.onclick=()=>abrirAcessoEspecialistas();
   const ib=C.querySelector("#integ-busca");
   if(ib)ib.oninput=e=>{fIntegBusca=e.target.value;const p=e.target.selectionStart;render();const n=document.getElementById("integ-busca");if(n){n.focus();n.setSelectionRange(p,p);}};
   const ifl=C.querySelector("#integ-filtro");
