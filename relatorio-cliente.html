@@ -766,8 +766,17 @@ function usaUltimos30() { return $("fatLabel").value === "ultimos30"; }
 
 function baseDeCobranca() {
   if (usaUltimos30()) {
-    // Ajuste manual tem prioridade sobre o que a API calculou.
-    const valor = fat30Manual !== null ? fat30Manual : (fatDe30 ? fatDe30.gmv : num($("fFat").value));
+    // O CAMPO é a fonte, como já era na base "mês".
+    //
+    // Antes esta linha lia fat30Manual, que só é preenchido ao CARREGAR a
+    // tela. Resultado: editar o valor dos últimos 30 dias e salvar não mudava
+    // o cartão — ele continuava mostrando o número da API até alguém recarregar
+    // a página. O campo, por outro lado, já é mantido em sincronia com a base
+    // escolhida pelo sincronizarCampoComBase(), então ler dele é ler o valor
+    // certo do período certo.
+    const doCampo = $("fFat").value.trim() === "" ? null : num($("fFat").value);
+    const valor = doCampo !== null ? doCampo
+      : (fat30Manual !== null ? fat30Manual : (fatDe30 ? fatDe30.gmv : 0));
     return { valor, rotulo: "Faturamento (últimos 30 dias)",
              detalhe: fatDe30 ? `${fatDe30.de.split("-").reverse().join("/")} a ${fatDe30.ate.split("-").reverse().join("/")} · ${fatDe30.pedidos} pedidos` : "" };
   }
@@ -835,10 +844,14 @@ $("fatEditar").addEventListener("click", () => {
   campo.select();
   tag.textContent = "· editado à mão";
   tag.style.color = "#b45309";
-  $("fatDica").innerHTML = "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o da API neste mês "
-    + "e deixa de ser atualizado automaticamente.";
+  $("fatDica").innerHTML = usaUltimos30()
+    ? "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o dos últimos 30 dias — o faturamento do mês não muda."
+    : "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o da API neste mês e deixa de ser atualizado automaticamente.";
   $("fatEditar").style.display = "none";
-  fatEditadoManualmente = true;
+  // Só marca o MÊS como editado à mão quando é o mês que está sendo editado.
+  // Marcar aqui na base de 30 dias congelaria o faturamento mensal: a API
+  // pararia de atualizá-lo por causa de uma edição que nem era dele.
+  if (!usaUltimos30()) fatEditadoManualmente = true;
 });
 
 // Marca que o faturamento deste mês foi ajustado à mão. Enquanto verdadeiro,
@@ -971,6 +984,12 @@ $("saveBtn").addEventListener("click", async () => {
     await setDoc(doc(db, "performance", perfId()), payload, { merge: true });
     $("saveStatus").className = "save-status ok";
     $("saveStatus").textContent = "Salvo ✓";
+    // Sem isto, alternar a base depois de salvar traria de volta o valor
+    // antigo: o sincronizarCampoComBase() lê fat30Manual, e ele só era
+    // atualizado no carregamento da tela.
+    if (usaUltimos30() && payload.faturamento30 !== null && payload.faturamento30 !== undefined) {
+      fat30Manual = payload.faturamento30;
+    }
     renderReport(payload);
     setTimeout(() => { $("saveStatus").textContent = ""; $("saveStatus").className = "save-status"; }, 2500);
   } catch (err) {
