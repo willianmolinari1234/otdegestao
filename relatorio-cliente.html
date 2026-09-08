@@ -234,7 +234,7 @@
       <div class="field"><label>Receita de Ads / GMV (R$)</label><input type="number" step="0.01" id="fRec" placeholder="11354" /></div>
       <div class="field"><label>Custo de Ads (R$)</label><input type="number" step="0.01" id="fCusto" placeholder="1140" /></div>
       <div class="field"><label>Anúncios novos</label><input type="number" step="1" id="fAnuncios" placeholder="13" /></div>
-      <div class="field"><label>Variação mês passado (%) <small style="color:var(--text-muted)">— só 1º mês</small></label><input type="number" step="0.1" id="fVarAnt" placeholder="-22" /></div>
+      <div class="field"><label>Variação mês passado (%) <small style="color:var(--text-muted)">— em branco = automático</small></label><input type="number" step="0.1" id="fVarAnt" placeholder="automático" /><small id="fVarAntDica" style="color:var(--text-muted);display:block;margin-top:4px;line-height:1.45"></small></div>
       <div class="field"><label>Variação mês atual (%) <small style="color:var(--text-muted)">— em branco = automático</small></label><input type="number" step="0.1" id="fVarAtu" placeholder="automático" /><small id="fVarAtuDica" style="color:var(--text-muted);display:block;margin-top:4px;line-height:1.45"></small></div>
       <div class="field"><label>% do faturamento (comissão)</label><input type="number" step="0.01" id="fPercent" placeholder="2" /></div>
       <div class="field"><label>ROAS (auto — deixe em branco)</label><input type="number" step="0.01" id="fRoasManual" placeholder="auto" /></div>
@@ -871,12 +871,29 @@ function atualizarDicaVarAtu() {
   }
 }
 
+function atualizarDicaVarAnt() {
+  const dica = $("fVarAntDica");
+  if (!dica) return;
+  const temHist = prevPerf.variacaoMesAtual !== undefined && prevPerf.variacaoMesAtual !== null && prevPerf.variacaoMesAtual !== "";
+  const auto = temHist ? num(prevPerf.variacaoMesAtual) : null;
+  const fmt = (v) => (v >= 0 ? "+" : "") + v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%";
+  if ($("fVarAnt").value.trim() !== "") {
+    dica.innerHTML = auto === null
+      ? "Valendo o que você digitou."
+      : `Valendo o que você digitou. O automático seria <b>${fmt(auto)}</b>, do fechamento anterior — apague o campo para usá-lo.`;
+  } else {
+    dica.innerHTML = auto === null
+      ? "Sem fechamento anterior: preencha à mão."
+      : `Automático: <b>${fmt(auto)}</b>, do fechamento anterior. Digite um número para usar outro.`;
+  }
+}
+
 function fillForm(d) {
   $("fFat").value = d.faturamento ?? "";
   $("fRec").value = d.receitaAds ?? "";
   $("fCusto").value = d.custoAds ?? "";
   $("fAnuncios").value = d.anunciosNovos ?? "";
-  $("fVarAnt").value = d.variacaoMesPassado ?? "";
+  $("fVarAnt").value = d.varAntManual ? (d.variacaoMesPassado ?? "") : "";
   // Só devolve ao campo o que foi DIGITADO. Devolver o automático faria o
   // campo parecer preenchido, e o próximo Salvar o congelaria como manual —
   // o valor pararia de acompanhar o faturamento sem ninguém ter pedido.
@@ -888,6 +905,7 @@ function fillForm(d) {
   $("fSolic").value = d.solicitacoes ?? "";
   if (d.faturamentoLabel) $("fatLabel").value = d.faturamentoLabel;
   atualizarDicaVarAtu();
+  atualizarDicaVarAnt();
 }
 
 function collectForm() {
@@ -904,6 +922,7 @@ function collectForm() {
   const percentFatura = num($("fPercent").value);
   const roasManual = $("fRoasManual").value.trim() === "" ? null : num($("fRoasManual").value);
   const varAtuManual = $("fVarAtu").value.trim() === "" ? null : num($("fVarAtu").value);
+  const varAntManual = $("fVarAnt").value.trim() === "" ? null : num($("fVarAnt").value);
   const roas = roasManual !== null ? roasManual : (custoAds > 0 ? receitaAds / custoAds : 0);
   const tacos = faturamento > 0 ? (custoAds / faturamento) * 100 : 0;
   return {
@@ -911,7 +930,10 @@ function collectForm() {
     roas, tacos,
     valorPercent: faturamento * percentFatura / 100,
     anunciosNovos: Math.round(num($("fAnuncios").value)),
-    variacaoMesPassado: num($("fVarAnt").value),
+    // Mesma regra do mês atual: em branco pede o automático (que aqui é a
+    // variação registrada no fechamento do mês anterior), digitado manda.
+    variacaoMesPassado: varAntManual === null ? null : varAntManual,
+    varAntManual: varAntManual !== null,
     // Vazio é DIFERENTE de zero aqui: vazio significa "calcule pelo
     // histórico", e zero significa "o mês ficou de fato estável". Sem essa
     // distinção não há como pedir automático de volta depois de digitar.
@@ -1045,15 +1067,28 @@ function aplicarTemaMkt(mkt) {
   const varManual = d.varAtuManual === true && d.variacaoMesAtual !== null && d.variacaoMesAtual !== undefined;
   const vb = varManual ? num(d.variacaoMesAtual)
     : hasHist ? ((fatAtual - fatAnt) / fatAnt * 100) : num(d.variacaoMesAtual);
+  // O cartão "Mês passado" vinha do registro do mês anterior sempre que ele
+  // existia, e o campo do formulário só servia no primeiro mês — era o mesmo
+  // buraco do "Mês atual", no campo ao lado. Agora o digitado manda aqui
+  // também, e em branco continua puxando do histórico.
   const prevHasVar = prevPerf.variacaoMesAtual !== undefined && prevPerf.variacaoMesAtual !== null && prevPerf.variacaoMesAtual !== "";
-  const va = prevHasVar ? num(prevPerf.variacaoMesAtual) : num(d.variacaoMesPassado);
+  const varAntM = d.varAntManual === true && d.variacaoMesPassado !== null && d.variacaoMesPassado !== undefined;
+  const va = varAntM ? num(d.variacaoMesPassado)
+    : prevHasVar ? num(prevPerf.variacaoMesAtual) : num(d.variacaoMesPassado);
   setCmp("cmpAnt", "rVarAnt", "rVarAntCap", va);
   setCmp("cmpAtu", "rVarAtu", "rVarAtuCap", vb);
-  $("rVarAntCap").textContent = (va >= 0 ? "alta" : "queda") + " · " + monthLabel(prevMonth(mon));
+  // Sem o nome do mês: quem fecha agosto lê "mês passado" pensando em agosto,
+  // e ver "julho" ali só contradiz o que a pessoa tem na cabeça. O período já
+  // está escrito no cabeçalho do relatório.
+  $("rVarAntCap").textContent = va >= 0 ? "alta" : "queda";
   // A legenda "R$ X → R$ Y" só cabe quando o número SAIU dessa conta. Com
-  // valor digitado ela viraria uma contradição na cara do cliente.
-  if (varManual) $("rVarAtuCap").textContent = (vb >= 0 ? "alta" : "queda") + " · informado no fechamento";
-  else if (hasHist) $("rVarAtuCap").textContent = (vb >= 0 ? "alta" : "queda") + " · " + brl(fatAnt) + " → " + brl(fatAtual);
+  // valor digitado ela viraria uma contradição na cara do cliente — e explicar
+  // ali que o número foi "informado no fechamento" é conversa interna, que não
+  // tem por que aparecer numa imagem que vai para o cliente. Nesse caso fica
+  // só "alta" ou "queda", que o setCmp já escreveu.
+  if (!varManual && hasHist) {
+    $("rVarAtuCap").textContent = (vb >= 0 ? "alta" : "queda") + " · " + brl(fatAnt) + " → " + brl(fatAtual);
+  }
 
   // kpis
   $("rFatLbl").textContent = base.rotulo;
@@ -1558,6 +1593,7 @@ function updateChips() {
 ["fFat","fRec","fCusto","fPercent","fRoasManual"].forEach((id) => $(id).addEventListener("input", updateChips));
 // A dica embaixo da variação acompanha os dois campos que a decidem.
 ["fFat","fVarAtu"].forEach((id) => $(id).addEventListener("input", atualizarDicaVarAtu));
+$("fVarAnt").addEventListener("input", atualizarDicaVarAnt);
 updateChips();
 
 $("clientSel").addEventListener("change", aoTrocarSelecao);
