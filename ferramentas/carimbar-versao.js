@@ -1,4 +1,5 @@
-// Carimba os <script src="js/...js"> do app.html com ?v=<hash do conteúdo>.
+// Carimba as referências a "js/...js" do app.html e do cliente.html com
+// ?v=<hash do conteúdo>.
 //
 // Por que: os arquivos js só podem ficar guardados no navegador por muito
 // tempo se o endereço mudar quando o conteúdo muda. Com o carimbo, publicar
@@ -8,6 +9,9 @@
 // O hash é do CONTEÚDO, não da data: republicar sem alterar nada mantém a
 // mesma URL e o navegador continua usando o que já tem.
 //
+// cliente.html entra na lista porque ele importa ./js/drive.js direto (é um
+// módulo standalone, não passa pelo app.html) e o **/*.js tem cache de 7 dias.
+//
 // Rodar:  node ferramentas/carimbar-versao.js
 
 import fs from "node:fs";
@@ -15,7 +19,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 
 const RAIZ = path.resolve(import.meta.dirname, "..");
-const ARQUIVO = path.join(RAIZ, "app.html");
+const ARQUIVOS = ["app.html", "cliente.html"];
 
 const hashDe = (arquivoJs) => {
   const caminho = path.join(RAIZ, arquivoJs);
@@ -24,9 +28,12 @@ const hashDe = (arquivoJs) => {
     .update(fs.readFileSync(caminho)).digest("hex").slice(0, 8);
 };
 
-let html = fs.readFileSync(ARQUIVO, "utf8");
 let trocados = 0;
 let faltando = [];
+
+for (const nome of ARQUIVOS) {
+const ARQUIVO = path.join(RAIZ, nome);
+let html = fs.readFileSync(ARQUIVO, "utf8");
 
 // O carimbo anterior faz parte do casamento (grupo opcional ANTES da aspa de
 // fechamento). Se ficasse depois, a segunda execução não encontraria nada e o
@@ -69,10 +76,12 @@ if (faltando.length) {
 const semCarimbo = [...html.matchAll(/(js\/[A-Za-z0-9._-]+\.js)(\?v=[a-f0-9]+)?/g)]
   .filter((m) => !m[2]).map((m) => m[1]);
 if (semCarimbo.length) {
-  console.error("  !! sem carimbo: " + [...new Set(semCarimbo)].join(", "));
+  console.error(`  !! ${nome}: sem carimbo: ` + [...new Set(semCarimbo)].join(", "));
   console.error("     Com cache longo, isso serve versão antiga ao usuário.");
   process.exit(1);
 }
 
 fs.writeFileSync(ARQUIVO, html);
-console.log(`   ${trocados} script(s) carimbado(s), nenhum sem carimbo`);
+}
+
+console.log(`   ${trocados} referência(s) carimbada(s) em ${ARQUIVOS.join(" + ")}, nenhuma sem carimbo`);

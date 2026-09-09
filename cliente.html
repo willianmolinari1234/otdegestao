@@ -52,6 +52,14 @@ tbody tr:hover{background:#fcfcfd}
 .lin{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #f1f5f9;font-size:13px}
 .lin b{font-weight:600}
 
+/* ── miniaturas de foto/vídeo hospedadas no Drive ── */
+.midias{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:12px}
+.midia{position:relative;display:block;aspect-ratio:1;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#f8fafc;text-decoration:none}
+.midia img{width:100%;height:100%;object-fit:cover;display:block}
+.midia .cap{position:absolute;left:0;right:0;bottom:0;font-size:10px;font-weight:600;color:#fff;background:rgba(15,23,42,.6);padding:2px 5px;text-align:center}
+.midia.midia-erro{grid-column:1/-1;aspect-ratio:auto;display:flex;gap:8px;align-items:flex-start;padding:10px 12px;font-size:11.5px;line-height:1.45;color:var(--ink-2);background:#fffbeb;border-color:#fde68a}
+.midia.midia-erro b{color:var(--brand-tint);font-weight:700}
+
 /* ── pop-up ── */
 #mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
 #mask.ver{display:flex}
@@ -115,6 +123,7 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendP
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getFirestore, collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { urlImagemDrive, urlAbrirDrive } from "./js/drive.js?v=64e57ef6";
 
 // Mesma configuração do app da equipe. A apiKey do front é pública por
 // desenho: quem decide o que este login enxerga são as regras do Firestore,
@@ -537,6 +546,37 @@ function linha(p, i) {
   </tr>`;
 }
 
+// Miniatura de foto/vídeo hospedado no Drive. Link de pasta ou não
+// reconhecido não vira miniatura — a tela mantém só o link "📁 Fotos e vídeos".
+function tileMidia(link, rotulo) {
+  const img = urlImagemDrive(link, 400);
+  if (!img) return "";
+  return `<a class="midia" href="${esc(urlAbrirDrive(link))}" target="_blank" rel="noopener" data-midia>
+    <img src="${esc(img)}" alt="${esc(rotulo)}" loading="lazy">
+    <span class="cap">${esc(rotulo)}</span>
+  </a>`;
+}
+
+function gradeMidias(p) {
+  const fotos = Array.isArray(p.fotos) ? p.fotos : (p.fotos ? [p.fotos] : []);
+  const videos = Array.isArray(p.video) ? p.video : (p.video ? [p.video] : []);
+  const tiles = [
+    ...fotos.map((u) => tileMidia(u, "Foto")),
+    ...videos.map((u) => tileMidia(u, "Vídeo")),
+  ].filter(Boolean);
+  return tiles.length ? `<div class="midias">${tiles.join("")}</div>` : "";
+}
+
+// Imagem do Drive que não carregou. A causa pode ser permissão, link errado
+// ou rede — o aviso não afirma qual, só diz o que conferir. Mesma disciplina
+// da guarda do Prêmio de Seguidor, que não acusa sem ter certeza.
+window.driveQuebrou = function (imgEl) {
+  const a = imgEl.closest(".midia");
+  if (!a) return;
+  a.classList.add("midia-erro");
+  a.innerHTML = `<span>⚠️</span><span>Não foi possível carregar esta imagem. Confira se o arquivo do Drive está como <b>"qualquer pessoa com o link"</b>. <b>Abrir no Drive ↗</b></span>`;
+};
+
 function telaProduto() {
   const p = estado.aberto;
   $("titulo").textContent = p.nome || "Produto";
@@ -588,7 +628,8 @@ function telaProduto() {
         ${p.medidas ? `<div class="lin"><span style="color:#64748b">Medidas da embalagem</span><b style="text-align:right">${esc(p.medidas)}</b></div>` : ""}
         ${p.tamanhos ? `<div class="lin"><span style="color:#64748b">Tamanhos</span><b style="text-align:right">${esc(p.tamanhos)}</b></div>` : ""}
         ${p.cores ? `<div class="lin"><span style="color:#64748b">Cores</span><b style="text-align:right">${esc(p.cores)}</b></div>` : ""}
-        ${p.fotos ? `<div style="margin-top:14px"><a href="${esc(p.fotos)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">📁 Fotos e vídeos</a></div>` : ""}
+        ${p.fotos && !Array.isArray(p.fotos) ? `<div style="margin-top:14px"><a href="${esc(p.fotos)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">📁 Fotos e vídeos</a></div>` : ""}
+        ${gradeMidias(p)}
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:11.5px;color:var(--muted);line-height:1.6">
           Estes dados valem para todos os marketplaces onde você vende.
         </div>
@@ -602,6 +643,7 @@ function telaProduto() {
     </div>`;
   if (window.matchMedia("(max-width:720px)").matches) $("grade").style.gridTemplateColumns = "1fr";
   document.querySelectorAll("[data-quero]").forEach((b) => { b.onclick = () => popup(b.dataset.quero, p); });
+  document.querySelectorAll("[data-midia] img").forEach((im) => { im.onerror = () => driveQuebrou(im); });
   if (estado.modo === "especialista") ligarRegistro(p, meus);
 }
 
