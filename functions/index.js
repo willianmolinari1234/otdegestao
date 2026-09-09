@@ -28,6 +28,7 @@ import {
 import {
   compararDia, detectarQuedas, montarResumo, diasParaConferir,
 } from "./conferencia.js";
+import { decidir as decidirBackfill } from "./backfill-denormalizados.js";
 
 initializeApp();
 const db = getFirestore();
@@ -1695,4 +1696,123 @@ export const lojasConectadas = onRequest({ secrets }, async (req, res) => {
       };
     }),
   });
+});
+
+// ---------- Backfill dos campos denormalizados (fase 6, item 2) ----------
+//
+//   /backfillDenormalizados?token=SEU_TOKEN          -> dry-run, não grava nada
+//   /backfillDenormalizados?token=SEU_TOKEN&gravar=1 -> grava em lotes
+//
+// custNome, storeNome, storeMkt e mkts[] derivam de custId e storeId — não da
+// planilha. Este endpoint recompõe só o que está VAZIO, nunca sobrescreve, e
+// não encosta em margem/lucro/custo/preco/criadoPor/criadoEm. A decisão de
+// cada documento fica em backfill-denormalizados.js, coberta por teste.
+//
+// Rodar o dry-run é decisão livre — não escreve. `gravar=1` é decisão do
+// Willian, sempre depois de ler o relatório do dry-run.
+export const backfillDenormalizados = onRequest({ secrets, timeoutSeconds: 540 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const gravar = req.query.gravar === "1";
+  try {
+    // O cadastro inteiro cabe na memória (dezenas de docs). Carrega uma vez.
+    const [custSnap, lojaSnap, prodSnap, listSnap] = await Promise.all([
+      db.collection("customers").get(),
+      db.collection("clients").get(),
+      db.collection("products").get(),
+      db.collection("listings").get(),
+    ]);
+
+    const proprietarios = new Map(custSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const lojas = new Map(lojaSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const lojasPorDono = new Map();
+    for (const l of lojas.values()) {
+      if (!l.custId) continue;
+      if (!lojasPorDono.has(l.custId)) lojasPorDono.set(l.custId, []);
+      lojasPorDono.get(l.custId).push(l);
+    }
+
+    const relatorio = {
+      products: { total: prodSnap.size, mudariam: 0, campos: {} },
+      listings: { total: listSnap.size, mudariam: 0, campos: {} },
+      porProprietario: new Map(),
+      porLoja: new Map(),
+      orfaos: [],
+    };
+    const contaCampo = (alvo, campos) => {
+      for (const c of Object.keys(campos)) alvo.campos[c] = (alvo.campos[c] || 0) + 1;
+    };
+    const somaProp = (custId, tipo) => {
+      const nome = (proprietarios.get(custId) || {}).name || "(desconhecido)";
+      const k = custId || "(sem custId)";
+      const r = relatorio.porProprietario.get(k) || { custId: k, nome, products: 0, listings: 0 };
+      r[tipo] += 1;
+      relatorio.porProprietario.set(k, r);
+    };
+    const somaLoja = (storeId) => {
+      const loja = lojas.get(storeId) || {};
+      const k = storeId || "(sem storeId)";
+      const r = relatorio.porLoja.get(k) || { storeId: k, nome: loja.name || "(desconhecida)", mkt: loja.mkt || "", listings: 0 };
+      r.listings += 1;
+      relatorio.porLoja.set(k, r);
+    };
+
+    let batch = db.batch();
+    let naLote = 0;
+    const solta = async () => {
+      if (!gravar || !naLote) return;
+      await batch.commit();
+      batch = db.batch();
+      naLote = 0;
+    };
+
+    const processar = async (tipo, snap, colecao) => {
+      for (const d of snap.docs) {
+        const doc = d.data();
+        const prop = doc.custId ? proprietarios.get(doc.custId) || null : null;
+        const loja = tipo === "listing" && doc.storeId ? lojas.get(doc.storeId) || null : null;
+        const { campos, orfao } = decidirBackfill(tipo, doc, {
+          proprietario: prop,
+          loja,
+          lojasDoProprietario: prop ? lojasPorDono.get(prop.id) || [] : [],
+        });
+        for (const o of orfao) {
+          relatorio.orfaos.push({ colecao, id: d.id, campo: o.campo, valor: o.valor });
+        }
+        if (!Object.keys(campos).length) continue;
+        relatorio[colecao].mudariam += 1;
+        contaCampo(relatorio[colecao], campos);
+        somaProp(doc.custId, colecao);
+        if (tipo === "listing") somaLoja(doc.storeId);
+        if (gravar) {
+          batch.set(d.ref, campos, { merge: true });
+          if (++naLote >= 400) await solta();
+        }
+      }
+      await solta();
+    };
+
+    await processar("product", prodSnap, "products");
+    await processar("listing", listSnap, "listings");
+
+    res.json({
+      ok: true,
+      modo: gravar ? "gravado" : "dry-run",
+      products: relatorio.products,
+      listings: relatorio.listings,
+      porProprietario: [...relatorio.porProprietario.values()]
+        .filter((r) => r.products || r.listings)
+        .sort((a, b) => (b.products + b.listings) - (a.products + a.listings)),
+      porLoja: [...relatorio.porLoja.values()]
+        .filter((r) => r.listings)
+        .sort((a, b) => b.listings - a.listings),
+      orfaos: relatorio.orfaos,
+      lojas: [...lojas.values()]
+        .map((l) => ({ id: l.id, nome: l.name || "", mkt: l.mkt || "" }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+    });
+  } catch (e) {
+    logger.error("backfillDenormalizados", e);
+    res.status(500).json({ erro: e.message });
+  }
 });
