@@ -69,6 +69,7 @@ let tsks=[];
 let proms=[];
 let integs=[];
 let tools=[];         // promoções ativas por loja (vindas da Shopee)
+let pedidos=[];       // pedidos de "Quero anunciar" da área do cliente
 let conferencia=null; // último resultado da conferência diária (só admin)
 let prodCliente=lsGet("prodCliente","");
 let fIntegBusca="",fIntegFiltro="all";
@@ -204,6 +205,14 @@ function startListeners(){
       conferencia=todas[0]||null;
       if(currentUser&&view==="dashboard")render();
     },err=>{console.error("conferencias listener:",err);conferencia=null;}));
+  }
+  // Pedidos de "Quero anunciar": o cliente clica na área dele e cai aqui.
+  // A tela que os mostra (📦 Produtos) é só do admin, então o listener também.
+  if(isAdmin()){
+    listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"pedidos"),snap=>{
+      pedidos=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(view==="produtos")render();
+    },err=>{console.error("pedidos listener:",err);pedidos=[];}));
   }
   listeners.push(window.fb.onSnapshot(window.fb.collection(window.fb.db,"config"),snap=>{
     const g=snap.docs.map(d=>d.data()).find(d=>d.id==="repgoals");

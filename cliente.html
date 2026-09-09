@@ -670,17 +670,63 @@ function telaLojas() {
 }
 
 // ─── pop-up do "quero anunciar" ───────────────────────────────────────
-// Sem formulário e sem fila: a conversa continua onde ela já acontece.
-function popup(mkt, p) {
+// Agora registra de verdade: grava um documento em `pedidos`, que a equipe
+// vê em 📦 Produtos. Antes só mostrava uma mensagem e ninguém recebia.
+//
+// Id determinístico (custId__produtoId__mkt, ou custId__geral__mkt): clicar
+// de novo no mesmo pedido atualiza em vez de criar um segundo. `criadoPor`
+// guarda quem digitou (pode ser a equipe entrando como cliente) e `emNomeDe`
+// por quem — a autoria dupla de sempre.
+const chaveMkt = (m) => String(m || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "mkt";
+
+async function popup(mkt, p) {
+  const produtoId = p && p.id ? p.id : null;
+  const produtoNome = produtoId ? (p.nome || "") : "todos os seus produtos";
+  const custNome = (p && p.custNome)
+    || (estado.produtos.find((x) => x.custNome) || {}).custNome
+    || estado.nome || "";
+  const id = `${estado.custId}__${produtoId || "geral"}__${chaveMkt(mkt)}`;
+  const agora = new Date().toISOString();
+
   $("popConteudo").style.maxWidth = "470px";
   $("popConteudo").style.textAlign = "center";
   $("popConteudo").innerHTML = `
-    <div style="width:60px;height:60px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">💬</div>
-    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px">Agora é com o grupo</div>
-    <div style="font-size:14.5px;color:var(--ink-2);line-height:1.6;margin-bottom:22px">Esta tela não abre pedido sozinha. Mande uma mensagem no grupo pedindo para anunciar ${esc(naNo(mkt))} — a equipe cuida do resto a partir daí.</div>
-    <div style="font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;padding:9px 14px;margin-bottom:22px;line-height:1.5">Leve para o grupo: <b style="color:var(--ink-2)">${esc(mkt)}</b> · ${esc(p.nome || "")}</div>
-    <button id="popOk" class="btn">Entendi</button>`;
+    <div style="width:44px;height:44px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:var(--brand);margin:14px auto 16px;animation:girar .8s linear infinite"></div>
+    <style>@keyframes girar{to{transform:rotate(360deg)}}</style>
+    <div style="font-size:14.5px;color:var(--ink-2)">Registrando seu pedido…</div>`;
   $("mask").classList.add("ver");
+
+  try {
+    const ref = doc(db, "pedidos", id);
+    const jaExiste = (await getDoc(ref)).exists();
+    await setDoc(ref, {
+      custId: estado.custId,
+      custNome,
+      produtoId,
+      produtoNome,
+      mkt,
+      status: "aberto",
+      atualizadoEm: agora,
+      ...(jaExiste ? {} : {
+        criadoEm: agora,
+        criadoPor: { uid: (auth.currentUser && auth.currentUser.uid) || "", emNomeDe: estado.custId },
+      }),
+    }, { merge: true });
+
+    $("popConteudo").innerHTML = `
+      <div style="width:60px;height:60px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">✓</div>
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px">Pedido registrado</div>
+      <div style="font-size:14.5px;color:var(--ink-2);line-height:1.6;margin-bottom:22px">A equipe da OTDE recebeu seu pedido para anunciar ${esc(produtoNome)} ${esc(naNo(mkt))} e vai cuidar disso.${jaExiste ? "<br>Você já tinha pedido este — atualizamos a data." : ""}</div>
+      <div style="font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;padding:9px 14px;margin-bottom:22px;line-height:1.5"><b style="color:var(--ink-2)">${esc(mkt)}</b> · ${esc(produtoNome)}</div>
+      <button id="popOk" class="btn">Entendi</button>`;
+  } catch (e) {
+    console.error("pedido:", e);
+    $("popConteudo").innerHTML = `
+      <div style="width:60px;height:60px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">!</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:10px">Não deu para registrar agora</div>
+      <div style="font-size:14px;color:var(--ink-2);line-height:1.6;margin-bottom:22px">Tente de novo daqui a pouco. Se continuar, fale no grupo pedindo para anunciar ${esc(naNo(mkt))}.</div>
+      <button id="popOk" class="btn">Fechar</button>`;
+  }
   $("popOk").onclick = fechar;
 }
 const fechar = () => $("mask").classList.remove("ver");

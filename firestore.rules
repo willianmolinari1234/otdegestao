@@ -113,6 +113,32 @@ service cloud.firestore {
       allow delete: if ehFuncionario();
     }
 
+    // ── Pedidos de "Quero anunciar" ───────────────────────────────────
+    // O cliente clica "Quero anunciar {na Shein}" e isso vira um documento
+    // aqui. Id determinístico (custId__produtoId__mkt, ou custId__geral__mkt):
+    // clicar de novo atualiza o mesmo pedido em vez de abrir um segundo.
+    //
+    // O especialista NÃO aparece em nenhuma cláusula: ele opera marketplace,
+    // não recebe pedido de cliente. Na dúvida entre conveniência e isolamento,
+    // isolamento ganha — um pedido é do cliente para a OTDE, não passa por ele.
+    //
+    // "atendido" é decisão da equipe. O cliente abre e reenvia, sempre
+    // "aberto"; não fecha o próprio pedido nem carimba custId alheio.
+    match /pedidos/{id} {
+      allow read: if ehFuncionario()
+        || (ehCliente() && resource.data.custId == meuCust());
+      allow create: if ehFuncionario()
+        || (ehCliente()
+            && request.resource.data.custId == meuCust()
+            && request.resource.data.status == "aberto");
+      allow update: if ehFuncionario()
+        || (ehCliente()
+            && resource.data.custId == meuCust()
+            && request.resource.data.custId == resource.data.custId
+            && request.resource.data.status == "aberto");
+      allow delete: if ehFuncionario();
+    }
+
     // NOTA sobre clients e customers: nenhum papel externo lê essas coleções,
     // e não é esquecimento. `clients.access` guarda a SENHA da loja no
     // marketplace, e regra do Firestore não esconde campo — ou o documento

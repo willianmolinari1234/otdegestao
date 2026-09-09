@@ -67,6 +67,17 @@ beforeEach(async () => {
 
     await setDoc(doc(db, "customers/" + REANA), { name: "Reana Comércio", login: "senha-da-shopee" });
     await setDoc(doc(db, "clients/loja1"), { name: "Reana Tricot", custId: REANA, access: { pass: "senha" } });
+
+    // Pedidos de "Quero anunciar": um por produto, um genérico. O da Manu
+    // existe para o teste de que a Reana não enxerga pedido de vizinho.
+    await setDoc(doc(db, "pedidos/" + REANA + "__p_reana__shein"), {
+      custId: REANA, custNome: "Reana Comércio", produtoId: "p_reana",
+      produtoNome: "Manta tricot", mkt: "Shein", status: "aberto",
+    });
+    await setDoc(doc(db, "pedidos/" + MANU + "__geral__tiktok"), {
+      custId: MANU, custNome: "Toalha & Cia", produtoId: null,
+      produtoNome: "todos os seus produtos", mkt: "TikTok", status: "aberto",
+    });
   });
 });
 
@@ -180,6 +191,68 @@ test("deslogado não lê nada", async () => {
   await assertFails(getDoc(doc(deslogado(), "accounts/uid_cli_" + REANA)));
 });
 
+// ─── pedidos de "Quero anunciar" ─────────────────────────────────────
+
+test("cliente lê o próprio pedido e NÃO o de outro cliente", async () => {
+  const db = cliente(REANA);
+  await assertSucceeds(getDoc(doc(db, "pedidos/" + REANA + "__p_reana__shein")));
+  await assertFails(getDoc(doc(db, "pedidos/" + MANU + "__geral__tiktok")));
+});
+
+test("cliente NÃO lista a coleção inteira de pedidos, só a fatia dele", async () => {
+  const db = cliente(REANA);
+  await assertFails(getDocs(collection(db, "pedidos")));
+  await assertSucceeds(getDocs(query(collection(db, "pedidos"), where("custId", "==", REANA))));
+  await assertFails(getDocs(query(collection(db, "pedidos"), where("custId", "==", MANU))));
+});
+
+test("cliente abre pedido no próprio nome", async () => {
+  const db = cliente(REANA);
+  await assertSucceeds(setDoc(doc(db, "pedidos/" + REANA + "__p_reana__shopee"), {
+    custId: REANA, custNome: "Reana Comércio", produtoId: "p_reana",
+    produtoNome: "Manta tricot", mkt: "Shopee", status: "aberto",
+  }));
+});
+
+test("cliente NÃO abre pedido carimbando o custId de outro", async () => {
+  const db = cliente(REANA);
+  await assertFails(setDoc(doc(db, "pedidos/" + MANU + "__x__shopee"), {
+    custId: MANU, custNome: "Toalha & Cia", produtoId: "x",
+    produtoNome: "y", mkt: "Shopee", status: "aberto",
+  }));
+});
+
+test("cliente NÃO marca o próprio pedido como atendido: isso é da equipe", async () => {
+  const db = cliente(REANA);
+  await assertFails(setDoc(doc(db, "pedidos/" + REANA + "__p_reana__shein"), {
+    custId: REANA, custNome: "Reana Comércio", produtoId: "p_reana",
+    produtoNome: "Manta tricot", mkt: "Shein", status: "atendido",
+  }));
+});
+
+test("especialista NÃO lê pedido nenhum: opera marketplace, não recebe pedido", async () => {
+  await assertFails(getDoc(doc(espML(), "pedidos/" + REANA + "__p_reana__shein")));
+  await assertFails(getDoc(doc(espTikTok(), "pedidos/" + MANU + "__geral__tiktok")));
+  await assertFails(getDocs(query(collection(espML(), "pedidos"), where("custId", "==", REANA))));
+});
+
+test("especialista NÃO cria pedido", async () => {
+  await assertFails(setDoc(doc(espML(), "pedidos/" + REANA + "__p_reana__mercado-livre"), {
+    custId: REANA, produtoId: "p_reana", produtoNome: "Manta tricot",
+    mkt: "Mercado Livre", status: "aberto",
+  }));
+});
+
+test("deslogado não lê pedido", async () => {
+  await assertFails(getDoc(doc(deslogado(), "pedidos/" + REANA + "__p_reana__shein")));
+});
+
+test("conta sem claim não vira dona de pedido por acidente", async () => {
+  const db = env.authenticatedContext("uid_solto2").firestore();
+  await assertFails(getDoc(doc(db, "pedidos/" + REANA + "__p_reana__shein")));
+  await assertFails(getDocs(query(collection(db, "pedidos"), where("custId", "==", REANA))));
+});
+
 // ─── a equipe continua funcionando como antes ─────────────────────────
 
 test("funcionário continua lendo e escrevendo produto de qualquer cliente", async () => {
@@ -194,6 +267,14 @@ test("funcionário continua lendo e escrevendo produto de qualquer cliente", asy
 test("funcionário continua lendo clients e customers", async () => {
   await assertSucceeds(getDoc(doc(funcionario(), "clients/loja1")));
   await assertSucceeds(getDoc(doc(funcionario(), "customers/" + REANA)));
+});
+
+test("funcionário lê todos os pedidos e marca atendido", async () => {
+  const db = funcionario();
+  await assertSucceeds(getDocs(collection(db, "pedidos")));
+  await assertSucceeds(getDoc(doc(db, "pedidos/" + MANU + "__geral__tiktok")));
+  await assertSucceeds(setDoc(doc(db, "pedidos/" + REANA + "__p_reana__shein"),
+    { status: "atendido", atualizadoEm: "2026-09-09" }, { merge: true }));
 });
 
 test("conta sem claim nenhuma não vira cliente por acidente", async () => {

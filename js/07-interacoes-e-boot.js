@@ -160,6 +160,15 @@ function bindAll(){
     // Access modal
     const ac=ev.target.closest("[data-acc]");if(ac){showAccessModal(ac.dataset.acc);return;}
     const pl=ev.target.closest("[data-plan]");if(pl){abrirImportacaoPlanilha(pl.dataset.plan);return;}
+    // Pedidos de "Quero anunciar" (tela 📦 Produtos)
+    const vp=ev.target.closest("[data-verpedido]");if(vp){prodCliente=vp.dataset.verpedido;lsSet("prodCliente",prodCliente);render();return;}
+    const at=ev.target.closest("[data-atender]");if(at){
+      const ped=pedidos.find(p=>p.id===at.dataset.atender);
+      askConfirm("Marcar pedido como atendido",
+        `O pedido${ped?" de "+(ped.custNome||""):""} sai da lista de abertos. Confirma que já foi anunciado?`,
+        async()=>{try{await fbUpdate("pedidos",at.dataset.atender,{status:"atendido",atualizadoEm:new Date().toISOString()});showToast("Pedido marcado como atendido");}catch(e){showToast("Erro: "+(e.message||""),"error");}});
+      return;
+    }
     const sc=ev.target.closest("[data-syscust]");if(sc){abrirAcessoDoCliente(sc.dataset.syscust);return;}
     // Customer actions
     const ecu=ev.target.closest("[data-ecust]");if(ecu){renameCust(ecu.dataset.ecust);return;}

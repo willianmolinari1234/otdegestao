@@ -690,7 +690,30 @@ function rProdutos(){
   const dono=getCust(prodCliente);
   const lojas=storesOfCust(prodCliente);
   const url=`cliente.html?embed=1&cliente=${encodeURIComponent(prodCliente)}&nome=${encodeURIComponent(dono?dono.name:"")}`;
+
+  // Pedidos de "Quero anunciar" ainda abertos, de todos os clientes. É a
+  // lista que faltava: antes o clique do cliente não chegava a lugar nenhum.
+  const abertos=(typeof pedidos!=="undefined"?pedidos:[])
+    .filter(p=>(p.status||"aberto")==="aberto")
+    .sort((a,b)=>String(b.criadoEm||b.atualizadoEm||"").localeCompare(String(a.criadoEm||a.atualizadoEm||"")));
+  const quando=(iso)=>iso?fmtDate(String(iso).slice(0,10)):"";
+  const painelPedidos=abertos.length?`
+  <div class="card" style="margin-bottom:14px;border:1px solid #fde68a;background:#fffbeb;padding:0;overflow:hidden">
+    <div style="padding:11px 15px;font-size:13px;font-weight:800;color:#92400e;border-bottom:1px solid #fde68a">
+      📣 ${abertos.length} pedido${abertos.length!==1?"s":""} de “Quero anunciar” em aberto
+    </div>
+    <div>${abertos.map(p=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid #fef3c7;flex-wrap:wrap">
+        <button data-verpedido="${esc(p.custId)}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#0f172a;text-decoration:underline">${esc(p.custNome||p.custId)}</button>
+        <span style="font-size:13px;color:#475569">${esc(p.produtoNome||"todos os produtos")}</span>
+        ${mktBadge(p.mkt)}
+        <span style="color:#94a3b8;font-size:11.5px">${esc(quando(p.criadoEm||p.atualizadoEm))}</span>
+        <button data-atender="${esc(p.id)}" class="btn-sm" style="margin-left:auto">Marcar como atendido</button>
+      </div>`).join("")}</div>
+  </div>`:"";
+
   return`
+  ${painelPedidos}
   <div class="filter-bar" style="margin-bottom:14px">
     <span style="font-size:11px;color:#64748b;font-weight:600">👤 CLIENTE</span>
     <select id="prod-cliente" data-search data-placeholder="Buscar cliente...">
