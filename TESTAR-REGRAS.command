@@ -82,9 +82,11 @@ fi
 
 # --project demo-... roda isolado: o emulador recusa qualquer tentativa de
 # falar com o Firebase de verdade.
+# O emulador não inclui mensagens pt_BR; força inglês só no processo Java.
+JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Duser.language=en -Duser.country=US" \
 npx --yes firebase-tools@latest emulators:exec \
   --only firestore --project demo-otde \
-  "node --test testes/regras/regras.test.mjs"
+  "node --test testes/regras/*.test.mjs"
 CODIGO=$?
 
 echo

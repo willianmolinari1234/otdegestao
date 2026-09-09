@@ -167,3 +167,12 @@ antigos só saem reimportando as duas abas da Shopee, à mão.
 com todos os clientes dentro? Se for conta única, o dono do anúncio não sai da conta —
 sai do SKU, e a integração precisa nascer em cima do SKU desde o primeiro dia.
 Responder **antes** de começar a fase 7.
+
+## Atualização — início da fase 7, 09/09/2026
+
+Willian confirmou conta compartilhada por especialista e SKUs que podem se repetir
+entre clientes, e autorizou codificar. A pergunta anterior sobre conta única está resolvida.
+Foi implementado o cadastro administrativo de vínculos por marketplace + conta + anúncio,
+com pendência sem dono e confirmação explícita de cliente/produto. Ver `FASE-7.md`.
+Ainda não há conexão automática com Mercado Livre/TikTok nem publicação desta entrega.
+Validação atual: 205 testes gerais + 45 testes no emulador, todos passando.

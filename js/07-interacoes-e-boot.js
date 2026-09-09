@@ -109,6 +109,8 @@ function bindAll(){
   // para a tela abrir no mesmo cliente da última vez.
   const pc=C.querySelector("#prod-cliente");
   if(pc)pc.onchange=e=>{prodCliente=e.target.value;lsSet("prodCliente",prodCliente);render();};
+  const pv=C.querySelector("#prod-vinculos");
+  if(pv)pv.onclick=()=>abrirVinculosAnuncios();
   const pe=C.querySelector("#prod-especialistas");
   if(pe)pe.onclick=()=>abrirAcessoEspecialistas();
   const ib=C.querySelector("#integ-busca");

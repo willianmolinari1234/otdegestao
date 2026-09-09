@@ -628,3 +628,113 @@ async function esCriar() {
     b.disabled = false; b.textContent = "Criar acesso";
   }
 }
+
+// ─── IDENTIFICAR ANÚNCIOS EM CONTAS COMPARTILHADAS ────────────────────
+async function vaChamar(acao, dados) {
+  const token = await window.fb.auth.currentUser.getIdToken();
+  const r = await fetch(`${FN_BASE}/gerenciarVinculosAnuncios`, {
+    method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...dados, acao }),
+  });
+  let resposta;
+  try { resposta = await r.json(); }
+  catch { throw new Error("A identificação de anúncios ainda não está disponível. Confira se a atualização foi publicada."); }
+  if (!r.ok) throw new Error(resposta.erro || "Não foi possível concluir. Tente novamente.");
+  return resposta;
+}
+function abrirVinculosAnuncios() {
+  showFormModal(`<div class="form-panel" id="va-painel">
+    <h3>Identificar anúncios</h3>
+    <p style="font-size:13px;color:#475569">Escolha a conta compartilhada para consultar ou registrar anúncios. O cliente será identificado por um vínculo confirmado, mesmo que o SKU se repita.</p>
+    <p style="font-size:12px;color:#64748b">Este cadastro prepara os vínculos. A sincronização automática dos marketplaces ainda não está conectada.</p>
+    <div class="form-group"><label for="va-mkt">Marketplace</label><select class="finput" id="va-mkt"><option>Mercado Livre</option><option>TikTok</option></select></div>
+    <div class="form-group"><label for="va-conta">ID da conta no marketplace</label><input class="finput" id="va-conta" maxlength="160" placeholder="Identificador da conta vendedora, não o e-mail" /></div>
+    <div class="form-actions"><button class="btn-sm" id="va-fechar">Fechar</button><button class="btn-primary" id="va-consultar">Consultar conta</button></div>
+    <div id="va-conteudo" style="margin-top:18px"></div>
+    <p id="va-erro" role="alert" style="color:#b91c1c;font-size:13px"></p>
+  </div>`);
+  const painel = document.getElementById("va-painel");
+  const el = id => painel.querySelector("#va-" + id);
+  let conta = null, itens = [], depois = null;
+  const erro = e => { if (painel.isConnected) el("erro").textContent = e.message; };
+  const tarefa = async (botao, fn) => {
+    botao.disabled = true; el("erro").textContent = "";
+    try { await fn(); } catch (e) { erro(e); } finally { botao.disabled = false; }
+  };
+  el("fechar").onclick = closeFormModal;
+  const invalidar = () => { conta = null; itens = []; depois = null; el("conteudo").innerHTML = ""; };
+  el("mkt").onchange = invalidar;
+  el("conta").oninput = invalidar;
+  const carregar = async (mais = false) => {
+    const contexto = conta;
+    const resposta = await vaChamar("listar", { ...contexto, depois: mais ? depois : null });
+    if (!painel.isConnected || conta !== contexto) return;
+    itens = mais ? itens.concat(resposta.itens) : resposta.itens;
+    depois = resposta.depois;
+    desenhar();
+  };
+  el("consultar").onclick = () => tarefa(el("consultar"), async () => {
+    conta = { mkt: el("mkt").value, contaId: el("conta").value.trim() };
+    el("conteudo").innerHTML = "";
+    await carregar();
+  });
+  function desenhar() {
+    el("conteudo").innerHTML = `
+      <div class="form-group"><label for="va-item">ID do anúncio nesta conta</label><input class="finput" id="va-item" maxlength="160" placeholder="Identificador do anúncio, não o SKU" /></div>
+      <button id="va-registrar" class="btn-sm">Registrar anúncio pendente</button>
+      <p style="font-size:12px;color:#64748b">Anúncios pendentes ficam fora dos painéis dos clientes. Registrar novamente o mesmo anúncio preserva seu vínculo.</p>
+      <div>${itens.length ? itens.map((x, i) => `<div style="border-top:1px solid #e2e8f0;padding:12px 0">
+        <strong>${esc(x.itemId)}</strong> · ${x.status === "confirmado" ? `Confirmado: ${esc(x.custNome)} · ${esc(x.produtoNome)}` : '<span style="color:#92400e">Pendente de identificação</span>'}
+        ${x.status === "confirmado" ? "" : `<button class="btn-sm" data-va-escolher="${i}">Identificar cliente</button>`}
+      </div>`).join("") : '<p>Nenhum anúncio registrado nesta conta.</p>'}</div>
+      ${depois ? '<button class="btn-sm" id="va-mais">Carregar mais</button>' : ""}
+      <div id="va-escolha"></div>`;
+    el("registrar").onclick = () => tarefa(el("registrar"), async () => {
+      const contexto = conta;
+      await vaChamar("registrar", { ...contexto, itemId: el("item").value.trim() });
+      if (painel.isConnected && conta === contexto) await carregar();
+    });
+    if (el("mais")) el("mais").onclick = () => tarefa(el("mais"), () => carregar(true));
+    painel.querySelectorAll("[data-va-escolher]").forEach(b => {
+      b.onclick = () => escolher(itens[Number(b.dataset.vaEscolher)]);
+    });
+  }
+  function escolher(anuncio) {
+    const contexto = conta;
+    const destino = el("escolha");
+    destino.innerHTML = `<h4>Identificar anúncio ${esc(anuncio.itemId)}</h4>
+      <div class="form-group"><label for="va-cliente">Cliente proprietário</label><select class="finput" id="va-cliente"><option value="">Selecione o cliente</option>${custs.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select></div>
+      <div class="form-group"><label for="va-produto">Produto deste cliente</label><select class="finput" id="va-produto" disabled><option value="">Selecione o cliente primeiro</option></select></div>
+      <p id="va-resumo" style="font-size:13px"></p><button class="btn-primary" id="va-confirmar" disabled>Confirmar vínculo</button>`;
+    const clienteEl = el("cliente"), produtoEl = el("produto"), confirmar = el("confirmar"), resumo = el("resumo");
+    let produtos = [];
+    clienteEl.onchange = async () => {
+      const custId = clienteEl.value;
+      confirmar.disabled = true; produtoEl.disabled = true; resumo.textContent = "";
+      produtoEl.innerHTML = '<option value="">Carregando produtos…</option>';
+      try {
+        const consulta = custId ? await window.fb.getDocs(window.fb.query(
+          window.fb.collection(window.fb.db, "products"), window.fb.where("custId", "==", custId))) : null;
+        const todos = consulta ? consulta.docs.map(d => ({ ...d.data(), id: d.id })) : [];
+        if (!clienteEl.isConnected || clienteEl.value !== custId || conta !== contexto) return;
+        produtos = todos.filter(p => Array.isArray(p.mkts) && p.mkts.includes(contexto.mkt));
+        produtoEl.innerHTML = '<option value="">Selecione o produto</option>' + produtos.map(p => `<option value="${esc(p.id)}">${esc(p.nome || p.id)} · SKU ${esc(p.sku || "sem SKU")}</option>`).join("");
+        produtoEl.disabled = !produtos.length;
+        if (!produtos.length) resumo.textContent = "Este cliente não tem produtos disponíveis neste marketplace.";
+      } catch (e) { erro(e); produtoEl.innerHTML = '<option value="">Não foi possível carregar os produtos</option>'; }
+    };
+    produtoEl.onchange = () => {
+      const produto = produtos.find(p => p.id === produtoEl.value);
+      confirmar.disabled = !produto;
+      resumo.textContent = produto ? `Confirmar: ${contexto.mkt}, conta ${contexto.contaId}, anúncio ${anuncio.itemId} pertence a ${getCust(clienteEl.value)?.name || clienteEl.value}, produto ${produto.nome || produto.id}.` : "";
+    };
+    confirmar.onclick = () => tarefa(confirmar, async () => {
+      const custId = clienteEl.value, produtoId = produtoEl.value;
+      clienteEl.disabled = true; produtoEl.disabled = true;
+      try {
+        await vaChamar("vincular", { ...contexto, itemId: anuncio.itemId, custId, produtoId });
+        if (painel.isConnected && conta === contexto) { showToast("Vínculo confirmado."); await carregar(); }
+      } finally { clienteEl.disabled = false; produtoEl.disabled = !produtos.length; }
+    });
+  }
+}

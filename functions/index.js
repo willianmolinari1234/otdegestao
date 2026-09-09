@@ -30,6 +30,8 @@ import {
 } from "./conferencia.js";
 import { decidir as decidirBackfill } from "./backfill-denormalizados.js";
 
+import { criarServicoVinculos, ErroVinculo } from "./vinculos-anuncios.js";
+
 initializeApp();
 const db = getFirestore();
 
@@ -1814,5 +1816,28 @@ export const backfillDenormalizados = onRequest({ secrets, timeoutSeconds: 540 }
   } catch (e) {
     logger.error("backfillDenormalizados", e);
     res.status(500).json({ erro: e.message });
+  }
+});
+
+// Fase 7: vínculo explícito para contas que contêm anúncios de vários clientes.
+// Nenhum dado desta coleção é liberado diretamente ao navegador pelas regras.
+export const gerenciarVinculosAnuncios = onRequest({
+  cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
+}, async (req, res) => {
+  if (req.method !== "POST") { res.status(405).json({ erro: "Use POST." }); return; }
+  let admin;
+  try { admin = await exigirAdmin(req); } catch { /* token inválido também nega */ }
+  if (!admin) { res.status(403).json({ erro: "Apenas administradores." }); return; }
+  try {
+    const entrada = req.body || {};
+    const servico = criarServicoVinculos(db);
+    if (!["listar", "registrar", "vincular"].includes(entrada.acao))
+      throw new ErroVinculo("Ação inválida.");
+    const resultado = await servico[entrada.acao](entrada, admin.uid);
+    res.json(resultado);
+  } catch (e) {
+    if (e instanceof ErroVinculo) { res.status(e.status).json({ erro: e.message }); return; }
+    logger.error("gerenciarVinculosAnuncios", e);
+    res.status(500).json({ erro: "Não foi possível salvar ou consultar o vínculo. Tente novamente." });
   }
 });
