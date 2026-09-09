@@ -65,7 +65,15 @@ echo
 if [ "$CODIGO" != "200" ]; then
   echo "❌ A chamada falhou (HTTP $CODIGO). Resposta salva em $SAIDA"
   [ "$CODIGO" = "403" ] && echo "   403 = token errado ou desatualizado no functions/.env."
-  [ "$CODIGO" = "404" ] && echo "   404 = o endpoint ainda não foi publicado (firebase deploy --only functions)."
+  if [ "$CODIGO" = "404" ]; then
+    echo "   404 = o backend ainda não foi publicado. Publique SÓ o backend, em produção:"
+    echo
+    echo "       npx --yes firebase-tools@latest deploy --project otdegestao --only functions"
+    echo
+    echo "   O --project vai FIXO. Sem ele o deploy usa o projeto ativo do"
+    echo "   firebase-tools, que costuma estar apontado para homologação — e lá"
+    echo "   não existe backend de propósito, então falha no Secret Manager."
+  fi
   echo; read -r -p "Enter para fechar..." _; exit 1
 fi
 
