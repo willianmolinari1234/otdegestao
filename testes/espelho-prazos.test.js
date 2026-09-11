@@ -18,7 +18,7 @@ test("functions/prazos.js é cópia exata de js/prazos.js", () => {
   const original = fs.readFileSync(ORIGEM, "utf8");
   const espelho = fs.readFileSync(ESPELHO, "utf8");
   assert.equal(
-    espelho, conteudoEspelho(original),
+    espelho, conteudoEspelho(original, MARCADOR),
     "functions/prazos.js está diferente de js/prazos.js — rode: node ferramentas/espelhar-prazos.js",
   );
 });
@@ -26,9 +26,9 @@ test("functions/prazos.js é cópia exata de js/prazos.js", () => {
 test("o espelho se identifica como gerado, para ninguém editar à mão", () => {
   const espelho = fs.readFileSync(ESPELHO, "utf8");
   assert.ok(espelho.startsWith(MARCADOR));
-  assert.equal(originalDoEspelho(espelho), fs.readFileSync(ORIGEM, "utf8"));
+  assert.equal(originalDoEspelho(espelho, MARCADOR), fs.readFileSync(ORIGEM, "utf8"));
 });
 
 test("espelho sem o marcador é recusado", () => {
-  assert.equal(originalDoEspelho("export const x = 1;\n"), null);
+  assert.equal(originalDoEspelho("export const x = 1;\n", MARCADOR), null);
 });

@@ -124,6 +124,7 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendP
 import { getFirestore, collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { urlImagemDrive, urlAbrirDrive } from "./js/drive.js?v=64e57ef6";
+import { CAMPOS_DA_FICHA, faltandoNaFicha } from "./js/ficha-produto.js?v=d305bfd7";
 
 // Mesma configuração do app da equipe. A apiKey do front é pública por
 // desenho: quem decide o que este login enxerga são as regras do Firestore,
@@ -137,6 +138,26 @@ const app = initializeApp({
   appId: "1:529737654679:web:b7aa1d86e1a23d769564d2",
 });
 const auth = getAuth(app), db = getFirestore(app);
+
+// Backend das Cloud Functions. A ficha do produto é gravada por lá, e não
+// direto no Firestore: a regra proíbe o cliente de escrever `mkts`, e sem esse
+// campo o produto que ele cadastrar fica invisível para o especialista — que é
+// justamente quem precisa dele para anunciar.
+const FN_BASE = "https://us-central1-otdegestao.cloudfunctions.net";
+
+async function salvarFicha(dados) {
+  const token = await auth.currentUser.getIdToken();
+  const r = await fetch(`${FN_BASE}/salvarProdutoDoCliente`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(dados),
+  });
+  let resposta;
+  try { resposta = await r.json(); }
+  catch { throw new Error("O cadastro de produtos ainda não está disponível. Avise a OTDE."); }
+  if (!r.ok) throw new Error(resposta.erro || "Não consegui salvar. Tente de novo.");
+  return resposta;
+}
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const moeda = (n) => (n === null || n === undefined || n === "") ? "—"
@@ -393,6 +414,7 @@ function telaLista() {
         <option value="nome"${estado.ordem === "nome" ? " selected" : ""}>Nome</option>
       </select>
       ${estado.faltaEm ? `<button id="limpar" class="btnsm on">Só o que falta em ${esc(estado.faltaEm)} ✕</button>` : ""}
+      <button id="novoProduto" class="btn" style="width:auto;padding:9px 16px;margin-left:auto">+ Novo produto</button>
     </div>
     <div class="card" style="overflow:hidden">
       <table>
@@ -418,8 +440,10 @@ function telaLista() {
     b.onclick = () => popup(b.dataset.querytodos, { nome: `${estado.produtos.length} produtos` });
   });
   document.querySelectorAll("[data-editar]").forEach((b) => {
-    b.onclick = (ev) => { ev.stopPropagation(); abrirEdicao(estado.produtos.find((p) => p.id === b.dataset.editar)); };
+    b.onclick = (ev) => { ev.stopPropagation(); abrirFicha(estado.produtos.find((p) => p.id === b.dataset.editar)); };
   });
+  const novo = $("novoProduto");
+  if (novo) novo.onclick = () => abrirFicha(null);
   document.querySelectorAll("[data-prod]").forEach((tr) => {
     tr.onclick = () => { estado.aberto = estado.produtos.find((p) => p.id === tr.dataset.prod); desenhar(); };
   });
@@ -532,9 +556,13 @@ function linha(p, i) {
   const preco = !i.precos.length ? "—"
     : i.precos.length === 1 || Math.min(...i.precos) === Math.max(...i.precos) ? moeda(i.precos[0])
     : `${moeda(Math.min(...i.precos))}<span style="color:var(--muted)"> a </span>${moeda(Math.max(...i.precos))}`;
+  // Ficha incompleta fica visível na lista, não só na hora de salvar: é o que
+  // faz o cliente voltar e preencher o que falta para o produto ser anunciado.
+  const falta = faltandoNaFicha(p);
   return `<tr data-prod="${esc(p.id)}">
     <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
-      ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}</td>
+      ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}
+      ${falta.length ? `<div style="font-size:11.5px;color:#b45309;margin-top:2px" title="${esc(falta.join(", "))}">⚠ ${falta.length === 1 ? "falta 1 informação" : `faltam ${falta.length} informações`}</div>` : ""}</td>
     <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
     <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${preco}</td>
     <td>${i.melhor
@@ -542,7 +570,7 @@ function linha(p, i) {
          <span style="font-size:11.5px;color:var(--muted)"> ${esc(i.melhor.mkt || i.melhor.storeMkt || "")}</span>`
       : `<span style="font-size:12px;color:var(--muted)">—</span>`}</td>
     <td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${selos}
-      ${estado.souEquipe ? `<button data-editar="${esc(p.id)}" class="btnsm" style="padding:3px 9px;font-size:11.5px;margin-left:2px">editar</button>` : ""}</div></td>
+      <button data-editar="${esc(p.id)}" class="btnsm" style="padding:3px 9px;font-size:11.5px;margin-left:2px">editar</button></div></td>
   </tr>`;
 }
 
@@ -625,14 +653,23 @@ function telaProduto() {
         ${p.sku ? `<div style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--brand-tint);background:var(--brand-50);border:1px solid var(--brand-100);border-radius:6px;padding:2px 8px;margin-bottom:12px">${esc(p.sku)}</div>` : ""}
         <div class="lin" style="border-top:none"><span style="color:#64748b">Custo</span><b>${moeda(p.custo)}</b></div>
         ${p.peso ? `<div class="lin"><span style="color:#64748b">Peso</span><b>${esc(p.peso)}</b></div>` : ""}
+        ${p.medidasProduto ? `<div class="lin"><span style="color:#64748b">Medidas do produto</span><b style="text-align:right">${esc(p.medidasProduto)}</b></div>` : ""}
         ${p.medidas ? `<div class="lin"><span style="color:#64748b">Medidas da embalagem</span><b style="text-align:right">${esc(p.medidas)}</b></div>` : ""}
+        ${p.material ? `<div class="lin"><span style="color:#64748b">Material</span><b style="text-align:right">${esc(p.material)}</b></div>` : ""}
         ${p.tamanhos ? `<div class="lin"><span style="color:#64748b">Tamanhos</span><b style="text-align:right">${esc(p.tamanhos)}</b></div>` : ""}
         ${p.cores ? `<div class="lin"><span style="color:#64748b">Cores</span><b style="text-align:right">${esc(p.cores)}</b></div>` : ""}
         ${p.fotos && !Array.isArray(p.fotos) ? `<div style="margin-top:14px"><a href="${esc(p.fotos)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">📁 Fotos e vídeos</a></div>` : ""}
         ${gradeMidias(p)}
+        ${p.obs ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9">
+          <div style="font-size:11.5px;color:#64748b;margin-bottom:4px">Observações</div>
+          <div style="font-size:12.5px;white-space:pre-wrap;line-height:1.55">${esc(p.obs)}</div></div>` : ""}
+        ${estado.modo !== "especialista" && faltandoNaFicha(p).length ? `<div style="margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5">
+          <b>Falta preencher:</b> ${esc(faltandoNaFicha(p).join(", "))}.<br>Sem isso não dá para anunciar este produto.
+        </div>` : ""}
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:11.5px;color:var(--muted);line-height:1.6">
           Estes dados valem para todos os marketplaces onde você vende.
         </div>
+        ${estado.modo !== "especialista" ? `<button data-editar="${esc(p.id)}" class="btnsm" style="width:100%;margin-top:12px">Editar ficha</button>` : ""}
       </div>
       <div>
         <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">Anúncios deste produto</div>
@@ -643,6 +680,7 @@ function telaProduto() {
     </div>`;
   if (window.matchMedia("(max-width:720px)").matches) $("grade").style.gridTemplateColumns = "1fr";
   document.querySelectorAll("[data-quero]").forEach((b) => { b.onclick = () => popup(b.dataset.quero, p); });
+  document.querySelectorAll("[data-editar]").forEach((b) => { b.onclick = () => abrirFicha(p); });
   document.querySelectorAll("[data-midia] img").forEach((im) => { im.onerror = () => driveQuebrou(im); });
   if (estado.modo === "especialista") ligarRegistro(p, meus);
 }
@@ -733,45 +771,75 @@ const fechar = () => $("mask").classList.remove("ver");
 $("mask").onclick = (e) => { if (e.target === $("mask")) fechar(); };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") fechar(); });
 
-// ─── EDIÇÃO (só quem é da equipe) ─────────────────────────────────────
+// ─── A FICHA DO PRODUTO ───────────────────────────────────────────────
 //
-// Existe porque importação de planilha erra: nome que não bate, SKU que veio
-// do anúncio errado, anúncio que foi parar na loja trocada. Sem uma tela para
-// desfazer, o conserto seria mexer no banco direto — e aí ninguém mexe, e o
-// dado errado fica.
+// Serve a duas pessoas na mesma tela. O CLIENTE preenche a ficha do produto
+// dele, que antes só entrava por planilha. A EQUIPE usa a mesma tela para
+// consertar o que a importação errou — nome que não bate, SKU do anúncio
+// trocado — e só ela vê desvincular anúncio e apagar produto.
 //
-// O cliente não vê nada disto: as regras do Firestore só deixam funcionário
-// escrever em products e listings, e o botão nem é desenhado para ele.
+// A gravação NÃO é direta no Firestore. A regra proíbe o cliente de escrever
+// `mkts`, e sem esse campo o produto nasce invisível para o especialista, que
+// é justamente quem precisa dele para anunciar. Quem grava é o backend, que
+// carimba os marketplaces do proprietário.
 
-function abrirEdicao(p) {
-  const meus = anunciosDe(p);
-  const campo = (id, rot, val, ph) => `
-    <div style="margin-bottom:11px">
-      <span class="rot">${rot}</span>
-      <input id="ed-${id}" class="finput" value="${esc(val ?? "")}" placeholder="${esc(ph || "")}">
+function abrirFicha(p) {
+  const criando = !p;
+  const produto = p || {};
+  const meus = criando ? [] : anunciosDe(produto);
+
+  // Os campos vêm da MESMA lista que o backend usa para recusar a gravação
+  // (o ficha-produto importado acima, espelhado em functions/). Se estivessem
+  // escritos duas vezes, a tela pediria uma coisa e o servidor recusaria outra.
+  //
+  // Não escreva o caminho com pasta em comentário aqui: o carimbo de versão
+  // varre o arquivo inteiro e trata QUALQUER menção sem ?v= como referência
+  // sem carimbo, o que barra a publicação.
+  const valorDe = (c) => {
+    const v = produto[c.campo];
+    return Array.isArray(v) ? v.join("\n") : (v ?? "");
+  };
+  const campo = (c) => {
+    const entrada = c.longo
+      ? `<textarea id="ed-${c.campo}" class="finput" rows="${c.linhas || 3}" style="resize:vertical;font:inherit" placeholder="${esc(c.dica || "")}">${esc(valorDe(c))}</textarea>`
+      : `<input id="ed-${c.campo}" class="finput" value="${esc(valorDe(c))}" placeholder="${esc(c.dica || "")}">`;
+    return `<div style="margin-bottom:11px">
+      <span class="rot">${esc(c.rotulo)}${c.obrigatorio ? ` <b style="color:#b91c1c">*</b>` : ""}</span>
+      ${entrada}
     </div>`;
+  };
+  const obrigatorios = CAMPOS_DA_FICHA.filter((c) => c.obrigatorio);
+  const opcionais = CAMPOS_DA_FICHA.filter((c) => !c.obrigatorio);
+  const custoAtual = (produto.custo === null || produto.custo === undefined)
+    ? "" : String(produto.custo).replace(".", ",");
 
-  $("popConteudo").style.maxWidth = "560px";
+  $("popConteudo").style.maxWidth = "580px";
   $("popConteudo").style.textAlign = "left";
   $("popConteudo").innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
       <div>
-        <div style="font-size:16px;font-weight:800">Editar produto</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Só a equipe vê esta tela.</div>
+        <div style="font-size:16px;font-weight:800">${criando ? "Novo produto" : "Ficha do produto"}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Os campos com <b style="color:#b91c1c">*</b> são o que quem for anunciar precisa saber.</div>
       </div>
       <button id="ed-x" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
     </div>
-    ${campo("nome", "Nome", p.nome, "Nome do produto")}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${campo("sku", "SKU", p.sku, "vazio = sem SKU")}
-      ${campo("custo", "Custo", p.custo ?? "", "0,00")}
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${campo("peso", "Peso", p.peso, "")}
-      ${campo("medidas", "Medidas da embalagem", p.medidas, "")}
-    </div>
-    ${campo("fotos", "Link das fotos (Drive)", p.fotos, "https://drive.google.com/...")}
 
+    <div id="ed-erro" role="alert" style="display:none;background:#fef2f2;color:#b91c1c;border-radius:9px;padding:10px 13px;font-size:12.5px;margin-bottom:14px;line-height:1.5"></div>
+
+    ${obrigatorios.map(campo).join("")}
+
+    <details style="margin:14px 0 4px"${opcionais.some((c) => valorDe(c)) ? " open" : ""}>
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--ink-2);font-weight:600">Mais detalhes (opcional)</summary>
+      <div style="margin-top:12px">${opcionais.map(campo).join("")}</div>
+    </details>
+
+    <div style="margin-bottom:4px">
+      <span class="rot">Custo</span>
+      <input id="ed-custo" class="finput" inputmode="decimal" value="${esc(custoAtual)}" placeholder="0,00">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5">Quanto o produto custa para você. Sem ele não dá para calcular a sua margem. Deixar em branco não apaga o custo que já estiver salvo.</div>
+    </div>
+
+    ${estado.souEquipe && !criando ? `
     <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px">Anúncios deste produto</div>
       ${meus.length ? meus.map((a) => {
@@ -786,10 +854,10 @@ function abrirEdicao(p) {
         </div>`;
       }).join("") : `<div style="font-size:12.5px;color:var(--muted)">Nenhum anúncio.</div>`}
       <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:6px">Desvincular apaga o anúncio daqui. O anúncio no marketplace continua no ar — some só desta tela, e volta se você reimportar a planilha.</div>
-    </div>
+    </div>` : ""}
 
     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:18px;flex-wrap:wrap">
-      <button id="ed-apagar" class="btnsm" style="color:#b91c1c">Apagar produto</button>
+      ${estado.souEquipe && !criando ? `<button id="ed-apagar" class="btnsm" style="color:#b91c1c">Apagar produto</button>` : `<span></span>`}
       <div style="display:flex;gap:8px">
         <button id="ed-cancelar" class="btnsm">Cancelar</button>
         <button id="ed-salvar" class="btn" style="width:auto;padding:9px 20px">Salvar</button>
@@ -797,43 +865,76 @@ function abrirEdicao(p) {
     </div>`;
   $("mask").classList.add("ver");
 
+  // Botão dentro de modal não é alcançado por delegação neste projeto: cada um
+  // é ligado à mão, aqui, logo depois do innerHTML.
   $("ed-x").onclick = $("ed-cancelar").onclick = fechar;
+
   document.querySelectorAll("[data-desv]").forEach((b) => {
     b.onclick = async () => {
       b.disabled = true; b.textContent = "…";
       try {
         await deleteDoc(doc(db, "listings", b.dataset.desv));
         estado.anuncios = estado.anuncios.filter((x) => x.id !== b.dataset.desv);
-        abrirEdicao(p);
+        abrirFicha(produto);
       } catch (e) { alert("Não consegui desvincular: " + (e.message || "")); b.disabled = false; b.textContent = "Desvincular"; }
     };
   });
-  $("ed-apagar").onclick = async () => {
-    if (!confirm(`Apagar "${p.nome}"? Os anúncios dele ficam sem produto.`)) return;
+
+  const apagar = $("ed-apagar");
+  if (apagar) apagar.onclick = async () => {
+    if (!confirm(`Apagar "${produto.nome}"? Os anúncios dele ficam sem produto.`)) return;
     try {
-      await deleteDoc(doc(db, "products", p.id));
-      estado.produtos = estado.produtos.filter((x) => x.id !== p.id);
+      await deleteDoc(doc(db, "products", produto.id));
+      estado.produtos = estado.produtos.filter((x) => x.id !== produto.id);
       estado.aberto = null; fechar(); desenhar();
     } catch (e) { alert("Não consegui apagar: " + (e.message || "")); }
   };
+
   $("ed-salvar").onclick = async () => {
     const v = (id) => ($(`ed-${id}`) || {}).value ?? "";
-    const custoTexto = v("custo").replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
-    const custo = custoTexto === "" ? null : Number(custoTexto);
-    if (custo !== null && !isFinite(custo)) { alert("Custo inválido."); return; }
+    const dados = { custo: v("custo") };
+    for (const c of CAMPOS_DA_FICHA) dados[c.campo] = v(c.campo);
+    if (!criando) dados.id = produto.id;
+    // A equipe entrando como cliente precisa dizer de quem é a ficha. O
+    // cliente não: para ele vale a claim do token, não o que a tela mandar.
+    if (estado.souEquipe) dados.custId = estado.custId;
+
+    const erro = $("ed-erro");
+    const mostrarErro = (t) => { erro.textContent = t; erro.style.display = "block"; };
+    erro.style.display = "none";
+
+    // A tela confere antes de ir ao servidor, com a MESMA lista que ele usa.
+    // É só para não fazer o cliente esperar a ida e volta: quem decide é o
+    // backend, que confere de novo.
+    const faltando = faltandoNaFicha(dados);
+    if (faltando.length) {
+      mostrarErro(faltando.length === 1
+        ? `Falta preencher: ${faltando[0]}.`
+        : `Faltam preencher: ${faltando.join(", ")}.`);
+      const primeiro = CAMPOS_DA_FICHA.find((c) => c.rotulo === faltando[0]);
+      if (primeiro && $(`ed-${primeiro.campo}`)) $(`ed-${primeiro.campo}`).focus();
+      return;
+    }
+
     const b = $("ed-salvar"); b.disabled = true; b.textContent = "Salvando...";
-    const patch = {
-      nome: v("nome").trim(), sku: v("sku").trim(), peso: v("peso").trim(),
-      medidas: v("medidas").trim(), fotos: v("fotos").trim(),
-      atualizadoEm: new Date().toISOString(), editadoPelaEquipe: true,
-    };
-    if (custo !== null) patch.custo = custo;
     try {
-      await setDoc(doc(db, "products", p.id), patch, { merge: true });
-      Object.assign(p, patch);
+      const r = await salvarFicha(dados);
+      const salvo = r.produto || {};
+      if (criando) {
+        estado.produtos = estado.produtos
+          .filter((x) => x.id !== r.id)
+          .concat([{ ...salvo, id: r.id }])
+          .sort((x, y) => (x.nome || "").localeCompare(y.nome || "", "pt-BR"));
+        // O produto novo pode trazer marketplaces que esta tela ainda não
+        // conhecia — sem isto o "Quero anunciar" dele não apareceria.
+        estado.mkts = [...new Set(estado.mkts.concat(salvo.mkts || []))];
+        estado.aberto = estado.produtos.find((x) => x.id === r.id) || null;
+      } else {
+        Object.assign(produto, salvo);
+      }
       fechar(); desenhar();
     } catch (e) {
-      alert("Não consegui salvar: " + (e.message || ""));
+      mostrarErro(e.message || "Não consegui salvar.");
       b.disabled = false; b.textContent = "Salvar";
     }
   };

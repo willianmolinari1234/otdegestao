@@ -173,3 +173,29 @@ test("a equipe preenchendo pelo cliente aparece como quem digitou", () => {
   const { doc } = montar({}, { autor: { uid: "u-equipe", emNomeDe: "cust1" } });
   assert.deepEqual(doc.criadoPor, { uid: "u-equipe", emNomeDe: "cust1" });
 });
+
+// ─── foto e vídeo com mais de um link ─────────────────────────────────
+test("um link só continua texto, como o dado já existe hoje", () => {
+  const { doc } = montar();
+  assert.equal(typeof doc.fotos, "string");
+  assert.equal(doc.fotos, "https://drive.google.com/drive/folders/abc123");
+});
+
+test("vários links, um por linha, viram lista", () => {
+  const { doc } = montar({ fotos: "https://drive.google.com/a\nhttps://drive.google.com/b" });
+  assert.deepEqual(doc.fotos, ["https://drive.google.com/a", "https://drive.google.com/b"]);
+});
+
+test("linha em branco no meio não vira link vazio", () => {
+  const { doc } = montar({ fotos: "https://drive.google.com/a\n\n  \nhttps://drive.google.com/b\n" });
+  assert.deepEqual(doc.fotos, ["https://drive.google.com/a", "https://drive.google.com/b"]);
+});
+
+test("lista que chega como array é preservada", () => {
+  const { doc } = montar({ video: ["https://drive.google.com/v1", "https://drive.google.com/v2"] });
+  assert.deepEqual(doc.video, ["https://drive.google.com/v1", "https://drive.google.com/v2"]);
+});
+
+test("foto só com espaços continua contando como faltando", () => {
+  assert.throws(() => montar({ fotos: "  \n  " }), /Falta preencher: Foto\./);
+});

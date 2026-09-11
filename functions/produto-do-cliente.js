@@ -14,57 +14,22 @@
 //
 // Este arquivo não conhece Firestore nem rede. É só a decisão do que gravar,
 // no padrão do `tarefas-automaticas.js` e do `backfill-denormalizados.js`.
+//
+// Quais campos a ficha tem e quais são obrigatórios vem de `ficha-produto.js`,
+// que é cópia gerada de `js/ficha-produto.js` — a MESMA lista que a tela usa
+// para desenhar o formulário. Sem isso, tela e backend divergiriam e o cliente
+// preencheria o que a tela pede para levar erro do servidor.
+
+import {
+  CAMPOS_DA_FICHA, texto, listaDeLinks, faltandoNaFicha, chaveDoProduto, idDoProduto,
+} from "./ficha-produto.js";
+
+// Reexportados para quem importa só este módulo não precisar saber que a
+// definição da ficha mora no espelho.
+export { CAMPOS_DA_FICHA, faltandoNaFicha, chaveDoProduto, idDoProduto };
 
 export class ErroProduto extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
-}
-
-// Os obrigatórios decididos com o Willian em 11/09/2026. É a ficha que o
-// especialista precisa para conseguir anunciar — não é a precificação.
-// `custo` de propósito NÃO está aqui: o cliente que ainda não sabe o custo
-// precisa conseguir mandar o resto, e o custo tem tratamento próprio lá
-// embaixo.
-export const CAMPOS_DA_FICHA = [
-  { campo: "nome",           rotulo: "Nome do produto",       obrigatorio: true },
-  { campo: "sku",            rotulo: "SKU",                   obrigatorio: true },
-  { campo: "peso",           rotulo: "Peso",                  obrigatorio: true },
-  { campo: "medidasProduto", rotulo: "Medidas do produto",    obrigatorio: true },
-  { campo: "medidas",        rotulo: "Medidas da embalagem",  obrigatorio: true },
-  { campo: "fotos",          rotulo: "Foto",                  obrigatorio: true },
-  { campo: "obs",            rotulo: "Observações",           obrigatorio: true },
-  { campo: "tamanhos",       rotulo: "Tamanhos",              obrigatorio: false },
-  { campo: "cores",          rotulo: "Cores",                 obrigatorio: false },
-  { campo: "material",       rotulo: "Material",              obrigatorio: false },
-  { campo: "video",          rotulo: "Vídeo",                 obrigatorio: false },
-];
-
-const texto = (v) => (v === null || v === undefined) ? "" : String(v).trim();
-
-/**
- * O que falta na ficha, em português, para a tela dizer ao cliente.
- * Serve tanto para barrar o salvamento quanto para marcar na lista o produto
- * que veio da planilha e está incompleto.
- */
-export function faltandoNaFicha(produto) {
-  const p = produto || {};
-  return CAMPOS_DA_FICHA
-    .filter((c) => c.obrigatorio && !texto(Array.isArray(p[c.campo]) ? p[c.campo][0] : p[c.campo]))
-    .map((c) => c.rotulo);
-}
-
-/**
- * Id determinístico, como todo o resto do projeto: `custId__chave`.
- * Mesma normalização da `idDoProduto()` do `js/planilha-produtos.js` — as duas
- * precisam produzir o MESMO id, senão o cliente cadastra um produto e a
- * reimportação da planilha cria um segundo com outro nome do mesmo item.
- */
-export function chaveDoProduto(valor) {
-  return String(valor || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
-}
-
-export function idDoProduto(custId, chave) {
-  return `${custId}__${chaveDoProduto(chave) || "sem-nome"}`;
 }
 
 /**
@@ -89,8 +54,13 @@ export function montarProdutoDoCliente({
 }) {
   if (!custId) throw new ErroProduto("Não consegui identificar de quem é este produto.", 403);
 
+  // Foto e vídeo aceitam vários links, um por linha: um link só continua
+  // guardado como texto, porque é assim que o dado já existe e a miniatura
+  // distingue os dois casos.
   const ficha = {};
-  for (const { campo } of CAMPOS_DA_FICHA) ficha[campo] = texto(entrada[campo]);
+  for (const { campo, longo, linhas } of CAMPOS_DA_FICHA) {
+    ficha[campo] = (longo && linhas) ? listaDeLinks(entrada[campo]) : texto(entrada[campo]);
+  }
 
   const faltando = faltandoNaFicha(ficha);
   if (faltando.length) {
