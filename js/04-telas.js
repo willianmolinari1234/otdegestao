@@ -333,10 +333,13 @@ function avisoFerramentasHTML(){
   const agora=Math.floor(Date.now()/1000);
   const nomeLoja=(id)=>{const c=clis.find(x=>x.id===id);return c?c.name:id;};
 
-  const semDesc=new Set(window.prazos.semFerramenta(tools,"desconto",agora).map(x=>x.cliente));
-  const semRel=new Set(window.prazos.semFerramentaNemAgendada(tools,"flash_sale",agora).map(x=>x.cliente));
-  const minimos=new Map(window.prazos.abaixoDoMinimo(tools,agora).map(x=>[x.cliente,x]));
-  const vence=window.prazos.vencendo(tools,agora,2);
+  // Com o mínimo de cupons de cada loja junto: loja de ticket baixo é cobrada
+  // em 2, não nos 4 do padrão.
+  const lojasTools=toolsComMinimo();
+  const semDesc=new Set(window.prazos.semFerramenta(lojasTools,"desconto",agora).map(x=>x.cliente));
+  const semRel=new Set(window.prazos.semFerramentaNemAgendada(lojasTools,"flash_sale",agora).map(x=>x.cliente));
+  const minimos=new Map(window.prazos.abaixoDoMinimo(lojasTools,agora).map(x=>[x.cliente,x]));
+  const vence=window.prazos.vencendo(lojasTools,agora,2);
 
   const ids=[...new Set([...semDesc,...semRel,...minimos.keys()])];
   const lojas=ids.map(id=>{
@@ -474,6 +477,28 @@ function avisoConferenciaHTML(){
   </div>`;
 }
 
+// Lojas sem responsável — o aviso que substitui o seu papel de roteador.
+//
+// Enquanto uma loja não tem dono, o alerta dela vira tarefa SEM DONO: ninguém
+// da equipe a enxerga (o funcionário só lê as tarefas com o próprio id) e ela
+// fica parada esperando você. Por isso o aviso mostra quantas tarefas já estão
+// nesse limbo: é o custo de não ter preenchido o campo, escrito em número.
+function avisoSemResponsavelHTML(){
+  if(!isAdmin())return "";
+  const orfas=clis.filter(c=>!respDaLoja(c));
+  if(!orfas.length)return "";
+  const paradas=tsks.filter(t=>t.auto&&t.status!=="done"&&!t.emp).length;
+  const nomes=orfas.slice(0,AVISO_MAX_NOMES).map(c=>esc(c.name)).join(" · ");
+  return`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #64748b;border-radius:12px;padding:13px 18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+      <span style="font-size:13px;font-weight:700;color:#334155">🙋 ${orfas.length===1?"1 loja está":`${orfas.length} lojas estão`} sem responsável</span>
+      ${paradas>0?`<span style="background:#dc2626;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${paradas} tarefa(s) sem dono</span>`:""}
+    </div>
+    <div style="font-size:12px;color:#475569;line-height:1.7">${nomes}${orfas.length>AVISO_MAX_NOMES?` <span style="color:#94a3b8">…e mais ${orfas.length-AVISO_MAX_NOMES}</span>`:""}</div>
+    <div style="font-size:11.5px;color:#64748b;margin-top:6px">Defina em <strong>Clientes / Contas</strong> — a coluna Responsável salva na hora.</div>
+  </div>`;
+}
+
 function rDash(){
   const ts=visibleTasks().filter(t=>inRange(t.date));
   const tot=ts.length,td=ts.filter(t=>t.status==="todo").length,
@@ -527,11 +552,12 @@ function rDash(){
           <div style="font-size:10.5px;color:#94a3b8">${c?esc(c.name):"—"} · ${e?esc(e.name):"—"} · ${fmtDate(t.date)}</div>
         </div>
         <span class="deadline" style="background:${di.bg};color:${di.color}">${di.label}</span>
-        ${priB(t.pri)}${stB(t.status)}
+        ${autoBadgeHTML(t)}${priB(t.pri)}${stB(t.status)}
       </div>`;
     }).join("");
 
   return`
+    ${avisoSemResponsavelHTML()}
     ${avisoFerramentasHTML()}
     ${rangeBarHTML()}
     <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
@@ -625,6 +651,7 @@ function rKanban(){
           <span class="deadline" style="background:${di.bg};color:${di.color}">${di.label}</span>
           ${priB(t.pri)}
           ${isAdTask(t)?`<span class="badge" style="background:#dcfce7;color:#16a34a">📢 ${adQtyOf(t)}</span>`:""}
+          ${autoBadgeHTML(t)}
         </div>
         ${(e||c)?`<div style="display:flex;align-items:center;gap:6px;margin:8px 0 0 18px;font-size:10.5px;color:#94a3b8;min-width:0">
           ${e?avHTML(e,18):""}
@@ -859,11 +886,39 @@ async function desconectarLoja(cliId){
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────
+// A célula de Responsável.
+//
+// É um <select> na própria linha e não um botão que abre o cadastro: são 41
+// lojas para preencher de uma vez, e um modal por loja transformaria cinco
+// minutos de trabalho numa tarde. Salva sozinho ao escolher.
+function respCelulaHTML(c,optsFn){
+  const r=respDaLoja(c);
+  if(!isAdmin()){
+    // O funcionário comum só tem o PRÓPRIO cadastro em memória (a regra do
+    // Firestore não deixa ele ler a equipe). Então ele consegue reconhecer as
+    // lojas dele, e das outras só dá para dizer que TÊM dono — escrever "—"
+    // ali diria que estão órfãs, que é justamente o contrário.
+    if(r)return`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px">${avHTML(r,20)}${esc(r.name)}</span>`;
+    if(c.respId)return`<span style="font-size:12px;color:#64748b">Outro responsável</span>`;
+    return`<span style="font-size:12px;color:#94a3b8">— sem responsável —</span>`;
+  }
+  return`<div style="display:flex;align-items:center;gap:6px">
+    ${r?avHTML(r,20):`<span title="Sem responsável" style="width:20px;height:20px;border-radius:50%;background:#f1f5f9;border:1px dashed #cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8">?</span>`}
+    <select data-setresp="${c.id}" class="finput" style="height:30px;padding:2px 6px;font-size:12px;min-width:132px;${r?"":"border-color:#fca5a5;background:#fff7f7"}">
+      <option value=""${c.respId?"":" selected"}>— Sem responsável —</option>${optsFn(c)}
+    </select>
+  </div>`;
+}
+
 function rClientes(){
   // Filter stores by selected owner AND by ERP
   let filtered=fCust==="all"?clis.slice():clis.filter(c=>c.custId===fCust);
   if(fErp!=="all")filtered=filtered.filter(c=>erpOfStore(c)===fErp);
   if(fMkt!=="all")filtered=filtered.filter(c=>(c.mkt||"")===fMkt);
+  // "sem" é o filtro que importa no começo: isola exatamente as lojas que
+  // ainda precisam de dono para o alerta virar tarefa endereçada.
+  if(fResp==="sem")filtered=filtered.filter(c=>!respDaLoja(c));
+  else if(fResp!=="all")filtered=filtered.filter(c=>c.respId===fResp);
   // Sort: owners with more stores first, then keep each owner's stores grouped together,
   // and finally alphabetical by store name within the same owner.
   const storeCountOf=cid=>cid?storesOfCust(cid).length:0;
@@ -892,6 +947,12 @@ function rClientes(){
   const erpOpts=usedErps.map(k=>`<option value="${k}"${fErp===k?" selected":""}>${esc(ERP_PRESETS[k]?ERP_PRESETS[k].label:k)}</option>`).join("");
   const usedMkts=[...new Set(clis.map(c=>c.mkt).filter(Boolean))];
   const mktOpts=usedMkts.map(m=>`<option value="${esc(m)}"${fMkt===m?" selected":""}>${esc(m)}</option>`).join("");
+  const semResp=clis.filter(c=>!respDaLoja(c)).length;
+  const respFiltroOpts=emps.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"))
+    .map(e=>`<option value="${e.id}"${fResp===e.id?" selected":""}>${esc(e.name)} (${clis.filter(c=>c.respId===e.id).length})</option>`).join("");
+  // Opções do seletor que fica DENTRO da linha, para atribuir sem abrir modal.
+  const respCelulaOpts=(c)=>emps.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"))
+    .map(e=>`<option value="${e.id}"${c.respId===e.id?" selected":""}>${esc(e.name)}</option>`).join("");
   const rows=filtered.map(c=>{
     const open=tsks.filter(t=>t.cli===c.id&&t.status!=="done").length;
     const _cu=c.custId?getCust(c.custId):null;
@@ -904,6 +965,7 @@ function rClientes(){
         ${ownerBadgeHTML(c)}
       </td>
       <td style="text-align:center">${mktBadge(c.mkt)}</td>
+      <td>${respCelulaHTML(c,respCelulaOpts)}</td>
       <td><span style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:13px;color:${open>0?"#dc2626":"#16a34a"}"><span style="width:7px;height:7px;border-radius:50%;background:${open>0?"#dc2626":"#16a34a"};display:inline-block"></span>${open}</span></td>
       <td><div style="display:flex;gap:6px;align-items:center">
         <button data-acc="${c.id}" title="Ver acessos da loja" class="acc-btn${hasAcc?" has":""}">🔑 Acesso</button>
@@ -920,7 +982,12 @@ function rClientes(){
     ${custs.length>0?`<select id="cli-cust-filter" data-search data-placeholder="🔍 Buscar cliente..."><option value="all">Todos os clientes (${clis.length} lojas)</option>${cuOpts}</select>`:""}
     ${usedErps.length>0?`<select id="cli-erp-filter"><option value="all">Todos os ERPs</option>${erpOpts}</select>`:""}
     ${usedMkts.length>0?`<select id="cli-mkt-filter"><option value="all">Todos os marketplaces</option>${mktOpts}</select>`:""}
-    ${(fCust!=="all"||fErp!=="all"||fMkt!=="all")?'<button class="btn-sm" id="cli-clear-filter">✕ Limpar</button>':""}
+    ${isAdmin()?`<select id="cli-resp-filter">
+      <option value="all">Todos os responsáveis</option>
+      <option value="sem"${fResp==="sem"?" selected":""}>⚠ Sem responsável (${semResp})</option>
+      ${respFiltroOpts}
+    </select>`:""}
+    ${(fCust!=="all"||fErp!=="all"||fMkt!=="all"||fResp!=="all")?'<button class="btn-sm" id="cli-clear-filter">✕ Limpar</button>':""}
   </div>`:"";
 
   return`
@@ -932,7 +999,7 @@ function rClientes(){
     </div>`:''}
     ${filterBar}
     <div class="card-table">
-      <table><thead><tr><th>Loja</th><th style="text-align:center">Marketplace</th><th>Em aberto</th><th>Ações</th></tr></thead>
+      <table><thead><tr><th>Loja</th><th style="text-align:center">Marketplace</th><th>Responsável</th><th>Em aberto</th><th>Ações</th></tr></thead>
       <tbody>${rows}</tbody></table>
       ${filtered.length===0?`<p style="text-align:center;color:#94a3b8;padding:28px 0;font-size:13px">${clis.length===0?"Nenhuma loja cadastrada.":"Nenhuma loja para o cliente selecionado."}</p>`:""}
     </div>`;
@@ -945,6 +1012,12 @@ function rEquipe(){
     const dn=et.filter(t=>t.status==="done").length;
     const p=pct(dn,et.length);
     const urg=et.filter(t=>t.pri==="alta"&&t.status!=="done").length;
+    // Retrabalho: quantas vezes uma tarefa desta pessoa foi marcada como
+    // concluída e a Shopee continuou mostrando a pendência depois disso.
+    // É a métrica que o painel não tinha — e a razão de a tarefa automática
+    // existir. Não aparece enquanto for zero: número zerado ocupando espaço
+    // ensina a não olhar para ele.
+    const reab=et.reduce((a,t)=>a+Number(t.reaberturas||0),0);
     const roleBadge=e.role==="admin"?'<span style="font-size:9px;background:#ea580c;color:white;padding:1px 6px;border-radius:4px;font-weight:700;letter-spacing:.3px">ADMIN</span>':"";
     const hasLogin=e.email?'<span style="font-size:10px;color:#16a34a">📧 '+esc(e.email)+'</span>':'<span style="font-size:10px;color:#94a3b8">Sem e-mail</span>';
     return`<div class="team-card">
@@ -955,7 +1028,10 @@ function rEquipe(){
             <span style="font-size:14px;font-weight:700">${esc(e.name)}</span>
             ${roleBadge}
           </div>
-          ${urg>0?`<span class="badge" style="background:#fee2e2;color:#dc2626">${urg} urgente${urg>1?"s":""}</span>`:""}
+          <span style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+            ${reab>0?`<span class="badge" title="Tarefas marcadas como concluídas que a Shopee mostrou pendentes depois" style="background:#fef3c7;color:#92400e">↻ ${reab} retrabalho</span>`:""}
+            ${urg>0?`<span class="badge" style="background:#fee2e2;color:#dc2626">${urg} urgente${urg>1?"s":""}</span>`:""}
+          </span>
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">${et.length} tarefas · ${dn} concluídas · ${hasLogin}</div>
         <div class="prog-track"><div class="prog-bar" style="background:${e.color};width:${p}%"></div></div>

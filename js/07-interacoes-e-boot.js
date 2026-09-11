@@ -131,11 +131,37 @@ function bindAll(){
   const cf=C.querySelector("#cli-cust-filter");if(cf)cf.onchange=e=>{fCust=e.target.value;render();};
   const cef=C.querySelector("#cli-erp-filter");if(cef)cef.onchange=e=>{fErp=e.target.value;render();};
   const cmf=C.querySelector("#cli-mkt-filter");if(cmf)cmf.onchange=e=>{fMkt=e.target.value;render();};
-  const ccf=C.querySelector("#cli-clear-filter");if(ccf)ccf.onclick=()=>{fCust="all";fErp="all";fMkt="all";render();};
+  const crf=C.querySelector("#cli-resp-filter");if(crf)crf.onchange=e=>{fResp=e.target.value;render();};
+  const ccf=C.querySelector("#cli-clear-filter");if(ccf)ccf.onclick=()=>{fCust="all";fErp="all";fMkt="all";fResp="all";render();};
   // My-only toggle
   const my=C.querySelector("#k-myonly");if(my)my.onclick=()=>{myOnly=!myOnly;render();};
   // Drag & drop reordering / status change
   setupKanbanDnD(C);
+  // Atribuir responsável direto na linha da tabela de lojas.
+  //
+  // Delegado e vinculado uma vez só, pelo mesmo motivo do clique: o #content
+  // sobrevive aos renders, então registrar a cada render empilharia handlers e
+  // a mesma escolha gravaria várias vezes.
+  if(!C._changeBound){C._changeBound=true;
+  C.addEventListener("change",async ev=>{
+    const sr=ev.target.closest("[data-setresp]");
+    if(!sr)return;
+    const cliId=sr.dataset.setresp, novo=sr.value||"";
+    const loja=getCli(cliId);
+    if(loja&&(loja.respId||"")===novo)return;
+    try{
+      // Patch parcial: o documento da loja guarda senha de marketplace e
+      // percentuais. Regravar o objeto inteiro a partir da tela seria arriscar
+      // apagar campo que esta tela nem conhece.
+      await fbUpdate("clients",cliId,{respId:novo});
+      const e=novo?getEmp(novo):null;
+      showToast(e?`${loja?loja.name:"Loja"} → ${e.name}`:"Responsável removido");
+    }catch(err){
+      showToast("Erro ao salvar responsável: "+(err.message||""),"error");
+      render();
+    }
+  });
+  }
   // Task actions via delegation — vincula UMA única vez.
   // O #content persiste entre renders (só o innerHTML muda), então adicionar o
   // listener a cada render() empilhava handlers duplicados. O guard resolve.

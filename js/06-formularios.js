@@ -22,7 +22,14 @@ function openTaskView(taskId){
       ${stB(t.status)}
       ${priB(t.pri)}
       <span class="deadline" style="background:${di.bg};color:${di.color};font-size:11.5px;padding:3px 9px">${di.label}</span>
+      ${autoBadgeHTML(t)}
     </div>
+    ${t.auto?`<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 15px;margin-bottom:18px;font-size:12.5px;color:#3730a3;line-height:1.6">
+      Esta tarefa nasceu de um alerta da loja e <strong>se fecha sozinha</strong> quando a
+      Shopee deixar de mostrar a pendência — não precisa marcar concluída.
+      ${Number(t.reaberturas||0)>0?`<br>Já foi marcada como concluída <strong>${Number(t.reaberturas)}×</strong> com a pendência ainda no ar.`:""}
+      <br><span style="color:#6366f1">Título, prazo e descrição são reescritos a cada verificação: editar à mão não segura.</span>
+    </div>`:""}
     ${t.desc?`<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13.5px;color:#334155;line-height:1.6;white-space:pre-wrap">${esc(t.desc)}</div>`
             :`<div style="font-size:12.5px;color:#cbd5e1;font-style:italic;margin-bottom:18px">Sem descrição.</div>`}
     <div style="border-top:1px solid #f1f5f9">
@@ -147,6 +154,13 @@ function openClientForm(clientId){
   const herdado={fee:dono?pctNum(dono.fee):null,imposto:dono?pctNum(dono.imposto):null};
   const mOpts=MKTS.map(m=>`<option${c&&c.mkt===m?" selected":""}>${esc(m)}</option>`).join("");
   const cuOpts=custs.map(cu=>`<option value="${cu.id}"${c&&c.custId===cu.id?" selected":""}>${esc(cu.name)}</option>`).join("");
+  // Responsável: quem responde por esta loja no dia a dia. É deste campo que
+  // sai o dono das tarefas geradas pelos alertas — loja sem responsável gera
+  // tarefa sem dono, que aparece só no painel do admin.
+  const respOpts=emps.slice()
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"))
+    .map(e=>`<option value="${e.id}"${c&&c.respId===e.id?" selected":""}>${esc(e.name)}</option>`).join("");
+  const perfilAtual=(c&&c.perfilCupons)||"padrao";
   const acc=c&&c.access?c.access:{url:"",user:"",pass:"",notes:""};
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -162,6 +176,26 @@ function openClientForm(clientId){
           <button type="button" id="cf-new-cust" class="btn-sm" title="Novo cliente">+</button>
         </div>
       </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;max-width:540px">
+      <div class="form-group">
+        <label>🙋 Responsável pela loja</label>
+        <select id="cf-resp" class="finput" data-search data-placeholder="🔍 Buscar funcionário...">
+          <option value="">— Sem responsável —</option>${respOpts}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>🎟️ Perfil de cupons</label>
+        <select id="cf-perfil" class="finput">
+          <option value="padrao"${perfilAtual!=="ticketbaixo"?" selected":""}>Padrão — 4 cupons</option>
+          <option value="ticketbaixo"${perfilAtual==="ticketbaixo"?" selected":""}>Ticket baixo — 2 cupons (3% + Prêmio de Seguidor)</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:#64748b;margin-bottom:12px;max-width:540px">
+      O responsável recebe automaticamente as tarefas que nascem dos alertas desta loja.
+      O perfil de cupons define quantos o painel cobra — loja de ticket baixo não é
+      acusada de faltar dois cupons que ela não deve ter.
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;max-width:540px">
       <div class="form-group">
@@ -213,6 +247,8 @@ function openClientForm(clientId){
       name:document.getElementById("cf-name").value,
       mkt:document.getElementById("cf-mkt").value,
       shopeeUser:document.getElementById("cf-shopee-user").value,
+      resp:document.getElementById("cf-resp").value,
+      perfil:document.getElementById("cf-perfil").value,
       url:document.getElementById("cf-acc-url").value,
       user:document.getElementById("cf-acc-user").value,
       pass:document.getElementById("cf-acc-pass").value,
@@ -234,6 +270,8 @@ function openClientForm(clientId){
               document.getElementById("cf-mkt").value=snap.mkt;
               document.getElementById("cf-cust").value=newId;
               document.getElementById("cf-shopee-user").value=snap.shopeeUser||"";
+              document.getElementById("cf-resp").value=snap.resp||"";
+              document.getElementById("cf-perfil").value=snap.perfil||"padrao";
               document.getElementById("cf-acc-url").value=snap.url;
               document.getElementById("cf-acc-user").value=snap.user;
               document.getElementById("cf-acc-pass").value=snap.pass;
@@ -253,6 +291,11 @@ function openClientForm(clientId){
       name,
       mkt:document.getElementById("cf-mkt").value,
       custId:document.getElementById("cf-cust").value||"",
+      // Dono da loja dentro da equipe. Vazio = sem responsável (a tarefa
+      // automática nasce sem dono e fica visível só para o admin).
+      respId:document.getElementById("cf-resp").value||"",
+      // "padrao" (4 cupons) ou "ticketbaixo" (2). Ver PERFIS_CUPOM em prazos.js.
+      perfilCupons:document.getElementById("cf-perfil").value||"padrao",
       // % de comissão da OTDE sobre o faturamento desta loja.
       // Vazio = usa o padrão do sistema (2%).
       comissao:(()=>{const v=document.getElementById("cf-comissao").value.trim();

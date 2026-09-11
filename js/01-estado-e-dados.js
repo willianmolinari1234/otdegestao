@@ -93,6 +93,9 @@ function backendIndisponivel(){
 let currentUser=null;
 let myOnly=false;
 let view="dashboard",fRange="today",fDate=todayISO(),fEmp="all",fCli="all",fCust="all",fSort="prazo",fErp="all",fMkt="all";
+// Filtro por responsável na tela de Clientes. "sem" isola as lojas sem dono,
+// que é a lista que interessa preencher primeiro.
+let fResp="all";
 let repRange="all"; // for reports view
 let repFrom=""; // custom range start (ISO)
 let repTo="";   // custom range end (ISO)

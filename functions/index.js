@@ -11,6 +11,7 @@
 //   syncFerramentas (6 h)    -> promoções ativas em tools/{cliente}
 //   syncHistorico   (5 min)  -> recupera o histórico de lojas novas
 //   conferirVendas  (7h BRT) -> reconfere com a Shopee e acusa divergência
+//   (após syncFerramentas)   -> alerta vira tarefa com dono em tasks/auto__*
 //
 // Segredos (definir com: firebase functions:secrets:set NOME):
 //   SHOPEE_PARTNER_KEY   (o resto fica em functions/.env)
@@ -31,6 +32,10 @@ import {
 import { decidir as decidirBackfill } from "./backfill-denormalizados.js";
 
 import { criarServicoVinculos, ErroVinculo } from "./vinculos-anuncios.js";
+// prazos.js é CÓPIA GERADA de js/prazos.js (ver ferramentas/espelhar-prazos.js).
+// As regras do painel e as do gerador de tarefas têm que ser as mesmas.
+import { semFerramenta, vencendo, minCuponsDoPerfil } from "./prazos.js";
+import { montarPendencias, planejar, diaLocal as diaTarefa } from "./tarefas-automaticas.js";
 
 initializeApp();
 const db = getFirestore();
@@ -843,8 +848,100 @@ async function rodarSyncFerramentas() {
   return { lojas: resultado };
 }
 
+// ---------- Alerta vira tarefa ----------
+// Roda logo depois do sync de ferramentas, com o dado fresco na mão.
+//
+// A decisão do que gravar mora em tarefas-automaticas.js, sem Firestore. Aqui
+// fica só o que precisa de banco: ler, aplicar e contar.
+async function rodarGerarTarefas() {
+  const agoraSeg = Math.floor(Date.now() / 1000);
+  const hoje = diaTarefa(agoraSeg);
+
+  // Cadastro das lojas: é dele que sai o responsável e o perfil de cupons.
+  const lojas = new Map();
+  const snapClientes = await db.collection("clients").get();
+  for (const d of snapClientes.docs) {
+    const c = d.data() || {};
+    lojas.set(d.id, { id: d.id, name: c.name || d.id, respId: c.respId || "", perfilCupons: c.perfilCupons || "padrao" });
+  }
+
+  // Ferramentas por loja, já com o mínimo de cupons que aquela loja deve ter
+  // e com QUANDO a Shopee foi consultada — é esse carimbo que decide se dá
+  // para acusar uma tarefa marcada como concluída.
+  const lojasTools = [];
+  const snapTools = await db.collection("tools").get();
+  for (const d of snapTools.docs) {
+    const t = d.data() || {};
+    const cad = lojas.get(d.id);
+    const sync = t.atualizadoEm && typeof t.atualizadoEm.toMillis === "function"
+      ? t.atualizadoEm.toMillis() : 0;
+    if (cad) cad.sincronizadoEm = sync;
+    lojasTools.push({
+      cliente: d.id,
+      promocoes: Array.isArray(t.promocoes) ? t.promocoes : [],
+      minCupons: minCuponsDoPerfil(cad ? cad.perfilCupons : "padrao"),
+    });
+  }
+
+  const pendencias = montarPendencias({
+    lojasTools,
+    nomeDaLoja: (id) => (lojas.get(id) ? lojas.get(id).name : id),
+    agoraSeg, hoje, semFerramenta, vencendo,
+  });
+
+  // Só as tarefas deste módulo entram na conta. As digitadas por gente nunca
+  // são lidas nem tocadas aqui.
+  const tarefas = [];
+  const snapTasks = await db.collection("tasks").where("auto", "==", true).get();
+  for (const d of snapTasks.docs) tarefas.push({ ...d.data(), id: d.id });
+
+  const plano = planejar({ pendencias, lojas, tarefas, hoje });
+
+  const batch = db.batch();
+  for (const t of plano.criar) {
+    batch.set(db.collection("tasks").doc(t.id), { ...t, criadaEm: FieldValue.serverTimestamp() });
+  }
+  for (const { id, patch } of plano.atualizar) batch.update(db.collection("tasks").doc(id), patch);
+  for (const { id, patch } of plano.fechar) batch.update(db.collection("tasks").doc(id), patch);
+  for (const { id, patch } of plano.reabrir) batch.update(db.collection("tasks").doc(id), patch);
+  const total = plano.criar.length + plano.atualizar.length + plano.fechar.length + plano.reabrir.length;
+  if (total) await batch.commit();
+
+  const semDono = plano.criar.filter((t) => !t.emp).length;
+  if (plano.reabrir.length || semDono) {
+    logger.info("gerarTarefas", { reabertas: plano.reabrir.length, criadasSemDono: semDono });
+  }
+  return {
+    pendencias: pendencias.length,
+    criadas: plano.criar.length, atualizadas: plano.atualizar.length,
+    fechadas: plano.fechar.length, reabertas: plano.reabrir.length,
+    criadasSemDono: semDono,
+  };
+}
+
 export const syncFerramentas = onSchedule({ schedule: "every 6 hours", secrets, timeoutSeconds: 540 }, async () => {
   await rodarSyncFerramentas();
+  // Dado fresco na mão: é o momento certo de transformar alerta em tarefa.
+  // Se a geração falhar, o sync já gravou e não se perde nada — a próxima
+  // rodada refaz o plano inteiro do zero, porque ele não guarda estado.
+  try {
+    await rodarGerarTarefas();
+  } catch (e) {
+    logger.error("gerarTarefas (após syncFerramentas)", e);
+  }
+});
+
+// Geração sob demanda, para não esperar a próxima janela de 6 horas.
+// Uso: /gerarTarefasAgora?token=SEU_TOKEN
+export const gerarTarefasAgora = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  try {
+    res.json({ ok: true, ...(await rodarGerarTarefas()) });
+  } catch (e) {
+    logger.error("gerarTarefasAgora", e);
+    res.status(500).json({ erro: e.message });
+  }
 });
 
 // ---------- 5) Disparo manual dos syncs (protegido por token) ----------
@@ -858,7 +955,10 @@ export const syncAgora = onRequest({ secrets, timeoutSeconds: 540 }, async (req,
   try {
     const out = {};
     if (only !== "tools") out.vendas = await rodarSyncVendas();
-    if (only !== "vendas") out.ferramentas = await rodarSyncFerramentas();
+    if (only !== "vendas") {
+      out.ferramentas = await rodarSyncFerramentas();
+      out.tarefas = await rodarGerarTarefas();
+    }
     res.json({ ok: true, ...out });
   } catch (e) {
     logger.error("syncAgora", e);

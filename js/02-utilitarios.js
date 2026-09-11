@@ -46,7 +46,40 @@ function adQtyOf(t){
   const fromTitle=extractAdQty(t.title);
   return fromTitle>0?fromTitle:1;
 }
+// Selo da tarefa que nasceu de um alerta.
+//
+// Precisa se distinguir da tarefa digitada por duas razões práticas: ela se
+// fecha sozinha quando o problema sai do ar (então "concluir" à mão não é o
+// que prova o trabalho), e reabrir não é castigo de ninguém — é a Shopee
+// ainda mostrando a pendência depois da conclusão.
+function autoBadgeHTML(t){
+  if(!t||!t.auto)return "";
+  const n=Number(t.reaberturas||0);
+  const selo=`<span class="badge" title="Criada automaticamente a partir do alerta da loja. Fecha sozinha quando o problema sair do ar." style="background:#e0e7ff;color:#4338ca">⚡ Automática</span>`;
+  const rea=n>0
+    ?`<span class="badge" title="Foi marcada como concluída ${n===1?"uma vez":n+" vezes"}, mas a Shopee continuou mostrando a pendência depois disso." style="background:#fee2e2;color:#b91c1c">↻ reaberta ${n}×</span>`
+    :"";
+  return selo+rea;
+}
 function getEmp(id){return emps.find(e=>e.id===id)||null;}
+// Responsável de uma loja, já resolvido. Devolve null quando a loja não tem
+// dono OU quando o funcionário que era dono foi removido da equipe — os dois
+// casos exigem a mesma ação de quem vê a tela: escolher alguém.
+function respDaLoja(c){
+  if(!c||!c.respId)return null;
+  return getEmp(c.respId);
+}
+// A lista de ferramentas (vinda da Shopee) enriquecida com o que só o CADASTRO
+// sabe: quantos cupons aquela loja deve manter. As regras de prazos.js não
+// leem `clients` de propósito — elas recebem tudo pronto, e é o que permite
+// testá-las sem banco. O backend monta a mesma lista do lado dele.
+function toolsComMinimo(){
+  return (Array.isArray(tools)?tools:[]).map(t=>{
+    const c=getCli(t.cliente);
+    const perfil=(c&&c.perfilCupons)||"padrao";
+    return {...t, minCupons:window.prazos?window.prazos.minCuponsDoPerfil(perfil):4};
+  });
+}
 function getCli(id){return clis.find(c=>c.id===id)||null;}
 // View helper for tasks: returns a pseudo-store for tasks marked "Todas as lojas" (cli==="all")
 function getCliV(t){
@@ -80,8 +113,15 @@ function setDoneDate(prev,newStatus,patch){
   patch=patch||{};
   if(newStatus==="done"){
     patch.doneDate=(prev&&prev.status==="done"&&prev.doneDate)?prev.doneDate:todayISO();
+    // Carimbo com HORA, além do dia. O dia basta para o relatório, mas não
+    // para decidir se a Shopee foi consultada antes ou depois de alguém
+    // marcar concluído — e é essa comparação que separa "resolveu" de
+    // "marcou concluído e o problema continua". Sem a hora, o gerador de
+    // tarefas precisa esperar o dia virar para poder acusar.
+    patch.doneEm=(prev&&prev.status==="done"&&prev.doneEm)?prev.doneEm:new Date().toISOString();
   }else{
     patch.doneDate=null;
+    patch.doneEm=null;
   }
   return patch;
 }
