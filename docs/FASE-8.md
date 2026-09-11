@@ -12,8 +12,9 @@ Decidido com o Willian em 11/09/2026:
 
 Ordem: bloco A → bloco B → volta para a fase 7 (ML e TikTok).
 
-**Estado em 11/09/2026: bloco A inteiro entregue e não publicado.** 304 testes passando
-(eram 257). O bloco B está parado no portão 1, esperando os números das taxas.
+**Estado em 11/09/2026: blocos A e B entregues e não publicados.** 341 testes passando
+(eram 257). O bloco B está funcional mas **travado**: a estimativa de margem só chega ao
+cliente quando o imposto entrar na conta. Ver o portão 1.
 
 ## Como trabalhar
 
@@ -28,11 +29,18 @@ Com autonomia. O Willian não é técnico e confere abrindo tela.
 
 ## Os portões
 
-### Portão 1 — antes do item 5
+### Portão 1 — o que ainda falta para a margem ser verdadeira
 
-O cálculo da margem precisa dos números que a planilha desconta hoje, **por marketplace**:
-comissão em %, taxa fixa por pedido em R$, e o imposto em %. Pergunta de negócio, só o
-Willian responde. Peça cedo — ele precisa abrir a planilha para levantar.
+Comissão e frete já entraram (11/09/2026). **Faltam três respostas**, todas de negócio:
+
+1. **O imposto** — qual percentual a planilha desconta, e se é igual para todos os
+   clientes ou muda de um para outro. Se mudar por cliente, vira campo em `customers`,
+   não em `js/taxas.js`.
+2. **O frete da Shopee** — a tabela de peso que veio é da Shein. A Shopee cobra frete
+   por venda? Se sim, qual tabela.
+3. **Alguma outra taxa** que a planilha desconte e não esteja na conta.
+
+Sem isso a estimativa sai otimista e fica travada longe da tela do cliente.
 
 ### Portão 2 — antes do bloco C
 
@@ -120,15 +128,22 @@ número que faz o painel do cliente valer alguma coisa.
 **nunca é recalculada**. Preço menos custo dá 52% onde o real é 7,5%. O cálculo novo só
 entra onde não há valor gravado.
 
-## Item 4 — tabela de taxas por marketplace
+## Item 4 — tabela de taxas por marketplace ✅ feito, falta publicar
 
-`config/taxas`, mantida pela equipe. Por marketplace: comissão %, taxa fixa por pedido,
-imposto %. A regra já deixa funcionário ler e escrever `config` — **não mexe em regra.**
+**Mudou de desenho durante a execução, e o motivo importa:** o plano dizia `config/taxas`
+no Firestore, com o cálculo só no backend para a tabela não sair. Mas comissão de
+marketplace é **informação pública** — está no site da Shopee. O que seria sensível é o
+imposto do cliente, que ainda não entrou.
 
-**A tabela não sai para cliente nem para especialista.** O cálculo acontece no backend e
-o que viaja é o resultado. Isolamento ganha de conveniência.
+Então as taxas moram em `js/taxas.js`, espelhado para `functions/`. Ganhos: não mexe nas
+regras do Firestore (risco zero), o mesmo número vale na tela e no backend, e o git guarda
+quando cada taxa mudou — o que nenhuma tela de cadastro daria. Custo: mudar taxa exige
+publicar, o que acontece de qualquer jeito.
 
-## Item 5 — margem calculada
+Números de 11/09/2026: Shopee com cinco faixas de comissão por valor do item; Shein com
+20% fixo mais frete por faixa de peso.
+
+## Item 5 — margem calculada ✅ feito, falta publicar
 
 Função pura, sem Firestore, no padrão do `tarefas-automaticas.js` e do
 `backfill-denormalizados.js`. Preço, custo e a linha de taxas entram; lucro e margem saem.
@@ -138,7 +153,14 @@ Função pura, sem Firestore, no padrão do `tarefas-automaticas.js` e do
 - Na tela, o número calculado é rotulado como estimativa, separado do que veio da
   planilha. Mesma disciplina do aviso do Drive: não afirmar o que não se sabe.
 
-**Termina no portão 1** — sem os números do Willian, o item 5 não começa.
+**A trava que o portão 1 deixou:** cada marketplace tem uma bandeira `completa`, hoje em
+`false` porque falta o imposto (e, na Shopee, o frete). Enquanto for false, a estimativa
+**não aparece para o cliente** — nos exemplos conferidos ela dá 52%, que é exatamente o
+número errado da decisão travada. Quem precifica vê a conta com o aviso de que ela sobra
+mais do que vai sobrar de verdade.
+
+Virar a bandeira para `true` é o que fecha o bloco B, e depende das três respostas do
+portão 1 abaixo.
 
 ---
 

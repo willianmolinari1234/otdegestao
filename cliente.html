@@ -125,6 +125,7 @@ import { getFirestore, collection, query, where, getDocs, getDoc, doc, setDoc, d
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { urlImagemDrive, urlAbrirDrive } from "./js/drive.js?v=64e57ef6";
 import { CAMPOS_DA_FICHA, faltandoNaFicha } from "./js/ficha-produto.js?v=d305bfd7";
+import { calcularMargem } from "./js/taxas.js?v=b572d901";
 
 // Mesma configuração do app da equipe. A apiKey do front é pública por
 // desenho: quem decide o que este login enxerga são as regras do Firestore,
@@ -605,6 +606,38 @@ window.driveQuebrou = function (imgEl) {
   a.innerHTML = `<span>⚠️</span><span>Não foi possível carregar esta imagem. Confira se o arquivo do Drive está como <b>"qualquer pessoa com o link"</b>. <b>Abrir no Drive ↗</b></span>`;
 };
 
+// A margem de um anúncio, na ordem que a decisão travada do projeto manda:
+// o que veio da PLANILHA vale e nunca é recalculado — ela já desconta
+// comissão, frete e imposto reais. Só onde não há número gravado é que a
+// estimativa entra, e entra dizendo que é estimativa.
+function blocoMargem(a, p) {
+  const rot = `<div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>`;
+  const temLucro = a.lucro !== null && a.lucro !== undefined;
+  const temMargem = a.margem !== null && a.margem !== undefined;
+  if (temLucro || temMargem) {
+    return `<div>${rot}<div style="font-size:15px;font-weight:600;color:#3b6d11">${temLucro ? moeda(a.lucro) : ""}${temMargem ? `<span style="font-size:12px;color:#64748b;font-weight:500">${temLucro ? " · " : ""}${Number(a.margem).toFixed(1)}%</span>` : ""}</div></div>`;
+  }
+  const r = calcularMargem({
+    preco: a.preco === null || a.preco === undefined ? null : Number(a.preco),
+    custo: p && p.custo !== undefined ? p.custo : null,
+    peso: p ? p.peso : "", mkt: a.mkt || a.storeMkt,
+  });
+  if (r.lucro === null) {
+    return `<div>${rot}<div style="font-size:12.5px;color:var(--muted)" title="${esc(r.falta.join(", "))}">falta ${esc(r.falta[0] || "informação")}</div></div>`;
+  }
+  // Enquanto a tabela do marketplace não tiver TUDO que a planilha desconta, a
+  // estimativa sai otimista — nos exemplos conferidos, 52% onde o real é da
+  // ordem de 7%. Mostrar isso ao dono do produto é pior do que não mostrar
+  // nada: ele decide preço em cima de um número que não existe.
+  if (!r.completa && !estado.souEquipe && estado.modo === "cliente") {
+    return `<div>${rot}<div style="font-size:12.5px;color:var(--muted)">ainda não informada</div></div>`;
+  }
+  const detalhe = r.descontos.map((d) => `${d.rotulo} -${moeda(d.valor)}`).join(" | ");
+  return `<div>${rot}
+    <div style="font-size:15px;font-weight:600;color:${r.lucro >= 0 ? "#3b6d11" : "#b91c1c"}" title="${esc(detalhe)}">${moeda(r.lucro)}<span style="font-size:12px;color:#64748b;font-weight:500"> · ${r.margem.toFixed(1).replace(".", ",")}%</span></div>
+    <div style="font-size:11px;color:#94a3b8">estimativa pelas taxas do marketplace</div></div>`;
+}
+
 function telaProduto() {
   const p = estado.aberto;
   $("titulo").textContent = p.nome || "Produto";
@@ -621,11 +654,7 @@ function telaProduto() {
       </div>
       <div style="padding:13px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;align-items:center">
         <div><div style="font-size:11.5px;color:#64748b">Preço</div><div style="font-size:15px;font-weight:600">${moeda(a.preco)}</div></div>
-        ${(a.margem !== null && a.margem !== undefined) || (a.lucro !== null && a.lucro !== undefined)
-          ? `<div><div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>
-             <div style="font-size:15px;font-weight:600;color:#3b6d11">${a.lucro !== null && a.lucro !== undefined ? moeda(a.lucro) : ""}${a.margem !== null && a.margem !== undefined ? `<span style="font-size:12px;color:#64748b;font-weight:500">${a.lucro !== null && a.lucro !== undefined ? " · " : ""}${Number(a.margem).toFixed(1)}%</span>` : ""}</div></div>`
-          : `<div><div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>
-             <div style="font-size:13px;color:var(--muted)">ainda não informada</div></div>`}
+        ${blocoMargem(a, p)}
         ${a.link ? `<div style="text-align:right"><a href="${esc(a.link)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">Ver anúncio</a></div>` : ""}
       </div>
     </div>`;
@@ -982,13 +1011,29 @@ function ligarRegistro(p, meus) {
     const n = Number(t);
     return t === "" || !isFinite(n) ? null : n;
   };
+  // Isto mostrava "preço menos custo", chamado de bruto. Era o número que dá
+  // 52% onde o real é 7,5% — o mesmo erro que a decisão travada do projeto
+  // manda nunca cometer. Agora a conta desconta as taxas de verdade e mostra
+  // de onde cada real saiu.
   const recalcular = () => {
     const v = numero(preco.value);
-    if (v === null || p.custo === undefined || p.custo === null) { conta.textContent = ""; return; }
-    const bruto = v - Number(p.custo);
-    conta.innerHTML = `Preço menos custo: <b style="color:${bruto >= 0 ? "#3b6d11" : "#b91c1c"}">${moeda(bruto)}</b>
-      <span style="color:var(--muted)">· ${v ? ((bruto / v) * 100).toFixed(1) : "0"}% do preço</span>
-      <span style="color:var(--muted)"> — bruto, ainda sem as taxas do marketplace</span>`;
+    if (v === null) { conta.textContent = ""; return; }
+    const r = calcularMargem({
+      preco: v, custo: p.custo === undefined ? null : p.custo,
+      peso: p.peso, mkt: estado.mkt,
+    });
+    if (r.lucro === null) {
+      conta.innerHTML = `<span style="color:var(--muted)">Para calcular a margem falta ${esc(r.falta.join(", "))}.</span>`;
+      return;
+    }
+    const cores = r.lucro >= 0 ? "#3b6d11" : "#b91c1c";
+    conta.innerHTML = `Sobra para você: <b style="color:${cores}">${moeda(r.lucro)}</b>
+      <span style="color:var(--muted)">· ${r.margem.toFixed(1).replace(".", ",")}% do preço</span>
+      <div style="color:var(--muted);font-size:11.5px;margin-top:5px;line-height:1.6">
+        ${r.descontos.map((d) => `${esc(d.rotulo)} −${moeda(d.valor)}`).join("<br>")}
+        ${r.avisos.length ? `<br>${r.avisos.map(esc).join("<br>")}` : ""}
+      </div>
+      ${r.completa ? "" : `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;font-size:11.5px;color:#92400e;margin-top:7px;line-height:1.5">Esta conta ainda está incompleta e sobra <b>mais do que vai sobrar de verdade</b>. Use como teto, não como margem.</div>`}`;
   };
   preco.oninput = recalcular;
   recalcular();

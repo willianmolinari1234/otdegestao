@@ -133,6 +133,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Claim em vez de `get()` na regra | Cada `get()` é leitura cobrada e latência por item |
 | Ids determinísticos | Reimportar atualiza em vez de duplicar |
 | Margem e lucro vêm da planilha | **Nunca recalcular.** Preço menos custo dá 52% onde o real é 7,5%, porque a planilha já desconta comissão, frete e imposto |
+| Taxas em `js/taxas.js`, não no Firestore | Comissão de marketplace é pública; em arquivo, não mexe em regra e o git guarda quando cada taxa mudou |
+| Estimativa de margem só sai quando a tabela está completa | `TAXAS[mkt].completa` está `false` enquanto faltar o imposto. Com ela false, o cliente vê "ainda não informada" em vez de 52% |
 | Autoria dupla em toda gravação | `criadoPor` (quem digitou) e `emNomeDe` (por quem) |
 | A ficha do produto é gravada pelo backend | O cliente não pode escrever `mkts`; gravar pelo navegador faria o produto nascer invisível para o especialista |
 | Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, foto, observações | Mais o nome. Custo fica de fora: a ficha é para anunciar, não para precificar |
@@ -196,8 +198,9 @@ Tem guarda para não acusar loja que ainda não sincronizou.
 | `CUPONS-DIAGNOSTICO.command` | Amostra de cupons de uma loja escolhida em lista |
 | `REVERTER-se-quebrar.command` | Volta a publicação anterior |
 
-**Dois arquivos de `js/` são espelhados para `functions/`**: `prazos.js` (regras de alerta)
-e `ficha-produto.js` (quais campos a ficha tem e quais são obrigatórios). O original é o de
+**Três arquivos de `js/` são espelhados para `functions/`**: `prazos.js` (regras de alerta),
+`ficha-produto.js` (campos da ficha e obrigatórios) e `taxas.js` (o que cada marketplace
+desconta). O original é o de
 `js/`; a cópia é gerada por `ferramentas/espelhar-*.js`, refeita no predeploy, e um teste
 quebra se divergirem. Nunca edite a cópia.
 

@@ -80,3 +80,29 @@ test("os rótulos da tela saem da lista compartilhada, não de texto solto", () 
     assert.doesNotMatch(html, solto, `${c.rotulo} está escrito à mão na tela`);
   }
 });
+
+// ── A margem estimada (fase 8, item 5) ────────────────────────────────
+
+test("a margem da planilha vem primeiro e nunca é recalculada", () => {
+  // A decisão travada do projeto. Se a ordem invertesse, o número real seria
+  // trocado por uma estimativa pior, sem erro nenhum aparecer.
+  const i = html.indexOf("function blocoMargem");
+  const trecho = html.slice(i, i + 1400);
+  assert.ok(trecho.indexOf("temLucro || temMargem") < trecho.indexOf("calcularMargem"),
+    "o valor gravado tem que ser testado ANTES de calcular");
+});
+
+test("o cliente não vê estimativa enquanto a tabela de taxas está incompleta", () => {
+  assert.match(html, /!r\.completa && !estado\.souEquipe && estado\.modo === "cliente"/);
+});
+
+test("quem precifica vê a conta, com o aviso de que ela sobra demais", () => {
+  assert.match(html, /r\.completa \? "" : `<div style="background:#fffbeb/);
+  assert.match(html, /mais do que vai sobrar de verdade/);
+});
+
+test("o especialista não vê mais 'preço menos custo' cru", () => {
+  // Era o número que dá 52% onde o real é 7,5%.
+  assert.doesNotMatch(html, /Preço menos custo/);
+  assert.match(html, /Sobra para você/);
+});

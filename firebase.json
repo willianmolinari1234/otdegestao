@@ -2,8 +2,8 @@
   "functions": {
     "source": "functions",
     "runtime": "nodejs22",
-    "//": "functions/prazos.js e functions/ficha-produto.js são cópias de js/. O deploy refaz as cópias para nunca subir backend com regra mais velha que a do painel. Os testes espelho-*.test.js acusam se uma cópia commitada estiver diferente.",
-    "predeploy": ["node ferramentas/espelhar-prazos.js", "node ferramentas/espelhar-ficha-produto.js"]
+    "//": "functions/prazos.js, functions/ficha-produto.js e functions/taxas.js são cópias de js/. O deploy refaz as cópias para nunca subir backend com regra mais velha que a do painel. Os testes espelho-*.test.js acusam se uma cópia commitada estiver diferente.",
+    "predeploy": ["node ferramentas/espelhar-prazos.js", "node ferramentas/espelhar-ficha-produto.js", "node ferramentas/espelhar-taxas.js"]
   },
   "firestore": {
     "rules": "firestore.rules"
