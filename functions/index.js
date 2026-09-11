@@ -32,6 +32,7 @@ import {
 import { decidir as decidirBackfill } from "./backfill-denormalizados.js";
 
 import { criarServicoVinculos, ErroVinculo } from "./vinculos-anuncios.js";
+import { montarProdutoDoCliente, ErroProduto } from "./produto-do-cliente.js";
 // prazos.js é CÓPIA GERADA de js/prazos.js (ver ferramentas/espelhar-prazos.js).
 // As regras do painel e as do gerador de tarefas têm que ser as mesmas.
 import { semFerramenta, vencendo, minCuponsDoPerfil } from "./prazos.js";
@@ -1939,5 +1940,86 @@ export const gerenciarVinculosAnuncios = onRequest({
     if (e instanceof ErroVinculo) { res.status(e.status).json({ erro: e.message }); return; }
     logger.error("gerenciarVinculosAnuncios", e);
     res.status(500).json({ erro: "Não foi possível salvar ou consultar o vínculo. Tente novamente." });
+  }
+});
+
+// ---------- A ficha do produto preenchida pelo cliente (fase 8, item 1) ------
+//
+// A regra do Firestore deixa o cliente criar produto, mas proíbe ele de
+// escrever `mkts` — e `mkts` é o campo que decide qual especialista enxerga o
+// produto. Gravar pelo navegador faria o produto nascer invisível para quem
+// precisa anunciá-lo, em silêncio. Por isso passa por aqui.
+//
+// Quem pode salvar: o próprio cliente (claim `custId`), ou um funcionário
+// entrando como cliente — que é como a equipe preenche a ficha por telefone.
+async function exigirDonoDaFicha(req, custIdPedido) {
+  const authz = req.headers.authorization || "";
+  const idToken = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+  if (!idToken) return null;
+  const decoded = await getAuth().verifyIdToken(idToken);
+
+  if (decoded.papel === "cliente" && decoded.custId) {
+    // O cliente NUNCA escolhe de quem é a ficha: vale a claim, não o corpo do
+    // pedido. É a mesma claim que as regras do Firestore usam para decidir o
+    // que ele lê, então não há como a tela gravar onde a regra não deixaria.
+    return { uid: decoded.uid, custId: decoded.custId, emNomeDe: decoded.custId };
+  }
+  const emp = await db.collection("employees").doc(decoded.uid).get();
+  if (emp.exists && custIdPedido) {
+    return { uid: decoded.uid, custId: String(custIdPedido), emNomeDe: String(custIdPedido) };
+  }
+  return null;
+}
+
+// Os marketplaces do proprietário, com a mesma regra do `mktsDoCliente()` da
+// tela: a lista do cadastro quando existe, senão a das lojas dele.
+async function mktsDoProprietario(custId) {
+  const cust = await db.collection("customers").doc(custId).get();
+  const dados = cust.exists ? cust.data() : null;
+  const lista = Array.isArray(dados && dados.marketplaces)
+    ? dados.marketplaces.filter(Boolean) : [];
+  if (lista.length) return { mkts: lista, custNome: (dados && dados.name) || "" };
+  const lojas = await db.collection("clients").where("custId", "==", custId).get();
+  const daslojas = lojas.docs.map((d) => d.data().mkt).filter(Boolean);
+  return { mkts: [...new Set(daslojas)], custNome: (dados && dados.name) || "" };
+}
+
+export const salvarProdutoDoCliente = onRequest({
+  cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
+}, async (req, res) => {
+  if (req.method !== "POST") { res.status(405).json({ erro: "Use POST." }); return; }
+  const entrada = req.body || {};
+  let autor = null;
+  try { autor = await exigirDonoDaFicha(req, entrada.custId); } catch { /* token inválido também nega */ }
+  if (!autor) { res.status(403).json({ erro: "Sua sessão expirou. Entre de novo para salvar." }); return; }
+
+  try {
+    const { mkts, custNome } = await mktsDoProprietario(autor.custId);
+
+    // Edição: o documento existente manda no id, na chave e na origem. Quem
+    // pede a edição só diz QUAL produto — se ele for de outro dono, para aqui.
+    let existente = null;
+    if (entrada.id) {
+      const atual = await db.collection("products").doc(String(entrada.id)).get();
+      if (!atual.exists) throw new ErroProduto("Este produto não existe mais.", 404);
+      existente = { id: atual.id, ...atual.data() };
+      if (existente.custId !== autor.custId)
+        throw new ErroProduto("Este produto não é seu.", 403);
+    }
+
+    const { id, doc, criando } = montarProdutoDoCliente({
+      entrada, custId: autor.custId, custNome, mkts, existente,
+      autor: { uid: autor.uid, emNomeDe: autor.emNomeDe },
+    });
+
+    // merge: campos que esta ficha não conhece (preco, margem, lucro dos
+    // anúncios antigos) continuam onde estão. A decisão travada do projeto é
+    // que margem vinda de planilha nunca é recalculada nem apagada.
+    await db.collection("products").doc(id).set(doc, { merge: true });
+    res.json({ ok: true, id, criado: criando, produto: doc });
+  } catch (e) {
+    if (e instanceof ErroProduto) { res.status(e.status).json({ erro: e.message }); return; }
+    logger.error("salvarProdutoDoCliente", e);
+    res.status(500).json({ erro: "Não consegui salvar agora. Tente de novo em instantes." });
   }
 });
