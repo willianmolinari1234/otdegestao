@@ -1,7 +1,9 @@
 {
   "functions": {
     "source": "functions",
-    "runtime": "nodejs22"
+    "runtime": "nodejs22",
+    "//": "functions/prazos.js é cópia de js/prazos.js. O deploy refaz a cópia para nunca subir backend com regra mais velha que a do painel. O teste espelho-prazos.test.js acusa se a cópia commitada estiver diferente.",
+    "predeploy": ["node ferramentas/espelhar-prazos.js"]
   },
   "firestore": {
     "rules": "firestore.rules"

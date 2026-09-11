@@ -1,3 +1,4 @@
+// GERADO por ferramentas/espelhar-prazos.js — NÃO EDITE. O original é js/prazos.js.
 // Quais ferramentas (promoções) da Shopee estão perto de vencer.
 //
 // Módulo ESM: o navegador carrega e os testes importam o mesmo arquivo.
