@@ -12,9 +12,11 @@ Decidido com o Willian em 11/09/2026:
 
 Ordem: bloco A → bloco B → volta para a fase 7 (ML e TikTok).
 
-**Estado em 11/09/2026: blocos A e B entregues e não publicados.** 341 testes passando
+**Estado em 11/09/2026: blocos A e B entregues e não publicados.** 350 testes passando
 (eram 257). O bloco B está funcional mas **travado**: a estimativa de margem só chega ao
 cliente quando o imposto entrar na conta. Ver o portão 1.
+
+Depois dos cinco itens, mais três entregas na mesma área — o item 6 abaixo.
 
 ## Como trabalhar
 
@@ -161,6 +163,25 @@ mais do que vai sobrar de verdade.
 
 Virar a bandeira para `true` é o que fecha o bloco B, e depende das três respostas do
 portão 1 abaixo.
+
+## Item 6 — o login dentro do painel, e achar o que falta preencher ✅ feito, falta publicar
+
+Três coisas, depois de o Willian abrir a tela e ver um formulário de login cortado
+aparecendo na aba Produtos.
+
+**O bug, que tinha uma causa séria:** o `cliente.html` embutido fazia `signOut` quando não
+reconhecia a conta. A sessão do Firebase é a MESMA do painel (mesma origem, mesmo app), e
+uma falha de rede lendo `employees` bastava para o iframe **derrubar o funcionário do
+sistema inteiro**. Embutido, agora nunca desloga: mostra o recado e para. O formulário
+também passou a nascer escondido, em vez de piscar a cada abertura da aba.
+
+**Achar o que falta:** a lista conta as fichas incompletas no topo e tem um botão que
+reduz a lista exatamente a elas. Antes, "faltam 3 informações" ficava espalhado em
+duzentos produtos e preencher virava uma caça.
+
+**O celular:** a tabela de cinco colunas estourava, e a última — onde moram os selos e o
+botão de editar — saía da tela. O cliente não conseguia abrir a ficha do próprio produto
+no aparelho em que vai preenchê-la. No celular cada linha virou um cartão.
 
 ---
 

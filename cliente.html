@@ -76,6 +76,26 @@ tbody tr:hover{background:#fcfcfd}
 @media (max-width:720px){
   aside{display:none}
   .corpo,.topo{padding-left:16px;padding-right:16px}
+
+  /* A tabela vira cartão no celular.
+     Com cinco colunas num telefone, a última — que é onde moram os selos de
+     marketplace e o botão de editar — saía da tela, e o cliente não tinha como
+     abrir a ficha do próprio produto justamente no aparelho em que ele vai
+     preenchê-la. Cada linha passa a ser um bloco, e cada campo ganha o rótulo
+     que a cabeçalho dava. */
+  table thead{display:none}
+  table,table tbody,table tr,table td{display:block;width:100%}
+  table tr{border-bottom:1px solid #e2e8f0;padding:4px 0}
+  table tr:last-child{border-bottom:none}
+  table td{border-bottom:none;padding:5px 16px}
+  table td:first-child{padding-top:13px}
+  table td:last-child{padding-bottom:13px}
+  /* Campo com rótulo fica em duas colunas: nome à esquerda, valor à direita. */
+  table td[data-rot]{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  table td[data-rot]::before{content:attr(data-rot);font-size:11px;font-weight:700;
+    color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;flex:none}
+  table td[data-rot=""]{display:block}
+  table td[data-rot=""]::before{content:none}
 }
 </style>
 </head>
@@ -192,6 +212,7 @@ const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " 
 
 let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
   busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false,
+  soIncompletos: false,
   // "cliente" = um dono, vários marketplaces. "especialista" = um marketplace,
   // vários donos. É o mesmo dado visto pelo eixo oposto, e por isso a mesma
   // página serve os dois — o que muda é o recorte, não a tela.
@@ -416,6 +437,21 @@ function telaLista() {
     </button>`;
   }).join("");
 
+  // ── ficha incompleta: o que trava o anúncio antes de tudo ─────────
+  //
+  // Antes, "faltam 3 informações" ficava espalhado numa lista de duzentos
+  // produtos e não havia como isolar. Preencher virava uma caça. Aqui a
+  // pendência é contada e tem um botão que reduz a lista exatamente a ela.
+  const incompletos = estado.produtos.filter((p) => faltandoNaFicha(p).length);
+  const chamadaFicha = incompletos.length ? `
+    <div class="card" style="padding:15px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-left:3px solid #b45309">
+      <div>
+        <div style="font-weight:700;font-size:13.5px">${incompletos.length === 1 ? "1 produto está" : `${incompletos.length} produtos estão`} com a ficha incompleta</div>
+        <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">Sem peso, medidas e foto, quem for anunciar não consegue subir o produto.</div>
+      </div>
+      <button id="verIncompletos" class="btnsm" style="background:#b45309;color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">${estado.soIncompletos ? "Ver todos os produtos" : `Preencher ${incompletos.length === 1 ? "a que falta" : "as que faltam"}`}</button>
+    </div>` : "";
+
   // ── quando um marketplace está zerado, isso é o assunto da tela ────
   const zerado = estado.mkts.find((m) => !estado.produtos.some((p) => info.get(p.id).mkts.includes(m)));
   const chamada = zerado ? `
@@ -432,6 +468,7 @@ function telaLista() {
   let lista = estado.produtos.filter((p) => {
     if (busca && !((p.nome || "") + " " + (p.sku || "")).toLowerCase().includes(busca)) return false;
     if (estado.faltaEm && !info.get(p.id).falta.includes(estado.faltaEm)) return false;
+    if (estado.soIncompletos && !faltandoNaFicha(p).length) return false;
     return true;
   });
   const ordens = {
@@ -444,6 +481,7 @@ function telaLista() {
 
   $("corpo").innerHTML = `
     ${cobertura ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px">${cobertura}</div>` : ""}
+    ${chamadaFicha}
     ${chamada}
     <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
       <input id="busca" class="finput" style="width:250px" placeholder="Buscar por nome ou SKU…" value="${esc(estado.busca)}">
@@ -453,6 +491,7 @@ function telaLista() {
         <option value="nome"${estado.ordem === "nome" ? " selected" : ""}>Nome</option>
       </select>
       ${estado.faltaEm ? `<button id="limpar" class="btnsm on">Só o que falta em ${esc(estado.faltaEm)} ✕</button>` : ""}
+      ${estado.soIncompletos ? `<button id="limparFicha" class="btnsm on">Só ficha incompleta ✕</button>` : ""}
       <button id="novoProduto" class="btn" style="width:auto;padding:9px 16px;margin-left:auto">+ Novo produto</button>
     </div>
     <div class="card" style="overflow:hidden">
@@ -472,6 +511,9 @@ function telaLista() {
   $("busca").oninput = (e) => { estado.busca = e.target.value; const c = e.target.selectionStart; desenhar(); const b = $("busca"); b.focus(); b.setSelectionRange(c, c); };
   $("ordem").onchange = (e) => { estado.ordem = e.target.value; desenhar(); };
   const lp = $("limpar"); if (lp) lp.onclick = () => { estado.faltaEm = ""; desenhar(); };
+  const lf = $("limparFicha"); if (lf) lf.onclick = () => { estado.soIncompletos = false; desenhar(); };
+  const vi = $("verIncompletos");
+  if (vi) vi.onclick = () => { estado.soIncompletos = !estado.soIncompletos; desenhar(); };
   document.querySelectorAll("[data-mkt]").forEach((b) => {
     b.onclick = () => { estado.faltaEm = estado.faltaEm === b.dataset.mkt ? "" : b.dataset.mkt; desenhar(); };
   });
@@ -571,15 +613,15 @@ function linhaEsp(p, i) {
   const ref = outros.map((a) => a.preco).filter((x) => x !== null && x !== undefined);
   const c = cor(estado.mkt);
   return `<tr data-prod="${esc(p.id)}">
-    <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
+    <td data-rot=""><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
       ${outros.length ? `<div style="font-size:11.5px;color:var(--muted)">já em ${esc([...new Set(outros.map((a) => a.mkt || a.storeMkt))].join(", "))}</div>` : ""}</td>
-    <td style="font-size:12.5px;color:var(--ink-2)">${esc(p.custNome || "—")}</td>
-    <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
-    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${moeda(p.custo)}</td>
-    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${ref.length
+    <td data-rot="Cliente" style="font-size:12.5px;color:var(--ink-2)">${esc(p.custNome || "—")}</td>
+    <td data-rot="SKU" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
+    <td data-rot="Custo" style="font-variant-numeric:tabular-nums;font-size:12.5px">${moeda(p.custo)}</td>
+    <td data-rot="Em outros" style="font-variant-numeric:tabular-nums;font-size:12.5px">${ref.length
       ? (Math.min(...ref) === Math.max(...ref) ? moeda(ref[0]) : `${moeda(Math.min(...ref))}<span style="color:var(--muted)"> a </span>${moeda(Math.max(...ref))}`)
       : `<span style="color:var(--muted)">—</span>`}</td>
-    <td>${meu
+    <td data-rot="">${meu
       ? `<span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${moeda(meu.preco)}</span>`
       : `<span class="falta">falta anunciar</span>`}</td>
   </tr>`;
@@ -599,16 +641,16 @@ function linha(p, i) {
   // faz o cliente voltar e preencher o que falta para o produto ser anunciado.
   const falta = faltandoNaFicha(p);
   return `<tr data-prod="${esc(p.id)}">
-    <td><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
+    <td data-rot=""><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
       ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}
       ${falta.length ? `<div style="font-size:11.5px;color:#b45309;margin-top:2px" title="${esc(falta.join(", "))}">⚠ ${falta.length === 1 ? "falta 1 informação" : `faltam ${falta.length} informações`}</div>` : ""}</td>
-    <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
-    <td style="font-variant-numeric:tabular-nums;font-size:12.5px">${preco}</td>
-    <td>${i.melhor
+    <td data-rot="SKU" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
+    <td data-rot="Preço" style="font-variant-numeric:tabular-nums;font-size:12.5px">${preco}</td>
+    <td data-rot="Margem">${i.melhor
       ? `<span style="font-weight:600;color:#3b6d11;font-variant-numeric:tabular-nums">${Number(i.melhor.margem).toFixed(1)}%</span>
          <span style="font-size:11.5px;color:var(--muted)"> ${esc(i.melhor.mkt || i.melhor.storeMkt || "")}</span>`
       : `<span style="font-size:12px;color:var(--muted)">—</span>`}</td>
-    <td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${selos}
+    <td data-rot=""><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">${selos}
       <button data-editar="${esc(p.id)}" class="btnsm" style="padding:3px 9px;font-size:11.5px;margin-left:2px">editar</button></div></td>
   </tr>`;
 }

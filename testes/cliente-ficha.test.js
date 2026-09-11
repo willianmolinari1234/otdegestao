@@ -142,3 +142,44 @@ test("o aviso de abertura não herda a altura da janela inteira", () => {
   assert.match(html, /#abrindo\{display:flex;/);
   assert.doesNotMatch(html, /#abrindo\{min-height:100vh/);
 });
+
+// ── Achar e preencher o que falta (otimização de 11/09/2026) ───────────
+
+test("a lista conta as fichas incompletas e oferece isolar só elas", () => {
+  // Antes, "faltam 3 informações" ficava espalhado numa lista de duzentos
+  // produtos e não havia como filtrar. Preencher virava uma caça.
+  assert.match(html, /const incompletos = estado\.produtos\.filter\(\(p\) => faltandoNaFicha\(p\)\.length\)/);
+  assert.match(html, /com a ficha incompleta/);
+  assert.match(html, /<button id="verIncompletos"/);
+  assert.match(html, /vi\.onclick = \(\) => \{ estado\.soIncompletos = !estado\.soIncompletos/);
+});
+
+test("o filtro de ficha incompleta entra na peneira da lista", () => {
+  assert.match(html, /if \(estado\.soIncompletos && !faltandoNaFicha\(p\)\.length\) return false/);
+  assert.match(html, /soIncompletos: false/, "precisa nascer desligado no estado");
+});
+
+test("o filtro ligado mostra um selo que dá para desligar", () => {
+  assert.match(html, /id="limparFicha"/);
+  assert.match(html, /lf\.onclick = \(\) => \{ estado\.soIncompletos = false/);
+});
+
+// ── A lista no celular ─────────────────────────────────────────────────
+
+test("no celular a tabela vira cartão", () => {
+  // Com cinco colunas num telefone, a última saía da tela — e é nela que
+  // ficam os selos e o botão de editar. O cliente não conseguia abrir a ficha
+  // do próprio produto no aparelho em que vai preenchê-la.
+  assert.match(html, /table thead\{display:none\}/);
+  assert.match(html, /table,table tbody,table tr,table td\{display:block/);
+  assert.match(html, /table td\[data-rot\]::before\{content:attr\(data-rot\)/);
+});
+
+test("toda célula das listas diz se tem rótulo ou não", () => {
+  // Célula sem data-rot vira bloco mudo no celular: o valor aparece sem dizer
+  // do que é. Nome e selos são os únicos que se explicam sozinhos, e por isso
+  // levam data-rot="".
+  const linhas = html.split("\n").filter((l) => /^\s*<td/.test(l) || /return `<tr data-prod/.test(l));
+  const semRotulo = linhas.filter((l) => /<td(?![^>]*data-rot)(?![^>]*colspan)/.test(l));
+  assert.deepEqual(semRotulo, [], "estas células não têm data-rot");
+});
