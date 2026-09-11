@@ -12,7 +12,7 @@ Decidido com o Willian em 11/09/2026:
 
 Ordem: bloco A → bloco B → volta para a fase 7 (ML e TikTok).
 
-**Estado em 11/09/2026: blocos A e B entregues e não publicados.** 350 testes passando
+**Estado em 11/09/2026: blocos A e B entregues.** 369 testes passando
 (eram 257). O bloco B está funcional mas **travado**: a estimativa de margem só chega ao
 cliente quando o imposto entrar na conta. Ver o portão 1.
 
@@ -31,18 +31,15 @@ Com autonomia. O Willian não é técnico e confere abrindo tela.
 
 ## Os portões
 
-### Portão 1 — o que ainda falta para a margem ser verdadeira
+### Portão 1 — ✅ respondido em 11/09/2026
 
-Comissão e frete já entraram (11/09/2026). **Faltam três respostas**, todas de negócio:
+- **A Shopee não cobra frete do lojista.** `frete: null` na tabela dela não é lacuna.
+- **O imposto e a comissão da OTDE vêm do cadastro**, não de tabela: `customers.fee` e
+  `customers.imposto`, com exceção por loja em `clients.comissao` / `clients.imposto`.
+  Os campos JÁ existiam — o fechamento mensal usa os mesmos.
 
-1. **O imposto** — qual percentual a planilha desconta, e se é igual para todos os
-   clientes ou muda de um para outro. Se mudar por cliente, vira campo em `customers`,
-   não em `js/taxas.js`.
-2. **O frete da Shopee** — a tabela de peso que veio é da Shein. A Shopee cobra frete
-   por venda? Se sim, qual tabela.
-3. **Alguma outra taxa** que a planilha desconte e não esteja na conta.
-
-Sem isso a estimativa sai otimista e fica travada longe da tela do cliente.
+A trava saiu: a conta agora se declara completa quando recebe os dois percentuais.
+**O que resta é validar contra a realidade** — ver o item 8.
 
 ### Portão 2 — antes do bloco C
 
@@ -155,14 +152,17 @@ Função pura, sem Firestore, no padrão do `tarefas-automaticas.js` e do
 - Na tela, o número calculado é rotulado como estimativa, separado do que veio da
   planilha. Mesma disciplina do aviso do Drive: não afirmar o que não se sabe.
 
-**A trava que o portão 1 deixou:** cada marketplace tem uma bandeira `completa`, hoje em
-`false` porque falta o imposto (e, na Shopee, o frete). Enquanto for false, a estimativa
-**não aparece para o cliente** — nos exemplos conferidos ela dá 52%, que é exatamente o
-número errado da decisão travada. Quem precifica vê a conta com o aviso de que ela sobra
-mais do que vai sobrar de verdade.
+**A bandeira `completa`** ficou, mas mudou de dono: ela agora fala do RESULTADO, não da
+tabela. Só é `true` quando a conta recebeu a comissão da OTDE e o imposto. Sem eles sai a
+conta do marketplace, que é o que o especialista precisa para precificar e é tudo que ele
+pode ver — quanto a OTDE cobra de cada cliente não é assunto dele.
 
-Virar a bandeira para `true` é o que fecha o bloco B, e depende das três respostas do
-portão 1 abaixo.
+**Como os percentuais chegam à tela sem abrir o cadastro:** `customers` e `clients` não
+são lidos por nenhum papel externo (`clients.access` guarda a senha da loja, e regra do
+Firestore não esconde campo). Denormalizar nos produtos resolveria para o cliente e
+criaria outro vazamento, porque o especialista lê produtos pelo marketplace. Então quem lê
+o cadastro é o servidor, pelo endpoint `percentuaisDoCliente`, e sai de lá só o que aquele
+lojista já sabe do próprio contrato.
 
 ## Item 6 — o login dentro do painel, e achar o que falta preencher ✅ feito, falta publicar
 
@@ -182,6 +182,22 @@ duzentos produtos e preencher virava uma caça.
 **O celular:** a tabela de cinco colunas estourava, e a última — onde moram os selos e o
 botão de editar — saía da tela. O cliente não conseguia abrir a ficha do próprio produto
 no aparelho em que vai preenchê-la. No celular cada linha virou um cartão.
+
+## Item 7 — os percentuais do contrato entram na conta ✅ feito, falta publicar
+
+Ver acima. O endpoint, a herança loja → cliente compartilhada com o fechamento mensal, e
+a conta completa chegando à tela do cliente.
+
+## Item 8 — conferir a conta contra a planilha ✅ feito, falta publicar
+
+📦 Produtos → **Conferir margens**. Põe lado a lado, com os dados REAIS de produção, a
+margem que veio da planilha e a que o sistema calcula, ordenado pela maior divergência.
+
+É a única prova que vale: nenhum teste sabe quanto a planilha descontou de verdade. Se as
+duas baterem, o cálculo pode ser usado onde não há margem gravada. Se a estimativa sobrar
+sempre mais, há um desconto que o sistema ainda não conhece — e a tela diz isso.
+
+**É por aqui que se descobre o que falta**, em vez de adivinhar.
 
 ---
 

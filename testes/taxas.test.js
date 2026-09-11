@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   TAXAS, taxasDoMarketplace, pesoEmKg, faixaDeComissao, freteDoPeso, calcularMargem,
+  pct, percentuaisDaLoja, PCT_OTDE_PADRAO, PCT_IMPOSTO_PADRAO,
 } from "../js/taxas.js";
 
 // ─── achar o marketplace ──────────────────────────────────────────────
@@ -225,17 +226,24 @@ test("calcularMargem não conhece margem gravada: quem decide usar é quem chama
   assert.deepEqual(entrada, { preco: 150, custo: 60, peso: "500g", mkt: "Shopee" });
 });
 
-// ─── a trava da tabela incompleta ─────────────────────────────────────
-test("enquanto falta imposto, a tabela se declara incompleta", () => {
-  // É o que segura a estimativa otimista longe da tela do cliente. Quando
-  // comissão, frete e imposto estiverem todos aqui, isto vira true — e este
-  // teste é o lembrete de que a virada é consciente, não acidental.
-  assert.equal(TAXAS.shopee.completa, false);
-  assert.equal(TAXAS.shein.completa, false);
-  assert.equal(calcularMargem({ preco: 150, custo: 60, peso: "500g", mkt: "Shopee" }).completa, false);
+// ─── a trava da conta incompleta ──────────────────────────────────────
+test("as tabelas dos dois marketplaces não têm lacuna", () => {
+  // A Shopee não cobra frete do lojista (confirmado em 11/09/2026), então
+  // `frete: null` lá não é buraco, é a informação de que não há.
+  assert.equal(TAXAS.shopee.completa, true);
+  assert.equal(TAXAS.shein.completa, true);
+  assert.equal(TAXAS.shopee.frete, null);
 });
 
-test("a bandeira vem junto mesmo quando a conta não fecha", () => {
+test("sem os percentuais do cadastro, a conta NÃO se declara completa", () => {
+  // É o que segura a estimativa otimista longe da tela do cliente: sem a
+  // gestão da OTDE e o imposto, ela dá 52% onde o real é da ordem de 7,5%.
+  const r = calcularMargem({ preco: 150, custo: 60, peso: "500g", mkt: "Shopee" });
+  assert.equal(r.completa, false);
+  assert.ok(r.avisos.some((a) => /gestão da OTDE/.test(a) && /imposto/.test(a)));
+});
+
+test("conta que não fecha nunca se declara completa", () => {
   const r = calcularMargem({ preco: null, custo: null, peso: "", mkt: "Shein" });
   assert.equal(r.completa, false);
 });
@@ -251,4 +259,103 @@ test("o caso que já custou caro: conta incompleta dá margem alta demais", () =
   const r = calcularMargem({ preco: 199.99, custo: 48, peso: "420g", mkt: "Shopee" });
   assert.equal(r.margem, 52);
   assert.equal(r.completa, false, "52% não pode ser mostrado ao cliente como margem");
+});
+
+// ─── a comissão da OTDE e o imposto, que vêm do cadastro ──────────────
+test("percentual é lido de texto, que é como o cadastro guarda", () => {
+  assert.equal(pct("8%"), 8);
+  assert.equal(pct("7,5%"), 7.5);
+  assert.equal(pct("8"), 8);
+  assert.equal(pct(8), 8);
+  assert.equal(pct(""), null);
+  assert.equal(pct(null), null);
+  assert.equal(pct("oito"), null);
+});
+
+test("a herança vai da loja para o cliente e só então para o padrão", () => {
+  const dono = { fee: "8%", imposto: "7,5%" };
+  // 1. exceção na própria loja vence
+  assert.deepEqual(percentuaisDaLoja({ comissao: "5", imposto: "3" }, dono),
+    { pctOtde: 5, pctImposto: 3 });
+  // 2. loja sem exceção herda do proprietário
+  assert.deepEqual(percentuaisDaLoja({}, dono), { pctOtde: 8, pctImposto: 7.5 });
+  // 3. ninguém disse nada: o padrão do sistema
+  assert.deepEqual(percentuaisDaLoja({}, {}),
+    { pctOtde: PCT_OTDE_PADRAO, pctImposto: PCT_IMPOSTO_PADRAO });
+});
+
+test("os padrões são os mesmos do fechamento mensal", () => {
+  // Se divergissem, a margem da tela brigaria com o relatório que o cliente
+  // recebe todo mês — e ninguém saberia qual dos dois está certo.
+  assert.equal(PCT_OTDE_PADRAO, 2);
+  assert.equal(PCT_IMPOSTO_PADRAO, 0);
+});
+
+test("zero é um percentual válido e não cai no padrão", () => {
+  assert.deepEqual(percentuaisDaLoja({ comissao: "0", imposto: "0" }, { fee: "8" }),
+    { pctOtde: 0, pctImposto: 0 });
+});
+
+test("a conta completa desconta gestão e imposto, e se declara completa", () => {
+  // R$ 150 na Shopee: comissão 14% + R$20 = 41. Gestão 8% = 12. Imposto 7,5% = 11,25.
+  // Lucro = 150 - 60 - 41 - 12 - 11,25 = 25,75. Margem = 17,17%.
+  const r = calcularMargem({
+    preco: 150, custo: 60, peso: "500g", mkt: "Shopee", pctOtde: 8, pctImposto: 7.5,
+  });
+  assert.equal(r.lucro, 25.75);
+  assert.equal(r.margem, 17.17);
+  assert.equal(r.completa, true);
+  assert.equal(r.avisos.some((a) => /não desconta/.test(a)), false);
+});
+
+test("a conta completa muda MUITO o número: é por isso que ela existe", () => {
+  const semCadastro = calcularMargem({ preco: 199.99, custo: 48, peso: "420g", mkt: "Shopee" });
+  const comCadastro = calcularMargem({
+    preco: 199.99, custo: 48, peso: "420g", mkt: "Shopee", pctOtde: 8, pctImposto: 7.5,
+  });
+  assert.equal(semCadastro.margem, 52);
+  assert.ok(comCadastro.margem < 37, `com o cadastro deu ${comCadastro.margem}%`);
+  assert.equal(semCadastro.completa, false);
+  assert.equal(comCadastro.completa, true);
+});
+
+test("gestão e imposto saem discriminados, com o percentual no rótulo", () => {
+  const r = calcularMargem({
+    preco: 100, custo: 20, peso: "200g", mkt: "Shein", pctOtde: 8, pctImposto: 7.5,
+  });
+  assert.deepEqual(r.descontos, [
+    { rotulo: "Custo do produto", valor: 20 },
+    { rotulo: "Comissão Shein (20% + R$ 0)", valor: 20 },
+    { rotulo: "Intermediação de frete", valor: 4 },
+    { rotulo: "Gestão OTDE (8%)", valor: 8 },
+    { rotulo: "Imposto (7,5%)", valor: 7.5 },
+  ]);
+  assert.equal(r.lucro, 40.5);
+});
+
+test("percentual zero não vira linha de desconto, mas conta como informado", () => {
+  const r = calcularMargem({
+    preco: 100, custo: 20, peso: "200g", mkt: "Shopee", pctOtde: 0, pctImposto: 0,
+  });
+  assert.equal(r.descontos.some((d) => /Gestão|Imposto/.test(d.rotulo)), false);
+  assert.equal(r.completa, true, "zero é uma resposta, não uma lacuna");
+});
+
+test("só um dos dois informado ainda é conta incompleta, e diz qual falta", () => {
+  const soOtde = calcularMargem({ preco: 150, custo: 60, peso: "", mkt: "Shopee", pctOtde: 8 });
+  assert.equal(soOtde.completa, false);
+  assert.ok(soOtde.avisos.some((a) => /não desconta o imposto/.test(a)));
+
+  const soImposto = calcularMargem({ preco: 150, custo: 60, peso: "", mkt: "Shopee", pctImposto: 7.5 });
+  assert.equal(soImposto.completa, false);
+  assert.ok(soImposto.avisos.some((a) => /não desconta a gestão da OTDE/.test(a)));
+});
+
+test("percentual inválido é tratado como ausente, nunca como zero", () => {
+  // Tratar lixo como zero faria a conta se declarar completa mostrando uma
+  // margem que não desconta nada — exatamente o erro que se quer evitar.
+  const r = calcularMargem({
+    preco: 150, custo: 60, peso: "", mkt: "Shopee", pctOtde: NaN, pctImposto: -3,
+  });
+  assert.equal(r.completa, false);
 });

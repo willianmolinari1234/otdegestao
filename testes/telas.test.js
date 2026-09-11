@@ -272,3 +272,31 @@ test("a tela de Produtos reserva o lugar do painel", async () => {
   const ctx = await montarApp(BASE);
   assert.match(eval_(ctx, `return rProdutos();`), /id="prod-recentes"/);
 });
+
+// ── Conferir as contas de margem (fase 8) ─────────────────────────────
+
+test("a tela de Produtos oferece conferir as margens", async () => {
+  const ctx = await montarApp(BASE);
+  assert.match(eval_(ctx, `return rProdutos();`), /id="prod-conferir"/);
+});
+
+test("o módulo de taxas é exposto ao app da equipe", () => {
+  // conferirMargens() usa window.taxas. Sem a exposição no app.html o botão
+  // abriria um painel que quebra no primeiro clique, sem erro na tela.
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  assert.match(html, /import \* as taxas from "\.\/js\/taxas\.js/);
+  assert.match(html, /window\.taxas = taxas;/);
+});
+
+test("a conferência usa a mesma herança do fechamento mensal", async () => {
+  // Se a regra divergisse, a conferência aprovaria uma conta que o relatório
+  // do fim do mês contradiz — e ninguém saberia qual das duas está certa.
+  const taxas = await import("../js/taxas.js");
+  const relatorio = fs.readFileSync(path.join(raiz, "relatorio-cliente.html"), "utf8");
+  assert.match(relatorio, /pctDaLojaCampo\(id, "comissao", "fee", 2\)/);
+  assert.match(relatorio, /pctDaLojaCampo\(id, "imposto", "imposto", 0\)/);
+  assert.deepEqual(taxas.percentuaisDaLoja({}, { fee: "8", imposto: "7,5" }),
+    { pctOtde: 8, pctImposto: 7.5 });
+  assert.deepEqual(taxas.percentuaisDaLoja({}, {}),
+    { pctOtde: 2, pctImposto: 0 }, "os padrões têm que ser os mesmos: 2% e 0%");
+});

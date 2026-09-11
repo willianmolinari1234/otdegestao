@@ -111,6 +111,8 @@ function bindAll(){
   if(pc)pc.onchange=e=>{prodCliente=e.target.value;lsSet("prodCliente",prodCliente);render();};
   const pv=C.querySelector("#prod-vinculos");
   if(pv)pv.onclick=()=>abrirVinculosAnuncios();
+  const pcf=C.querySelector("#prod-conferir");
+  if(pcf)pcf.onclick=()=>conferirMargens();
   // O painel de fichas do cliente é preenchido por consulta, depois do
   // desenho: products não tem listener no boot, e nem precisa — só esta tela
   // usa. Não se espera o resultado para a tela aparecer.

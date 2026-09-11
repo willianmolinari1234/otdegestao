@@ -749,6 +749,7 @@ function rProdutos(){
     </select>
     <span style="font-size:12px;color:#94a3b8">${lojas.length} loja${lojas.length!==1?"s":""}${lojas.length?" · "+lojas.map(l=>esc(l.name)).join(", "):""}</span>
     <button id="prod-vinculos" class="btn-sm">Identificar anúncios</button>
+    <button id="prod-conferir" class="btn-sm">Conferir margens</button>
     <button id="prod-especialistas" class="btn-sm" style="margin-left:auto">🤝 Especialistas</button>
   </div>
   <iframe id="prod-frame" src="${url}" title="Produtos de ${esc(dono?dono.name:"")}"

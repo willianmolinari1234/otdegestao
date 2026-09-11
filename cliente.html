@@ -156,7 +156,7 @@ import { getFirestore, collection, query, where, getDocs, getDoc, doc, setDoc, d
   from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { urlImagemDrive, urlAbrirDrive } from "./js/drive.js?v=64e57ef6";
 import { CAMPOS_DA_FICHA, faltandoNaFicha } from "./js/ficha-produto.js?v=d305bfd7";
-import { calcularMargem } from "./js/taxas.js?v=b572d901";
+import { calcularMargem } from "./js/taxas.js?v=63faeb54";
 
 // Mesma configuração do app da equipe. A apiKey do front é pública por
 // desenho: quem decide o que este login enxerga são as regras do Firestore,
@@ -176,6 +176,30 @@ const auth = getAuth(app), db = getFirestore(app);
 // campo o produto que ele cadastrar fica invisível para o especialista — que é
 // justamente quem precisa dele para anunciar.
 const FN_BASE = "https://us-central1-otdegestao.cloudfunctions.net";
+
+// A comissão da OTDE e o imposto moram em coleções que a área do cliente não
+// lê, de propósito: `clients.access` guarda a senha da loja no marketplace, e
+// regra do Firestore não esconde campo. Quem lê o cadastro é o servidor, e sai
+// de lá só o que este lojista já sabe do próprio contrato.
+async function buscarPercentuais() {
+  const token = await auth.currentUser.getIdToken();
+  const corpo = estado.souEquipe ? { custId: estado.custId } : {};
+  const r = await fetch(`${FN_BASE}/percentuaisDoCliente`, {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
+  if (!r.ok) return null;
+  return r.json();
+}
+
+// Os percentuais que valem para um anúncio: os da loja dele quando há exceção,
+// senão os do proprietário.
+function pctDoAnuncio(a) {
+  if (!estado.pct) return { pctOtde: null, pctImposto: null };
+  const daLoja = a && a.storeId ? estado.pct.porLoja?.[a.storeId] : null;
+  return daLoja || estado.pct.padrao || { pctOtde: null, pctImposto: null };
+}
 
 async function salvarFicha(dados) {
   const token = await auth.currentUser.getIdToken();
@@ -213,6 +237,9 @@ const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " 
 let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
   busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false,
   soIncompletos: false,
+  // Comissão da OTDE e imposto deste lojista, buscados no backend. Sem eles a
+  // conta é só a do marketplace — nunca se chuta percentual que mexe em margem.
+  pct: null,
   // "cliente" = um dono, vários marketplaces. "especialista" = um marketplace,
   // vários donos. É o mesmo dado visto pelo eixo oposto, e por isso a mesma
   // página serve os dois — o que muda é o recorte, não a tela.
@@ -361,6 +388,13 @@ async function carregar() {
         ? query(collection(db, "listings"), where("mkts", "array-contains", estado.mkt))
         : query(collection(db, "listings"), where("custId", "==", estado.custId))),
     ]);
+    // Os percentuais do contrato deste lojista. Falhar aqui não pode derrubar a
+    // tela: sem eles a margem fica incompleta e a tela diz isso, que é melhor
+    // do que uma lista de produtos que não abre.
+    if (estado.modo === "cliente") {
+      try { estado.pct = await buscarPercentuais(); }
+      catch (e) { console.error("percentuais:", e); estado.pct = null; }
+    }
     estado.produtos = ps.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"));
     estado.anuncios = as.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -701,6 +735,7 @@ function blocoMargem(a, p) {
     preco: a.preco === null || a.preco === undefined ? null : Number(a.preco),
     custo: p && p.custo !== undefined ? p.custo : null,
     peso: p ? p.peso : "", mkt: a.mkt || a.storeMkt,
+    ...pctDoAnuncio(a),
   });
   if (r.lucro === null) {
     return `<div>${rot}<div style="font-size:12.5px;color:var(--muted)" title="${esc(r.falta.join(", "))}">falta ${esc(r.falta[0] || "informação")}</div></div>`;
@@ -715,7 +750,7 @@ function blocoMargem(a, p) {
   const detalhe = r.descontos.map((d) => `${d.rotulo} -${moeda(d.valor)}`).join(" | ");
   return `<div>${rot}
     <div style="font-size:15px;font-weight:600;color:${r.lucro >= 0 ? "#3b6d11" : "#b91c1c"}" title="${esc(detalhe)}">${moeda(r.lucro)}<span style="font-size:12px;color:#64748b;font-weight:500"> · ${r.margem.toFixed(1).replace(".", ",")}%</span></div>
-    <div style="font-size:11px;color:#94a3b8">estimativa pelas taxas do marketplace</div></div>`;
+    <div style="font-size:11px;color:#94a3b8">${r.completa ? "estimativa · comissão, gestão e imposto já descontados" : "estimativa incompleta"}</div></div>`;
 }
 
 function telaProduto() {

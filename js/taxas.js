@@ -29,13 +29,12 @@
  *
  * Números conferidos com o Willian em 11/09/2026, das tabelas oficiais.
  *
- * `completa: false` diz que a tabela ainda NÃO tem tudo que a planilha
- * desconta — falta o imposto, e na Shopee também o frete. Com ela em false a
- * conta sai OTIMISTA: nos exemplos conferidos deu 52%, que é exatamente o
- * número errado que a decisão travada do projeto manda nunca mostrar. Por isso
- * a tela do cliente esconde a estimativa enquanto isto for false; quem
- * precifica (especialista e equipe) continua vendo, com o aviso do que falta.
- * Vire para true quando comissão, frete e imposto estiverem todos aqui.
+ * `completa` diz que a tabela DO MARKETPLACE não tem lacuna. O que ela não
+ * cobre — a comissão da OTDE e o imposto — não é tabela, é cadastro: vem de
+ * `customers.fee` e `customers.imposto`, com exceção por loja em `clients`.
+ * Esses dois chegam aqui como parâmetro, e sem eles a conta sai OTIMISTA (nos
+ * exemplos conferidos, 52% onde o real é da ordem de 7,5%). Por isso o
+ * resultado carrega a sua própria bandeira `completa`, lá embaixo.
  */
 export const TAXAS = {
   shopee: {
@@ -50,11 +49,10 @@ export const TAXAS = {
       { abaixoDe: 500, percentual: 14, fixo: 26, subsidioPix: 5 },
       { abaixoDe: null, percentual: 14, fixo: 26, subsidioPix: 8 },
     ],
-    // A Shopee não entrou com tabela de frete por peso nesta rodada. Enquanto
-    // for null, o cálculo não inventa frete nenhum e diz que não desconta.
+    // A Shopee não cobra frete do lojista — confirmado pelo Willian em
+    // 11/09/2026. `null` aqui não é lacuna: é a informação de que não há.
     frete: null,
-    imposto: 0,
-    completa: false,
+    completa: true,
   },
   shein: {
     nome: "Shein",
@@ -75,10 +73,44 @@ export const TAXAS = {
       { ateKg: 23, valor: 89 },
       { ateKg: 30, valor: 106 },
     ],
-    imposto: 0,
-    completa: false,
+    completa: true,
   },
 };
+
+// Padrões do sistema quando nem a loja nem o cliente dizem nada. Os mesmos do
+// fechamento mensal em relatorio-cliente.html — se divergissem, a margem da
+// tela do cliente brigaria com o relatório que ele recebe no fim do mês.
+export const PCT_OTDE_PADRAO = 2;
+export const PCT_IMPOSTO_PADRAO = 0;
+
+/** Aceita "8%", "7,5%" ou 8 e devolve número. Os campos do cadastro são texto. */
+export function pct(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(String(v).replace("%", "").replace(",", ".").trim());
+  return isFinite(n) ? n : null;
+}
+
+/**
+ * Percentual efetivo de uma loja, com herança:
+ *   1. o que está na própria loja (exceção)
+ *   2. o que está no cliente proprietário (regra)
+ *   3. o padrão do sistema
+ *
+ * `loja` e `dono` são os documentos de `clients` e `customers`. Quem chama é
+ * que os busca — este arquivo não conhece Firestore.
+ */
+export function percentuaisDaLoja(loja, dono) {
+  const daLoja = (campoLoja, campoDono, padrao) => {
+    const proprio = pct(loja ? loja[campoLoja] : null);
+    if (proprio !== null) return proprio;
+    const herdado = pct(dono ? dono[campoDono] : null);
+    return herdado !== null ? herdado : padrao;
+  };
+  return {
+    pctOtde: daLoja("comissao", "fee", PCT_OTDE_PADRAO),
+    pctImposto: daLoja("imposto", "imposto", PCT_IMPOSTO_PADRAO),
+  };
+}
 
 /** A linha de taxas de um marketplace, achada sem depender de caixa ou acento. */
 export function taxasDoMarketplace(mkt) {
@@ -143,8 +175,18 @@ const arredondar = (n) => Math.round(n * 100) / 100;
  * O subsídio Pix NÃO é descontado: ele só incide quando o comprador escolhe
  * Pix, e aplicar sempre inventaria um custo em toda venda. Ele sai em `avisos`
  * para a tela poder dizer quanto sairia a mais naquele caso.
+ *
+ * `pctOtde` e `pctImposto` vêm do CADASTRO, não de tabela: a comissão da OTDE
+ * e o imposto do lojista, já resolvida a herança loja → cliente. Sem os dois,
+ * sai a conta do MARKETPLACE — que é o que o especialista precisa para
+ * precificar e é tudo que ele pode ver. Com os dois, sai a margem final do
+ * dono do produto, e só aí o resultado se declara `completa`.
+ *
+ * Os dois incidem sobre o preço de venda, a mesma base do fechamento mensal
+ * em relatorio-cliente.html. Mudar a base aqui faria a tela do cliente brigar
+ * com o relatório que ele recebe todo mês.
  */
-export function calcularMargem({ preco, custo, peso, mkt }) {
+export function calcularMargem({ preco, custo, peso, mkt, pctOtde = null, pctImposto = null }) {
   const taxas = taxasDoMarketplace(mkt);
   const falta = [];
   const descontos = [];
@@ -173,22 +215,40 @@ export function calcularMargem({ preco, custo, peso, mkt }) {
     }
   }
 
+  // Conta que não fecha nunca se declara completa: `completa` é uma promessa
+  // sobre o número, e aqui não há número nenhum.
   const completa = Boolean(taxas && taxas.completa);
-  if (falta.length) return { lucro: null, margem: null, descontos, falta, avisos, completa };
+  if (falta.length) return { lucro: null, margem: null, descontos, falta, avisos, completa: false };
 
   const comissao = arredondar(p * faixa.percentual / 100 + faixa.fixo);
   descontos.push({ rotulo: `Comissão ${taxas.nome} (${faixa.percentual}% + R$ ${faixa.fixo})`, valor: comissao });
   if (Array.isArray(taxas.frete)) descontos.push({ rotulo: "Intermediação de frete", valor: frete });
 
-  const imposto = arredondar(p * (taxas.imposto || 0) / 100);
-  if (taxas.imposto) descontos.push({ rotulo: `Imposto (${taxas.imposto}%)`, valor: imposto });
-  else avisos.push("Esta conta ainda não desconta imposto.");
+  // Comissão da OTDE e imposto, do cadastro do cliente. Ausentes, a conta é a
+  // do marketplace e se declara incompleta — nunca se chuta um percentual que
+  // mexe em margem.
+  const otde = typeof pctOtde === "number" && isFinite(pctOtde) && pctOtde >= 0 ? pctOtde : null;
+  const imp = typeof pctImposto === "number" && isFinite(pctImposto) && pctImposto >= 0 ? pctImposto : null;
+
+  const vOtde = otde === null ? 0 : arredondar(p * otde / 100);
+  if (otde !== null && otde > 0) descontos.push({ rotulo: `Gestão OTDE (${String(otde).replace(".", ",")}%)`, valor: vOtde });
+
+  const vImposto = imp === null ? 0 : arredondar(p * imp / 100);
+  if (imp !== null && imp > 0) descontos.push({ rotulo: `Imposto (${String(imp).replace(".", ",")}%)`, valor: vImposto });
+
+  const completaAgora = completa && otde !== null && imp !== null;
+  if (!completaAgora) {
+    avisos.push(otde === null && imp === null
+      ? "Esta conta ainda não desconta a gestão da OTDE nem o imposto."
+      : otde === null ? "Esta conta ainda não desconta a gestão da OTDE."
+      : "Esta conta ainda não desconta o imposto.");
+  }
 
   if (faixa.subsidioPix) {
     avisos.push(`Se o comprador pagar com Pix, saem mais ${faixa.subsidioPix}% (R$ ${arredondar(p * faixa.subsidioPix / 100).toFixed(2).replace(".", ",")}).`);
   }
 
-  const lucro = arredondar(p - c - comissao - frete - imposto);
+  const lucro = arredondar(p - c - comissao - frete - vOtde - vImposto);
   return {
     lucro,
     margem: arredondar(lucro / p * 100),
@@ -197,6 +257,6 @@ export function calcularMargem({ preco, custo, peso, mkt }) {
     avisos,
     // false = a conta está incompleta e sai otimista. Quem desenha decide o
     // que fazer com isso; este módulo não esconde nada de quem pergunta.
-    completa,
+    completa: completaAgora,
   };
 }

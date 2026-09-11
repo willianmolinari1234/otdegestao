@@ -738,3 +738,113 @@ function abrirVinculosAnuncios() {
     });
   }
 }
+
+// ─── CONFERIR AS CONTAS DE MARGEM ─────────────────────────────────────
+//
+// A planilha do cliente traz margem e lucro já com tudo descontado. O sistema
+// agora calcula os mesmos números a partir das taxas. Enquanto os dois não
+// baterem, é o cálculo que está errado — e um cálculo errado de margem não
+// quebra tela nenhuma, só mostra um número bonito e falso.
+//
+// Esta tela põe os dois lado a lado, com os dados REAIS de produção. É a única
+// prova que vale: nenhum teste sabe quanto a planilha descontou de verdade.
+async function conferirMargens() {
+  showFormModal(`<div class="form-panel" id="cm-painel" style="max-width:900px">
+    <h3>Conferir as contas de margem</h3>
+    <p style="font-size:13px;color:#475569">Comparando a margem que veio da planilha com a que o sistema calcula pelas taxas. Onde os dois divergirem, falta alguma coisa na conta.</p>
+    <div id="cm-corpo" style="margin-top:16px;font-size:13px;color:#64748b">Carregando…</div>
+    <div class="form-actions"><button class="btn-sm" id="cm-fechar">Fechar</button></div>
+  </div>`);
+  const painel = document.getElementById("cm-painel");
+  painel.querySelector("#cm-fechar").onclick = () => closeFormModal();
+  const corpo = painel.querySelector("#cm-corpo");
+
+  try {
+    // Só os anúncios que têm margem da planilha: são os únicos com gabarito.
+    const snap = await window.fb.getDocs(window.fb.query(
+      window.fb.collection(window.fb.db, "listings"), window.fb.limit(400)));
+    const anuncios = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .filter((a) => a.margem !== null && a.margem !== undefined && a.preco);
+    if (!anuncios.length) {
+      corpo.innerHTML = `<div style="color:#94a3b8">Nenhum anúncio com margem da planilha para comparar.</div>`;
+      return;
+    }
+
+    // Os produtos daqueles anúncios, para ter custo e peso.
+    const ids = [...new Set(anuncios.map((a) => a.produtoId).filter(Boolean))];
+    const prods = new Map();
+    for (const id of ids.slice(0, 200)) {
+      const d = await window.fb.getDoc(window.fb.doc(window.fb.db, "products", id));
+      if (d.exists()) prods.set(id, d.data());
+    }
+
+    const linhas = [];
+    for (const a of anuncios) {
+      const p = prods.get(a.produtoId);
+      if (!p || p.custo === undefined || p.custo === null) continue;
+      const loja = clis.find((c) => c.id === a.storeId);
+      const dono = custs.find((c) => c.id === a.custId);
+      const pcts = window.taxas.percentuaisDaLoja(loja, dono);
+      const r = window.taxas.calcularMargem({
+        preco: Number(a.preco), custo: Number(p.custo), peso: p.peso,
+        mkt: a.mkt || a.storeMkt, ...pcts,
+      });
+      linhas.push({ a, p, r, real: Number(a.margem), pcts,
+        dif: r.margem === null ? null : Math.abs(r.margem - Number(a.margem)) });
+    }
+    if (!linhas.length) {
+      corpo.innerHTML = `<div style="color:#94a3b8">Nenhum anúncio com margem E custo para comparar.</div>`;
+      return;
+    }
+
+    // Maior divergência primeiro: é ali que está o que falta na conta.
+    linhas.sort((x, y) => (y.dif ?? -1) - (x.dif ?? -1));
+    const perto = linhas.filter((l) => l.dif !== null && l.dif <= 1).length;
+    const mediana = (() => {
+      const ok = linhas.filter((l) => l.dif !== null).map((l) => l.dif).sort((x, y) => x - y);
+      return ok.length ? ok[Math.floor(ok.length / 2)] : null;
+    })();
+
+    corpo.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Comparados</div>
+          <div style="font-size:19px;font-weight:800">${linhas.length}</div></div>
+        <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Batendo (até 1 ponto)</div>
+          <div style="font-size:19px;font-weight:800;color:${perto === linhas.length ? "#3b6d11" : "#b45309"}">${perto}</div></div>
+        <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Diferença típica</div>
+          <div style="font-size:19px;font-weight:800">${mediana === null ? "—" : mediana.toFixed(1).replace(".", ",") + " pts"}</div></div>
+      </div>
+      ${perto === linhas.length ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:9px;padding:10px 13px;margin-bottom:12px;font-size:12.5px">A conta bate com a planilha. O cálculo pode ser usado onde não há margem gravada.</div>`
+        : `<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:9px;padding:10px 13px;margin-bottom:12px;font-size:12.5px"><b>Ainda falta alguma coisa na conta.</b> Olhe as maiores diferenças abaixo: se a estimativa sobra sempre mais que a planilha, há um desconto que o sistema não conhece.</div>`}
+      <div style="max-height:340px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead style="background:#f8fafc;position:sticky;top:0"><tr>
+          <th style="text-align:left;padding:7px 9px">Produto</th>
+          <th style="text-align:left;padding:7px 9px">Loja</th>
+          <th style="text-align:right;padding:7px 9px">Preço</th>
+          <th style="text-align:right;padding:7px 9px">Planilha</th>
+          <th style="text-align:right;padding:7px 9px">Sistema</th>
+          <th style="text-align:right;padding:7px 9px">Diferença</th>
+        </tr></thead>
+        <tbody>${linhas.slice(0, 60).map((l) => {
+          const c = l.dif === null ? "#94a3b8" : l.dif <= 1 ? "#3b6d11" : l.dif <= 5 ? "#b45309" : "#b91c1c";
+          const detalhe = l.r.falta.length ? "falta " + l.r.falta.join(", ")
+            : l.r.descontos.map((d) => `${d.rotulo} -${plMoeda(d.valor)}`).join(" | ");
+          return `<tr title="${esc(detalhe)}">
+            <td style="padding:7px 9px">${esc(l.p.nome || l.a.sku || "—")}</td>
+            <td style="padding:7px 9px;color:#64748b">${esc(l.a.storeNome || "—")}</td>
+            <td style="padding:7px 9px;text-align:right">${plMoeda(l.a.preco)}</td>
+            <td style="padding:7px 9px;text-align:right;font-weight:600">${l.real.toFixed(1).replace(".", ",")}%</td>
+            <td style="padding:7px 9px;text-align:right;font-weight:600">${l.r.margem === null ? "—" : l.r.margem.toFixed(1).replace(".", ",") + "%"}</td>
+            <td style="padding:7px 9px;text-align:right;font-weight:700;color:${c}">${l.dif === null ? "—" : l.dif.toFixed(1).replace(".", ",") + " pts"}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table></div>
+      <div style="font-size:11.5px;color:#94a3b8;margin-top:9px">Passe o mouse numa linha para ver a conta detalhada. Mostrando ${Math.min(60, linhas.length)} de ${linhas.length}.</div>`;
+  } catch (e) {
+    console.error("conferirMargens:", e);
+    corpo.innerHTML = `<div style="color:#b91c1c">Não consegui comparar agora: ${esc(e.message || "")}</div>`;
+  }
+}

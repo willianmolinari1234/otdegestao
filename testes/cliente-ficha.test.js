@@ -183,3 +183,33 @@ test("toda célula das listas diz se tem rótulo ou não", () => {
   const semRotulo = linhas.filter((l) => /<td(?![^>]*data-rot)(?![^>]*colspan)/.test(l));
   assert.deepEqual(semRotulo, [], "estas células não têm data-rot");
 });
+
+// ── Os percentuais do contrato (11/09/2026) ───────────────────────────
+
+test("a tela não lê customers: pede os percentuais ao servidor", () => {
+  // `clients.access` guarda a senha da loja no marketplace e regra do
+  // Firestore não esconde campo — por isso nenhum papel externo lê essas
+  // coleções. Quem lê o cadastro é o servidor.
+  assert.doesNotMatch(html, /collection\(db, "customers"\)/);
+  assert.doesNotMatch(html, /collection\(db, "clients"\)/);
+  assert.match(html, /percentuaisDoCliente/);
+});
+
+test("os percentuais são buscados só no modo cliente", () => {
+  // O especialista precifica com a conta do MARKETPLACE. Quanto a OTDE cobra
+  // de cada cliente não é assunto dele.
+  assert.match(html, /if \(estado\.modo === "cliente"\) \{[\s\S]{0,200}?buscarPercentuais\(\)/);
+});
+
+test("falhar ao buscar os percentuais não derruba a lista de produtos", () => {
+  assert.match(html, /catch \(e\) \{ console\.error\("percentuais:", e\); estado\.pct = null; \}/);
+});
+
+test("a exceção da loja vence o padrão do proprietário", () => {
+  assert.match(html, /const daLoja = a && a\.storeId \? estado\.pct\.porLoja\?\.\[a\.storeId\] : null/);
+  assert.match(html, /return daLoja \|\| estado\.pct\.padrao/);
+});
+
+test("o cartão do anúncio calcula com os percentuais daquele anúncio", () => {
+  assert.match(html, /\.\.\.pctDoAnuncio\(a\),/);
+});

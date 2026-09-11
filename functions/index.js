@@ -33,6 +33,7 @@ import { decidir as decidirBackfill } from "./backfill-denormalizados.js";
 
 import { criarServicoVinculos, ErroVinculo } from "./vinculos-anuncios.js";
 import { montarProdutoDoCliente, ErroProduto } from "./produto-do-cliente.js";
+import { percentuaisDaLoja } from "./taxas.js";
 // prazos.js é CÓPIA GERADA de js/prazos.js (ver ferramentas/espelhar-prazos.js).
 // As regras do painel e as do gerador de tarefas têm que ser as mesmas.
 import { semFerramenta, vencendo, minCuponsDoPerfil } from "./prazos.js";
@@ -2021,5 +2022,42 @@ export const salvarProdutoDoCliente = onRequest({
     if (e instanceof ErroProduto) { res.status(e.status).json({ erro: e.message }); return; }
     logger.error("salvarProdutoDoCliente", e);
     res.status(500).json({ erro: "Não consegui salvar agora. Tente de novo em instantes." });
+  }
+});
+
+// ---------- Os percentuais do lojista, para a margem da área do cliente -----
+//
+// A comissão da OTDE e o imposto moram em `customers`/`clients`, e NENHUM
+// papel externo lê essas coleções — `clients.access` guarda a senha da loja no
+// marketplace, e regra do Firestore não esconde campo. Denormalizar os dois
+// dentro de `products` resolveria para o cliente e criaria outro problema: o
+// especialista lê produtos pelo marketplace que opera, e passaria a enxergar
+// quanto a OTDE cobra de cada cliente.
+//
+// Então quem lê o cadastro é o servidor, e sai daqui só o que aquele lojista
+// já sabe do próprio contrato. O especialista não tem o que pedir aqui: para
+// precificar ele usa a conta do marketplace, que é pública.
+export const percentuaisDoCliente = onRequest({
+  cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
+}, async (req, res) => {
+  let autor = null;
+  try {
+    autor = await exigirDonoDaFicha(req, (req.body || {}).custId || req.query.custId);
+  } catch { /* token inválido também nega */ }
+  if (!autor) { res.status(403).json({ erro: "Sua sessão expirou. Entre de novo." }); return; }
+
+  try {
+    const cust = await db.collection("customers").doc(autor.custId).get();
+    const dono = cust.exists ? cust.data() : null;
+    const lojas = await db.collection("clients").where("custId", "==", autor.custId).get();
+
+    // O padrão do proprietário, mais uma linha por loja que tenha exceção.
+    // A tela escolhe pela loja do anúncio e cai no padrão quando não acha.
+    const porLoja = {};
+    for (const d of lojas.docs) porLoja[d.id] = percentuaisDaLoja(d.data(), dono);
+    res.json({ padrao: percentuaisDaLoja(null, dono), porLoja });
+  } catch (e) {
+    logger.error("percentuaisDoCliente", e);
+    res.status(500).json({ erro: "Não consegui ler os percentuais agora." });
   }
 });
