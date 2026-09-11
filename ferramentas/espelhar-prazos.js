@@ -13,12 +13,20 @@
 // Rodar:  node ferramentas/espelhar-prazos.js
 
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Caminhos ancorados neste arquivo, não na pasta em que o comando foi chamado.
+// O predeploy do Firebase roda da raiz do projeto, mas depender disso é uma
+// suposição a mais — e um deploy que copia do lugar errado subiria backend com
+// regra diferente da do painel, sem erro nenhum aparecer.
+const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const MARCADOR =
   "// GERADO por ferramentas/espelhar-prazos.js — NÃO EDITE. O original é js/prazos.js.";
 
-export const ORIGEM = "js/prazos.js";
-export const ESPELHO = "functions/prazos.js";
+export const ORIGEM = path.join(RAIZ, "js", "prazos.js");
+export const ESPELHO = path.join(RAIZ, "functions", "prazos.js");
 
 /** Conteúdo que o espelho deve ter, dado o conteúdo do original. */
 export function conteudoEspelho(original) {
