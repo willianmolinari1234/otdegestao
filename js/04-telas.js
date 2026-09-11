@@ -741,6 +741,7 @@ function rProdutos(){
 
   return`
   ${painelPedidos}
+  <div id="prod-recentes"></div>
   <div class="filter-bar" style="margin-bottom:14px">
     <span style="font-size:11px;color:#64748b;font-weight:600">👤 CLIENTE</span>
     <select id="prod-cliente" data-search data-placeholder="Buscar cliente...">
@@ -1474,3 +1475,56 @@ function showRenewModal(p){
   };
 }
 
+
+// ─── FICHAS PREENCHIDAS PELO CLIENTE ──────────────────────────────────
+//
+// Sem esta lista o cliente preenche a ficha e ninguém da OTDE fica sabendo —
+// e uma ficha que ninguém lê é a mesma coisa que ficha nenhuma.
+//
+// Consulta pontual, ao abrir a aba, em vez de listener no boot: products tem
+// centenas de documentos e o app da equipe não precisa deles em nenhuma outra
+// tela. Sem "where" de propósito — filtrar por origem junto com a ordenação
+// exigiria um índice composto, e o filtro sai de graça aqui no navegador.
+async function carregarFichasRecentes(){
+  const alvo=document.getElementById("prod-recentes");
+  if(!alvo||!window.fb)return;
+  try{
+    const q=window.fb.query(
+      window.fb.collection(window.fb.db,"products"),
+      window.fb.orderBy("atualizadoEm","desc"),
+      window.fb.limit(40));
+    const snap=await window.fb.getDocs(q);
+    const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // Quem mexeu foi o cliente (ou a equipe em nome dele): é o que interessa
+    // aqui. Produto vindo de planilha não entra — aquele a equipe já conhece.
+    const doCliente=todos.filter(p=>p.origem==="cliente"||p.atualizadoPor);
+    const falta=(p)=>window.ficha?window.ficha.faltandoNaFicha(p):[];
+    const incompletos=todos.filter(p=>falta(p).length);
+    if(!doCliente.length&&!incompletos.length){alvo.innerHTML="";return;}
+    const quando=(iso)=>iso?fmtDate(String(iso).slice(0,10)):"";
+    const linha=(p)=>{
+      const f=falta(p);
+      return`<div style="display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid #e2e8f0;flex-wrap:wrap">
+        <button data-verpedido="${esc(p.custId||"")}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#0f172a;text-decoration:underline">${esc(p.custNome||p.custId||"sem dono")}</button>
+        <span style="font-size:13px;color:#475569">${esc(p.nome||"sem nome")}</span>
+        ${p.sku?`<span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#64748b">${esc(p.sku)}</span>`:""}
+        ${f.length?`<span style="font-size:11.5px;color:#b45309" title="${esc(f.join(", "))}">⚠ falta${f.length===1?"":"m"} ${f.length}</span>`:`<span style="font-size:11.5px;color:#3b6d11">✓ completa</span>`}
+        <span style="color:#94a3b8;font-size:11.5px;margin-left:auto">${esc(quando(p.atualizadoEm||p.criadoEm))}</span>
+      </div>`;
+    };
+    const recentes=doCliente.slice(0,8);
+    alvo.innerHTML=`
+    <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
+      <div style="padding:11px 15px;font-size:13px;font-weight:800;color:#0f172a;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        📝 Fichas preenchidas pelo cliente
+        ${incompletos.length?`<span style="font-weight:600;font-size:12px;color:#b45309">${incompletos.length} ficha${incompletos.length!==1?"s":""} incompleta${incompletos.length!==1?"s":""} entre as mais recentes</span>`:""}
+      </div>
+      ${recentes.length?recentes.map(linha).join(""):`<div style="padding:12px 15px;font-size:12.5px;color:#94a3b8">Nenhuma ficha preenchida pelo cliente ainda.</div>`}
+    </div>`;
+  }catch(e){
+    // Falhar aqui não pode derrubar a tela de Produtos, que é o trabalho de
+    // verdade. O painel some e o resto continua.
+    console.error("fichas recentes:",e);
+    alvo.innerHTML="";
+  }
+}

@@ -191,3 +191,84 @@ test("concluir carimba a HORA, reabrir limpa, e regravar não reescreve o carimb
     `return setDoneDate({status:"done",doneDate:"2026-09-01",doneEm:"2026-09-01T10:00:00Z"},"done",{});`);
   assert.equal(regravado.doneEm, "2026-09-01T10:00:00Z");
 });
+
+// ── Fichas preenchidas pelo cliente (fase 8, item 3) ───────────────────
+
+/** Monta o app com um Firestore de mentira que devolve os produtos dados. */
+async function appComProdutos(produtos) {
+  const ctx = await montarApp(BASE);
+  const ficha = await import("../js/ficha-produto.js");
+  const alvo = { innerHTML: "" };
+  ctx.window.ficha = ficha;
+  ctx.window.fb = {
+    db: {}, collection: () => ({}), query: () => ({}), orderBy: () => ({}), limit: () => ({}),
+    getDocs: async () => ({ docs: produtos.map((p) => ({ id: p.id, data: () => p })) }),
+    // O boot() espera até 5s por window.fb e então assina o login. Sem estes
+    // dois ele explodiria DEPOIS do teste terminar, reprovando o arquivo
+    // inteiro com um erro que não tem nada a ver com o que se está provando.
+    auth: {}, onAuthStateChanged: noop,
+  };
+  ctx.document.getElementById = (id) => (id === "prod-recentes" ? alvo : elFake);
+  return { ctx, alvo };
+}
+
+const fichaCheia = (extra = {}) => ({
+  id: "c1__abc", custId: "c1", custNome: "Poliane", nome: "Body Manga Longa", sku: "BML-42",
+  peso: "180g", medidasProduto: "50x30cm", medidas: "22x16x6cm",
+  fotos: "https://drive.google.com/x", obs: "sem observação",
+  atualizadoEm: "2026-09-11T10:00:00.000Z", ...extra,
+});
+
+test("a ficha que o cliente preencheu aparece para a equipe", async () => {
+  const { ctx, alvo } = await appComProdutos([fichaCheia({ origem: "cliente" })]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.match(alvo.innerHTML, /Fichas preenchidas pelo cliente/);
+  assert.match(alvo.innerHTML, /Body Manga Longa/);
+  assert.match(alvo.innerHTML, /Poliane/);
+  assert.match(alvo.innerHTML, /✓ completa/);
+});
+
+test("produto de planilha não entra na lista: esse a equipe já conhece", async () => {
+  const { ctx, alvo } = await appComProdutos([fichaCheia({ origem: "planilha" })]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.equal(alvo.innerHTML, "", "sem ficha de cliente e sem incompleta, o painel some");
+});
+
+test("ficha incompleta é contada, mesmo vinda de planilha", async () => {
+  // É o caso real de hoje: centenas de produtos importados sem peso nem foto.
+  const { ctx, alvo } = await appComProdutos([
+    fichaCheia({ origem: "cliente" }),
+    fichaCheia({ id: "c1__xyz", origem: "planilha", peso: "", fotos: "", obs: "" }),
+  ]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.match(alvo.innerHTML, /1 ficha incompleta/);
+});
+
+test("a ficha editada pela equipe em nome do cliente também aparece", async () => {
+  const { ctx, alvo } = await appComProdutos([
+    fichaCheia({ origem: "planilha", atualizadoPor: { uid: "u1", emNomeDe: "c1" } }),
+  ]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.match(alvo.innerHTML, /Body Manga Longa/);
+});
+
+test("o painel mostra quantos campos faltam, não só que falta algo", async () => {
+  const { ctx, alvo } = await appComProdutos([
+    fichaCheia({ origem: "cliente", peso: "", medidasProduto: "", obs: "" }),
+  ]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.match(alvo.innerHTML, /falta[m]? 3/);
+});
+
+test("falha na consulta apaga o painel e não derruba a tela de Produtos", async () => {
+  const { ctx, alvo } = await appComProdutos([]);
+  ctx.window.fb.getDocs = async () => { throw new Error("sem permissão"); };
+  alvo.innerHTML = "conteúdo antigo";
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.equal(alvo.innerHTML, "");
+});
+
+test("a tela de Produtos reserva o lugar do painel", async () => {
+  const ctx = await montarApp(BASE);
+  assert.match(eval_(ctx, `return rProdutos();`), /id="prod-recentes"/);
+});

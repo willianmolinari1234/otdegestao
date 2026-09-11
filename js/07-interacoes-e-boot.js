@@ -111,6 +111,10 @@ function bindAll(){
   if(pc)pc.onchange=e=>{prodCliente=e.target.value;lsSet("prodCliente",prodCliente);render();};
   const pv=C.querySelector("#prod-vinculos");
   if(pv)pv.onclick=()=>abrirVinculosAnuncios();
+  // O painel de fichas do cliente é preenchido por consulta, depois do
+  // desenho: products não tem listener no boot, e nem precisa — só esta tela
+  // usa. Não se espera o resultado para a tela aparecer.
+  if(C.querySelector("#prod-recentes"))carregarFichasRecentes();
   const pe=C.querySelector("#prod-especialistas");
   if(pe)pe.onclick=()=>abrirAcessoEspecialistas();
   const ib=C.querySelector("#integ-busca");

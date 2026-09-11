@@ -9,7 +9,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-  import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+  import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc, query, where, orderBy, limit, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
   // ── AMBIENTE ────────────────────────────────────────────────────────
   // O mesmo código roda em produção e em homologação. O ambiente é
@@ -58,7 +58,7 @@
     auth, db,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
     onAuthStateChanged, updateProfile, sendPasswordResetEmail,
-    collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc, query, where, writeBatch
+    collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, getDoc, query, where, orderBy, limit, writeBatch
   };
   window.fbReady = true;
   window.dispatchEvent(new Event("fb-ready"));
@@ -615,19 +615,21 @@ tr:last-child td{border-bottom:none}
   import * as custos from "./js/custos.js?v=0b61a8ef";
   import * as planilha from "./js/planilha-produtos.js?v=21e09942";
   import * as prazos from "./js/prazos.js?v=b89b4b18";
+  import * as ficha from "./js/ficha-produto.js?v=d305bfd7";
   window.custos = custos;
   window.planilha = planilha;
   window.prazos = prazos;
+  window.ficha = ficha;
 </script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
      scripts clássicos compartilham escopo e o boot precisa vir por último. -->
 <script src="js/01-estado-e-dados.js?v=00539a01"></script>
 <script src="js/02-utilitarios.js?v=48fa84dd"></script>
 <script src="js/03-acesso.js?v=cb659190"></script>
-<script src="js/04-telas.js?v=23f2f475"></script>
+<script src="js/04-telas.js?v=abb6919b"></script>
 <script src="js/05-clientes-e-acesso.js?v=b5e56eaa"></script>
 <script src="js/06-formularios.js?v=6d86caf2"></script>
-<script src="js/07-interacoes-e-boot.js?v=ed47a0d7"></script>
+<script src="js/07-interacoes-e-boot.js?v=f59e8c7c"></script>
 <script src="js/08-produtos.js?v=ffa92426"></script>
 <div id="diag-report"></div>
 </body>
