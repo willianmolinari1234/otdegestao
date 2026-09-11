@@ -18,7 +18,16 @@ button{font:inherit;cursor:pointer}
 input,select{font:inherit}
 
 /* ── login ── */
-#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+/* Nasce escondido: quem decide mostrar é o onAuthStateChanged, depois de
+   saber se há sessão. Visível por padrão, ele piscava dentro do iframe do
+   painel da equipe a cada abertura da aba Produtos — e piscava cortado,
+   porque 100vh dentro de um iframe menor não cabe. */
+#login{display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+#login.ver{display:flex}
+/* Enquanto o Firebase não responde, nem login nem tela: só este aviso. */
+#abrindo{display:flex;align-items:center;justify-content:center;
+  padding:48px 24px;color:var(--muted);font-size:13px;text-align:center;line-height:1.6}
+#abrindo.sumiu{display:none}
 .caixa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 10px 40px -20px rgba(15,23,42,.3)}
 .logo{width:46px;height:46px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;margin-bottom:18px}
 .finput{border:1px solid var(--border);border-radius:9px;padding:11px 13px;font-size:14px;width:100%;background:#fff;color:var(--ink)}
@@ -71,6 +80,8 @@ tbody tr:hover{background:#fcfcfd}
 </style>
 </head>
 <body>
+
+<div id="abrindo">Abrindo…</div>
 
 <div id="login">
   <div class="caixa">
@@ -219,7 +230,19 @@ $("esqueci").onclick = async (e) => {
 $("sair").onclick = () => signOut(auth);
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) { $("app").classList.remove("ver"); $("login").style.display = "flex"; return; }
+  if (!user) {
+    $("app").classList.remove("ver");
+    $("abrindo").classList.add("sumiu");
+    // Embutido no painel da equipe, um formulário de login seria um beco: quem
+    // precisa entrar é o funcionário, na janela de fora, não aqui dentro.
+    if (EMBUTIDO) {
+      $("abrindo").textContent = "Sua sessão expirou. Recarregue a página do painel para continuar.";
+      $("abrindo").classList.remove("sumiu");
+      return;
+    }
+    $("login").classList.add("ver");
+    return;
+  }
   // O custId vem da CLAIM do token, não de uma consulta: é o mesmo dado que as
   // regras do Firestore usam para decidir o que este login pode ler, então não
   // há como a tela mostrar uma coisa e a regra permitir outra.
@@ -245,11 +268,25 @@ onAuthStateChanged(auth, async (user) => {
       daEquipe = emp.exists();
     } catch (e) { daEquipe = false; }
     if (!daEquipe || !pedido) {
-      await signOut(auth);
-      $("loginErro").textContent = daEquipe
+      const recado = daEquipe
         ? "Falta dizer de qual cliente (?cliente=...)."
         : "Esta conta não é de cliente nem de especialista.";
+      // NUNCA deslogar quando embutido. A sessão do Firebase é a MESMA do
+      // painel da equipe (mesma origem, mesmo app), então um signOut aqui
+      // dentro derruba o funcionário do sistema inteiro — e o que ele vê é
+      // um formulário de login aparecendo do nada. Uma falha de rede na
+      // leitura de employees bastava para isso acontecer.
+      if (EMBUTIDO) {
+        $("abrindo").textContent = recado;
+        $("abrindo").classList.remove("sumiu");
+        $("login").classList.remove("ver");
+        return;
+      }
+      await signOut(auth);
+      $("loginErro").textContent = recado;
       $("loginErro").classList.add("ver");
+      $("login").classList.add("ver");
+      $("abrindo").classList.add("sumiu");
       return;
     }
     estado.custId = pedido;
@@ -259,7 +296,8 @@ onAuthStateChanged(auth, async (user) => {
   estado.nome = estado.modo === "especialista"
     ? estado.mkt
     : (params.get("nome") || user.displayName || "");
-  $("login").style.display = "none";
+  $("login").classList.remove("ver");
+  $("abrindo").classList.add("sumiu");
   $("app").classList.add("ver");
   if (EMBUTIDO) document.querySelector("aside").style.display = "none";
   if (estado.souEquipe) marcarSessaoDaEquipe();

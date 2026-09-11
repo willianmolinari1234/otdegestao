@@ -106,3 +106,39 @@ test("o especialista não vê mais 'preço menos custo' cru", () => {
   assert.doesNotMatch(html, /Preço menos custo/);
   assert.match(html, /Sobra para você/);
 });
+
+// ── O login que aparecia dentro do painel da equipe ────────────────────
+//
+// Sintoma: abrir a aba Produtos pintava um formulário de login cortado dentro
+// do iframe. Duas causas, as duas corrigidas aqui.
+
+test("o formulário de login nasce escondido", () => {
+  // Visível por padrão, ele piscava a cada abertura da aba Produtos — e
+  // piscava cortado, porque 100vh dentro de um iframe menor não cabe.
+  assert.match(html, /#login\{display:none;/);
+  assert.match(html, /#login\.ver\{display:flex\}/);
+  assert.doesNotMatch(html, /\$\("login"\)\.style\.display = "flex"/);
+});
+
+test("embutido no painel, o login nunca é oferecido", () => {
+  // Quem precisa entrar é o funcionário, na janela de fora. Um formulário
+  // aqui dentro é um beco sem saída.
+  assert.match(html, /if \(EMBUTIDO\) \{[\s\S]{0,300}?Recarregue a página do painel/);
+});
+
+test("o iframe nunca desloga: a sessão é a mesma do painel", () => {
+  // Esta é a causa raiz do bug. signOut aqui dentro derrubava o funcionário
+  // do sistema inteiro, e bastava uma falha de rede lendo employees.
+  const i = html.indexOf("if (!daEquipe || !pedido)");
+  assert.ok(i > 0, "o bloco de recusa precisa existir");
+  const trecho = html.slice(i, i + 900);
+  assert.ok(trecho.indexOf("if (EMBUTIDO)") < trecho.indexOf("await signOut"),
+    "a saída sem deslogar tem que vir ANTES do signOut");
+});
+
+test("o aviso de abertura não herda a altura da janela inteira", () => {
+  // Com min-height:100vh dentro do iframe, o texto cai abaixo da área visível
+  // e a tela parece vazia.
+  assert.match(html, /#abrindo\{display:flex;/);
+  assert.doesNotMatch(html, /#abrindo\{min-height:100vh/);
+});
