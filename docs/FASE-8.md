@@ -12,6 +12,9 @@ Decidido com o Willian em 11/09/2026:
 
 Ordem: bloco A → bloco B → volta para a fase 7 (ML e TikTok).
 
+**Estado em 11/09/2026: bloco A inteiro entregue e não publicado.** 304 testes passando
+(eram 257). O bloco B está parado no portão 1, esperando os números das taxas.
+
 ## Como trabalhar
 
 Com autonomia. O Willian não é técnico e confere abrindo tela.
@@ -44,7 +47,7 @@ para e abre portão de `TESTAR-REGRAS.command`, como manda o `CLAUDE.md`.
 
 # Bloco A — o cliente cadastra
 
-## Item 1 — a gravação do produto do cliente, pelo backend
+## Item 1 — a gravação do produto do cliente, pelo backend ✅ feito, falta publicar
 
 **O achado que muda o desenho:** a regra do Firestore deixa o cliente criar produto,
 mas **proíbe ele de escrever `mkts`** — e é de propósito, porque `mkts` é quem decide
@@ -77,7 +80,7 @@ silêncio** — e silêncio é o modo de falha caro deste projeto.
 Cobrir: obrigatório faltando, `custId` alheio recusado, campo vazio não apaga valor
 gravado, salvar duas vezes dá o mesmo id.
 
-## Item 2 — o formulário na área do cliente
+## Item 2 — o formulário na área do cliente ✅ feito, falta publicar
 
 Hoje existe "Editar produto" em `cliente.html`, mas só a equipe vê (`estado.souEquipe`).
 O formulário já tem nome, SKU, custo, peso, medidas e link das fotos.
@@ -99,7 +102,7 @@ O formulário já tem nome, SKU, custo, peso, medidas e link das fotos.
 o modal é o `#popConteudo` e os botões são ligados à mão depois do `innerHTML` —
 siga o que o `abrirEdicao()` já faz.
 
-## Item 3 — a equipe vê o que entrou
+## Item 3 — a equipe vê o que entrou ✅ feito, falta publicar
 
 Em 📦 Produtos, painel com os produtos cadastrados ou editados pelo cliente nos últimos
 dias, e os que estão com ficha incompleta. Sem isto, o cliente preenche e ninguém olha.

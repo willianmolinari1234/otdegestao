@@ -15,7 +15,7 @@ Fases 0 a 5 entregues.
 | Arquivo | Para quê |
 |---|---|
 | `CLAUDE.md` (este) | Contexto permanente: mapa, modelo de dados, decisões travadas, armadilhas |
-| `docs/FASE-6.md` | A fase em andamento: como trabalhar, portões, itens |
+| `docs/FASE-8.md` | A fase em andamento: como trabalhar, portões, itens |
 | `docs/arquivo/` | Histórico. Só consulta, não se mexe |
 
 ## Quem é o Willian
@@ -78,8 +78,11 @@ accounts/{uid}         papel "cliente" | "especialista" | "equipe"
 
 products/{cust__chave} custId · sku · nome · custo · preco · margem · lucro
                        custNome · mkts[] (denormalizados)
-                       peso · medidas{c,l,a} · fotos[] · video (links do Drive)
-                       criadoEm · criadoPor{uid, emNomeDe}
+                       peso · medidasProduto · medidas (embalagem) · obs
+                       fotos · video (link do Drive, ou lista deles)
+                       tamanhos · cores · material
+                       origem "planilha" | "cliente"
+                       criadoEm · criadoPor{uid, emNomeDe} · atualizadoPor
 
 listings/{loja__anuncio}  custId · sku · mkt · storeId · itemId · preco · status
                           custNome · storeNome · storeMkt · mkts[] (denormalizados)
@@ -131,6 +134,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Ids determinísticos | Reimportar atualiza em vez de duplicar |
 | Margem e lucro vêm da planilha | **Nunca recalcular.** Preço menos custo dá 52% onde o real é 7,5%, porque a planilha já desconta comissão, frete e imposto |
 | Autoria dupla em toda gravação | `criadoPor` (quem digitou) e `emNomeDe` (por quem) |
+| A ficha do produto é gravada pelo backend | O cliente não pode escrever `mkts`; gravar pelo navegador faria o produto nascer invisível para o especialista |
+| Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, foto, observações | Mais o nome. Custo fica de fora: a ficha é para anunciar, não para precificar |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho
 do Firestore**. O gatilho existia e foi removido: dependia do Eventarc, quebrava o deploy
@@ -161,6 +166,11 @@ e modal vive fora do `#content`. Botão novo dentro de modal precisa ser registr
 A checagem certa é `java -version >/dev/null 2>&1`, mais `/usr/libexec/java_home` e os
 caminhos keg-only do Homebrew. Sem Java o emulador do Firestore não sobe.
 
+**Citar `js/algo.js` em comentário barra a publicação.** O `carimbar-versao.js` varre o
+arquivo inteiro e trata qualquer ocorrência de `js/*.js` sem `?v=` como referência sem
+carimbo — inclusive dentro de comentário. Em `app.html` e `cliente.html`, escreva o nome
+do arquivo sem a pasta.
+
 **Mensagem de commit quebra o shell.** Aspas e crases dentro de `git commit -m` viram
 execução de comando. Use sempre `git commit -F arquivo`.
 
@@ -186,6 +196,11 @@ Tem guarda para não acusar loja que ainda não sincronizou.
 | `CUPONS-DIAGNOSTICO.command` | Amostra de cupons de uma loja escolhida em lista |
 | `REVERTER-se-quebrar.command` | Volta a publicação anterior |
 
+**Dois arquivos de `js/` são espelhados para `functions/`**: `prazos.js` (regras de alerta)
+e `ficha-produto.js` (quais campos a ficha tem e quais são obrigatórios). O original é o de
+`js/`; a cópia é gerada por `ferramentas/espelhar-*.js`, refeita no predeploy, e um teste
+quebra se divergirem. Nunca edite a cópia.
+
 **Mexeu em `firestore.rules`, o Willian roda `TESTAR-REGRAS.command` antes de `PUBLICAR`.**
 Regra errada em produção ou derruba a tela de todo mundo, ou abre o custo de um cliente
 para outro — e a segunda não dá aviso nenhum.
@@ -199,8 +214,9 @@ para outro — e a segunda não dá aviso nenhum.
 - Criar a conta do especialista de Mercado Livre em 📦 Produtos → 🤝 Especialistas.
 - `margem` e `lucro` dos anúncios antigos: só reimportando as duas abas da Shopee, à mão.
 
-## Pergunta em aberto que muda a fase 7
+## Respondido: conta compartilhada por especialista
 
-Cada especialista tem uma conta única no marketplace, com todos os clientes dentro?
-Se for conta única, o dono do anúncio não sai da conta — sai do SKU, e a integração
-precisa ser construída em cima do SKU desde o primeiro dia. Responder antes de começar a fase 7.
+Willian confirmou em 09/09/2026 que cada especialista usa UMA conta no marketplace com
+anúncios de vários clientes, e que SKU pode se repetir entre clientes. O dono do anúncio
+nunca sai do SKU — sai de um vínculo explícito (marketplace + conta + anúncio), que já está
+construído. Ver `FASE-7.md`.
