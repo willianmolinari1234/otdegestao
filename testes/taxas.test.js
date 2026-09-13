@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import {
   TAXAS, taxasDoMarketplace, pesoEmKg, faixaDeComissao, freteDoPeso, calcularMargem,
   pct, percentuaisDaLoja, PCT_OTDE_PADRAO, PCT_IMPOSTO_PADRAO,
+  comissaoEstimadaDosItens, taxaEfetivaReal, conferirTabelaShopee,
 } from "../js/taxas.js";
 
 // ─── achar o marketplace ──────────────────────────────────────────────
@@ -358,4 +359,86 @@ test("percentual inválido é tratado como ausente, nunca como zero", () => {
     preco: 150, custo: 60, peso: "", mkt: "Shopee", pctOtde: NaN, pctImposto: -3,
   });
   assert.equal(r.completa, false);
+});
+
+// ─── conferir a tabela contra o que a Shopee cobrou ───────────────────
+//
+// A sincronização guarda em `sales` o que a Shopee COBROU de verdade. Comparar
+// com o que a tabela prevê responde, com dado de produção, a única pergunta
+// que nenhum teste responde: a tabela está certa?
+
+test("a comissão é estimada por ITEM, não pelo ticket do pedido", () => {
+  // Três peças de R$ 40 num pedido de R$ 120. Pelo item, cada uma cai na
+  // primeira faixa (20% + R$ 4); pelo ticket do pedido cairiam em 14% + R$ 20,
+  // que é outra linha da tabela e outro número.
+  const r = comissaoEstimadaDosItens([{ q: 3, v: 120 }], TAXAS.shopee);
+  assert.equal(r.total, 36, "120 × 20% + 3 × R$ 4 = 36");
+  assert.equal(r.unidades, 3);
+});
+
+test("cada item cai na faixa do próprio valor unitário", () => {
+  const r = comissaoEstimadaDosItens([
+    { q: 1, v: 50 },    // 20% + 4  = 14
+    { q: 1, v: 150 },   // 14% + 20 = 41
+  ], TAXAS.shopee);
+  assert.equal(r.total, 55);
+});
+
+test("item sem quantidade ou sem valor não entra na conta", () => {
+  const r = comissaoEstimadaDosItens([
+    { q: 0, v: 100 }, { q: 2, v: 0 }, { q: 1, v: 100 }, null, {},
+  ], TAXAS.shopee);
+  assert.equal(r.unidades, 1);
+  assert.equal(r.total, 34, "só o item válido: 100 × 14% + 20");
+});
+
+test("a taxa efetiva real soma comissão e taxa de serviço", () => {
+  assert.equal(taxaEfetivaReal({ gmv: 1000, comissao: 140, taxaServico: 20 }), 16);
+  assert.equal(taxaEfetivaReal({ gmv: 0, comissao: 10, taxaServico: 1 }), null);
+  assert.equal(taxaEfetivaReal({ gmv: 1000, comissao: 140 }), 14, "sem taxa de serviço");
+});
+
+test("a conferência põe os dois lados lado a lado", () => {
+  const dias = [
+    { gmv: 1000, comissao: 140, taxaServico: 20, itens: [{ q: 5, v: 1000 }] },
+  ];
+  const r = conferirTabelaShopee(dias);
+  // 5 itens de R$ 200 → faixa 14% + R$ 26 → 1000 × 14% + 5 × 26 = 270
+  assert.equal(r.estimado, 270);
+  assert.equal(r.real, 160);
+  assert.equal(r.pctReal, 16);
+  assert.equal(r.pctEstimado, 27);
+  assert.equal(r.diferenca, 11, "positivo = a tabela cobra MAIS do que a Shopee cobrou");
+});
+
+test("a conferência soma vários dias", () => {
+  const dia = { gmv: 500, comissao: 70, taxaServico: 10, itens: [{ q: 5, v: 500 }] };
+  const r = conferirTabelaShopee([dia, { ...dia }]);
+  assert.equal(r.gmv, 1000);
+  assert.equal(r.dias, 2);
+  assert.equal(r.unidades, 10);
+});
+
+test("dia sem itens não entra: sem eles não há o que estimar", () => {
+  assert.equal(conferirTabelaShopee([{ gmv: 1000, comissao: 140, itens: [] }]), null);
+  assert.equal(conferirTabelaShopee([]), null);
+  assert.equal(conferirTabelaShopee(null), null);
+});
+
+test("item fora de qualquer faixa é contado à parte, não somado como zero", () => {
+  // Somar zero faria a estimativa parecer boa justamente onde ela não sabe.
+  const semTabela = { comissao: [{ abaixoDe: 10, percentual: 20, fixo: 4, subsidioPix: 0 }] };
+  const r = comissaoEstimadaDosItens([{ q: 2, v: 400 }], semTabela);
+  assert.equal(r.total, 0);
+  assert.equal(r.semFaixa, 2);
+  assert.equal(r.unidades, 0);
+});
+
+test("a tabela batendo com a realidade dá diferença perto de zero", () => {
+  // Um dia em que a Shopee cobrou exatamente o que a tabela prevê.
+  const itens = [{ q: 4, v: 600 }];   // 4 itens de R$ 150 → 600×14% + 4×20 = 164
+  const r = conferirTabelaShopee([{ gmv: 600, comissao: 150, taxaServico: 14, itens }]);
+  assert.equal(r.estimado, 164);
+  assert.equal(r.real, 164);
+  assert.equal(r.diferenca, 0);
 });

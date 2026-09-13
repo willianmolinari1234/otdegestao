@@ -165,6 +165,72 @@ export function freteDoPeso(taxas, kg) {
 const arredondar = (n) => Math.round(n * 100) / 100;
 
 /**
+ * A comissão que a TABELA prevê para os itens vendidos num dia.
+ *
+ * Existe para conferir a tabela contra a realidade. A sincronização já guarda,
+ * em `sales`, o que a Shopee COBROU de verdade (`comissao` + `taxaServico`,
+ * vindos da API financeira dela). Comparar os dois números responde, com dado
+ * de produção, a única pergunta que nenhum teste responde: a tabela está certa?
+ *
+ * A conta é por ITEM porque é assim que a tabela funciona — a faixa sai do
+ * valor de UM item, e a parte fixa é cobrada uma vez por unidade. Usar o
+ * ticket médio do pedido colocaria um pedido de três peças de R$ 40 na faixa
+ * de R$ 120, que é outra linha da tabela.
+ *
+ * `itens` é o que `sales` guarda: `{ q: quantidade, v: valor total daquele SKU }`.
+ */
+export function comissaoEstimadaDosItens(itens, taxas) {
+  let total = 0, semFaixa = 0, unidades = 0;
+  for (const it of (Array.isArray(itens) ? itens : [])) {
+    const q = Number(it && it.q) || 0;
+    const v = Number(it && it.v) || 0;
+    if (q <= 0 || v <= 0) continue;
+    const faixa = faixaDeComissao(taxas, v / q);
+    if (!faixa) { semFaixa += q; continue; }
+    total += v * faixa.percentual / 100 + q * faixa.fixo;
+    unidades += q;
+  }
+  return { total: arredondar(total), unidades, semFaixa };
+}
+
+/**
+ * O que a Shopee cobrou de verdade, em % do faturamento.
+ * `comissao` + `taxaServico` é o que sai do vendedor; `gmv` é a base.
+ */
+export function taxaEfetivaReal({ gmv, comissao, taxaServico }) {
+  const g = Number(gmv) || 0;
+  if (g <= 0) return null;
+  return arredondar(((Number(comissao) || 0) + (Number(taxaServico) || 0)) / g * 100);
+}
+
+/**
+ * Junta os dois lados. Devolve o real, o estimado e a diferença em pontos.
+ * `diferenca` positiva = a tabela cobra MAIS do que a Shopee cobrou.
+ */
+export function conferirTabelaShopee(dias, taxas = TAXAS.shopee) {
+  let gmv = 0, real = 0, estimado = 0, unidades = 0, semFaixa = 0, comItens = 0;
+  for (const d of (Array.isArray(dias) ? dias : [])) {
+    if (!d) continue;
+    gmv += Number(d.gmv) || 0;
+    real += (Number(d.comissao) || 0) + (Number(d.taxaServico) || 0);
+    const e = comissaoEstimadaDosItens(d.itens, taxas);
+    estimado += e.total;
+    unidades += e.unidades;
+    semFaixa += e.semFaixa;
+    if (Array.isArray(d.itens) && d.itens.length) comItens += 1;
+  }
+  if (gmv <= 0 || !comItens) return null;
+  const pctReal = arredondar(real / gmv * 100);
+  const pctEstimado = arredondar(estimado / gmv * 100);
+  return {
+    gmv: arredondar(gmv), dias: comItens, unidades, semFaixa,
+    real: arredondar(real), estimado: arredondar(estimado),
+    pctReal, pctEstimado, diferenca: arredondar(pctEstimado - pctReal),
+  };
+}
+
+
+/**
  * Lucro e margem de um anúncio. Devolve sempre a mesma forma:
  *
  *   { lucro, margem, descontos: [{ rotulo, valor }], falta: [], avisos: [] }

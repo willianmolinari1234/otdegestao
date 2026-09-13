@@ -354,3 +354,26 @@ test("o formulário de loja traz a marca, e ela é salva", () => {
   // O rascunho da loja sobrevive a criar um cliente no meio do caminho.
   assert.match(form, /cf-sem-relampago"\)\.checked=Boolean\(snap\.semRelampago\)/);
 });
+
+// ── A tabela conferida contra o que a Shopee cobrou ────────────────────
+
+test("a conferência lê as vendas para comparar com o cobrado de verdade", () => {
+  const prod = fs.readFileSync(path.join(raiz, "js", "08-produtos.js"), "utf8");
+  // `sales` guarda comissao e taxaServico vindos da API financeira da Shopee.
+  // É a única fonte que diz o que ela COBROU, e não o que se supõe.
+  assert.match(prod, /collection\(window\.fb\.db, "sales"\)/);
+  assert.match(prod, /window\.taxas\.conferirTabelaShopee\(dias\)/);
+});
+
+test("a conferência nomeia qual dos dois lados engana", () => {
+  const prod = fs.readFileSync(path.join(raiz, "js", "08-produtos.js"), "utf8");
+  // Descontar de menos é o caso perigoso: a margem sai mais alta que a real.
+  assert.match(prod, /desconta <b>menos<\/b> do que a Shopee cobra/);
+  assert.match(prod, /é a que engana/);
+});
+
+test("falhar a conferência da tabela não derruba a comparação com a planilha", () => {
+  const prod = fs.readFileSync(path.join(raiz, "js", "08-produtos.js"), "utf8");
+  const i = prod.indexOf("const conferirTabela");
+  assert.match(prod.slice(i, i + 2600), /catch \(e\) \{\s*console\.error\("conferirTabela:", e\);\s*return "";/);
+});

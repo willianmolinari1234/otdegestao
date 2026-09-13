@@ -36,6 +36,19 @@ e o único que não dá aviso. A regra já está escrita em `functions/vinculos-
 
 ---
 
+## Item 0 — a tabela da Shopee conferida contra o que ela cobrou ✅ 13/09/2026
+
+A conferência mais forte não é contra a planilha: é contra a própria Shopee. A
+sincronização já guardava em `sales` o que ela **cobrou de verdade** (`comissao` +
+`taxaServico`, da API financeira), e ninguém tinha olhado para esse número.
+
+📦 Produtos → **Conferir margens** agora abre com essa comparação: quanto a Shopee cobrou,
+quanto a tabela previa, e a diferença em pontos. A conta é por **item**, não por pedido —
+três peças de R$ 40 num pedido de R$ 120 caem na primeira faixa da tabela, não na terceira.
+
+É isso que diz se a tabela está certa, sem depender da planilha de ninguém. E o mesmo
+método serve para Mercado Livre e TikTok assim que houver venda sincronizada de lá.
+
 ## Item 1 — a tabela de taxas dos dois, antes de qualquer API
 
 **Este item não depende do portão 1** e entrega valor sozinho.

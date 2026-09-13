@@ -759,14 +759,56 @@ async function conferirMargens() {
   painel.querySelector("#cm-fechar").onclick = () => closeFormModal();
   const corpo = painel.querySelector("#cm-corpo");
 
+  // A conferência mais forte não é contra a planilha: é contra o que a Shopee
+  // COBROU. A sincronização guarda isso em `sales` (comissao + taxaServico,
+  // da API financeira dela), então dá para perguntar, com dado de produção,
+  // se a tabela de taxas está no lugar certo.
+  const conferirTabela = async () => {
+    try {
+      const snap = await window.fb.getDocs(window.fb.query(
+        window.fb.collection(window.fb.db, "sales"),
+        window.fb.orderBy("data", "desc"), window.fb.limit(120)));
+      const dias = snap.docs.map((d) => d.data());
+      const r = window.taxas.conferirTabelaShopee(dias);
+      if (!r) return `<div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Ainda não há vendas com detalhe de item para conferir a tabela da Shopee.</div>`;
+      const perto = Math.abs(r.diferenca) <= 1.5;
+      const cor = perto ? "#15803d" : Math.abs(r.diferenca) <= 4 ? "#b45309" : "#b91c1c";
+      const fundo = perto ? "#f0fdf4" : Math.abs(r.diferenca) <= 4 ? "#fffbeb" : "#fef2f7";
+      const borda = perto ? "#bbf7d0" : Math.abs(r.diferenca) <= 4 ? "#fde68a" : "#fecaca";
+      return `
+      <div style="background:${fundo};border:1px solid ${borda};border-radius:10px;padding:13px 15px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:800;color:${cor};margin-bottom:7px">A tabela da Shopee bate com o que ela cobrou?</div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:#334155">
+          <span>A Shopee cobrou <b>${plMoeda(r.real)}</b> (${String(r.pctReal).replace(".", ",")}% do faturamento)</span>
+          <span>A tabela previa <b>${plMoeda(r.estimado)}</b> (${String(r.pctEstimado).replace(".", ",")}%)</span>
+          <span style="color:${cor};font-weight:700">diferença ${r.diferenca > 0 ? "+" : ""}${String(r.diferenca).replace(".", ",")} pontos</span>
+        </div>
+        <div style="font-size:11.5px;color:#64748b;margin-top:7px;line-height:1.55">
+          ${perto
+            ? "A tabela está certa. O que a margem estima para a Shopee pode ser usado com confiança."
+            : r.diferenca > 0
+              ? "A tabela desconta <b>mais</b> do que a Shopee cobra: a margem estimada está saindo mais baixa que a real."
+              : "A tabela desconta <b>menos</b> do que a Shopee cobra: a margem estimada está saindo mais alta que a real, e é a que engana."}
+          Base: ${r.dias} dia(s) de venda, ${r.unidades} unidades, ${plMoeda(r.gmv)} faturados.${r.semFaixa ? ` ${r.semFaixa} unidade(s) ficaram fora de qualquer faixa.` : ""}
+        </div>
+      </div>`;
+    } catch (e) {
+      console.error("conferirTabela:", e);
+      return "";
+    }
+  };
+
   try {
+    corpo.innerHTML = await conferirTabela() + `<div style="font-size:13px;color:#64748b">Comparando com a planilha…</div>`;
+    const cabecalho = corpo.innerHTML.replace(/<div style="font-size:13px;color:#64748b">Comparando[\s\S]*$/, "");
+
     // Só os anúncios que têm margem da planilha: são os únicos com gabarito.
     const snap = await window.fb.getDocs(window.fb.query(
       window.fb.collection(window.fb.db, "listings"), window.fb.limit(400)));
     const anuncios = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .filter((a) => a.margem !== null && a.margem !== undefined && a.preco);
     if (!anuncios.length) {
-      corpo.innerHTML = `<div style="color:#94a3b8">Nenhum anúncio com margem da planilha para comparar.</div>`;
+      corpo.innerHTML = cabecalho + `<div style="color:#94a3b8">Nenhum anúncio com margem da planilha para comparar.</div>`;
       return;
     }
 
@@ -793,7 +835,7 @@ async function conferirMargens() {
         dif: r.margem === null ? null : Math.abs(r.margem - Number(a.margem)) });
     }
     if (!linhas.length) {
-      corpo.innerHTML = `<div style="color:#94a3b8">Nenhum anúncio com margem E custo para comparar.</div>`;
+      corpo.innerHTML = cabecalho + `<div style="color:#94a3b8">Nenhum anúncio com margem E custo para comparar.</div>`;
       return;
     }
 
@@ -805,7 +847,7 @@ async function conferirMargens() {
       return ok.length ? ok[Math.floor(ok.length / 2)] : null;
     })();
 
-    corpo.innerHTML = `
+    corpo.innerHTML = cabecalho + `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
           <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Comparados</div>
