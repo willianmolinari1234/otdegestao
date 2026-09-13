@@ -113,6 +113,22 @@ function bindAll(){
   if(pv)pv.onclick=()=>abrirVinculosAnuncios();
   const pcf=C.querySelector("#prod-conferir");
   if(pcf)pcf.onclick=()=>conferirMargens();
+  // Painel de parede: sair volta para as tarefas, e o atalho da faixa âmbar
+  // leva direto ao cadastro onde se define o responsável da loja.
+  const tvs=C.querySelector("#tv-sair");
+  if(tvs)tvs.onclick=()=>{view="kanban";render();};
+  const tvc=C.querySelector("#tv-ir-clientes");
+  if(tvc)tvc.onclick=()=>{view="clientes";fResp="sem";render();};
+  // Redimensionar muda quantos cartões cabem. Registrado UMA vez: o #content
+  // sobrevive aos redesenhos, e registrar a cada um empilharia handlers.
+  if(!window._tvResize){
+    window._tvResize=true;
+    let _t=null;
+    window.addEventListener("resize",()=>{
+      if(view!=="painel")return;
+      clearTimeout(_t);_t=setTimeout(()=>{if(view==="painel")render();},200);
+    });
+  }
   // O painel de fichas do cliente é preenchido por consulta, depois do
   // desenho: products não tem listener no boot, e nem precisa — só esta tela
   // usa. Não se espera o resultado para a tela aparecer.

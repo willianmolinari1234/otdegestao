@@ -272,7 +272,11 @@ function render(){
   // Produtos é só do admin: quem não é cai no dashboard em vez de ver um
   // iframe que as regras do Firestore vão esvaziar sem explicar por quê.
   if(view==="produtos"&&!isAdmin())view="dashboard";
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
+  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas,painel:rPainel}[view];
+  // O painel de parede toma a tela inteira: some a barra lateral e o topo.
+  // A classe sai em TODO redesenho que não seja dele, senão trocar de aba
+  // deixaria o sistema sem menu e sem saída.
+  document.body.classList.toggle("tv-cheia",view==="painel");
   document.getElementById("content").innerHTML=fn();
   bindAll();
   enhanceSearchSelects(document.getElementById("content"));
@@ -1535,3 +1539,165 @@ async function carregarFichasRecentes(){
     alvo.innerHTML="";
   }
 }
+
+// ─── PAINEL DE PAREDE ─────────────────────────────────────────────────
+//
+// A tela de tarefas vista de longe, para ficar ligada numa TV do escritório.
+// Desenho aprovado pelo Willian em 13/09/2026.
+//
+// O que ela responde, nesta ordem — é a ordem que um gestor de fila usa:
+//   1. a fila está drenando?      (saíram hoje, contra a média do dia)
+//   2. o que ninguém resolve só?  (a faixa âmbar: tarefa sem dono)
+//   3. o que eu pego agora?       (o ticket mais antigo, à esquerda)
+//   4. alguém está afogado?       (a carga, no rodapé)
+//
+// O que NÃO tem, de propósito: ranking de quantas tarefas cada um concluiu.
+// Num telão isso vira disputa, e a pessoa passa a escolher a tarefa fácil
+// para o número subir. O rodapé mostra quantas cada um tem ABERTAS, que
+// serve para redistribuir. Desempenho individual se conversa a sós — e a
+// tela de Equipe já mostra o histórico, inclusive o retrabalho.
+//
+// Não precisa de timer: `tsks` é um listener do Firestore, então concluir
+// uma tarefa em qualquer lugar tira o cartão da TV sozinho.
+
+// Quantos cartões cabem: sempre DUAS linhas, e as colunas variam com a
+// largura. Fixar oito espremia as duas primeiras linhas até o texto sumir
+// numa tela de notebook — o cartão nunca encolhe, o que muda é quantos
+// aparecem, e o rodapé conta os que ficaram de fora.
+function tvColunas(){
+  const w=(typeof window!=="undefined"&&window.innerWidth)||1440;
+  return w>=1240?4:w>=900?3:2;
+}
+function tvMaxCartoes(){ return tvColunas()*2; }
+
+/** Dias de atraso (positivo) ou quanto falta (negativo). */
+function tvAtraso(t){ return -daysUntil(t.date); }
+
+/** A tarja de tempo de um cartão: cor e texto vêm do atraso. */
+function tvTarja(t){
+  const d=tvAtraso(t);
+  if(d>=3)return{bg:"#dc2626",fg:"#ffffff",sub:"#fecaca",txt:d+"d"};
+  if(d>=1)return{bg:"#f59e0b",fg:"#1c1917",sub:"#451a03",txt:d+"d"};
+  if(d===0)return{bg:"#f59e0b",fg:"#1c1917",sub:"#451a03",txt:"hoje"};
+  if(d===-1)return{bg:"#22c55e",fg:"#052e16",sub:"#14532d",txt:"amanhã"};
+  return{bg:"#22c55e",fg:"#052e16",sub:"#14532d",txt:Math.abs(d)+"d"};
+}
+
+/** Quantas tarefas saíram por dia, em média, nos últimos 7 dias fechados.
+ *  Só conta dia que teve conclusão registrada: tarefa concluída antes de o
+ *  carimbo `doneDate` existir não tem data, e incluí-la como zero puxaria a
+ *  média para baixo inventando dias parados que talvez não existiram. */
+function tvMediaDiaria(ts){
+  const dias=new Map();
+  const limite=new Date(todayISO());limite.setDate(limite.getDate()-7);
+  for(const t of ts){
+    if(t.status!=="done"||!t.doneDate)continue;
+    if(t.doneDate>=todayISO())continue;
+    if(new Date(t.doneDate)<limite)continue;
+    dias.set(t.doneDate,(dias.get(t.doneDate)||0)+1);
+  }
+  if(dias.size<2)return null;   // sem histórico não se inventa tendência
+  let soma=0;for(const n of dias.values())soma+=n;
+  return Math.round(soma/dias.size);
+}
+
+function rPainel(){
+  const ts=visibleTasks();
+  const hoje=todayISO();
+  const abertas=ts.filter(t=>t.status!=="done");
+  const saiuHoje=ts.filter(t=>t.status==="done"&&t.doneDate===hoje).length;
+  const media=tvMediaDiaria(ts);
+  const atrasadas=abertas.filter(isOverdue);
+  const semDono=abertas.filter(t=>!t.emp);
+  // Mais antiga primeiro. Empate desempata pela prioridade, depois pelo nome,
+  // para a ordem não dançar entre dois redesenhos.
+  const fila=abertas.slice().sort((a,b)=>tvAtraso(b)-tvAtraso(a)
+    ||({alta:0,media:1,baixa:2}[a.pri]??1)-({alta:0,media:1,baixa:2}[b.pri]??1)
+    ||(a.title||"").localeCompare(b.title||"","pt-BR"));
+  const maisAntiga=fila.length?tvAtraso(fila[0]):null;
+  const cabem=tvMaxCartoes();
+  const mostrar=fila.slice(0,cabem);
+
+  const carga=emps.map(e=>({e,n:abertas.filter(t=>t.emp===e.id).length}))
+    .filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
+  const pico=carga.length?carga[0].n:0;
+
+  const agora=new Date();
+  const hh=String(agora.getHours()).padStart(2,"0")+":"+String(agora.getMinutes()).padStart(2,"0");
+  const dataExt=agora.toLocaleDateString("pt-BR",{weekday:"short",day:"numeric",month:"short"});
+
+  const cartao=(t)=>{
+    const j=tvTarja(t);
+    const e=getEmp(t.emp),c=getCliV(t);
+    const q=isAdTask(t)?adQtyOf(t):0;
+    const fazendo=t.status==="doing";
+    return`<div class="tv-card">
+      <div class="tv-tarja" style="background:${j.bg};color:${j.fg}">
+        <span class="tv-tempo">${esc(j.txt)}</span>
+        <span class="tv-estado" style="color:${j.sub}">${fazendo?"fazendo":"a fazer"}</span>
+      </div>
+      <div class="tv-corpo">
+        <div class="tv-titulo">${esc(t.title||"sem título")}</div>
+        <div class="tv-loja">${c?esc(c.name):`<span class="tv-todas">Todas as lojas</span>`}</div>
+        <div class="tv-rodape">
+          ${e?`<span class="tv-dono">${avHTML(e,25)}${esc(e.name.split(" ")[0])}</span>`
+             :`<span class="tv-sem-dono">sem dono</span>`}
+          ${q>0?`<span class="tv-qtd">${TV_ICONE_ANUNCIO}<span>${q}</span></span>`:""}
+        </div>
+      </div>
+      <button class="tv-acao${fazendo?" tv-acao-fim":""}" data-move="${esc(t.id)}" data-next="${fazendo?"done":"doing"}">${fazendo?"CONCLUIR":"INICIAR"}</button>
+    </div>`;
+  };
+
+  return`
+  <div class="tv">
+    <div class="tv-pulso">
+      <div class="tv-marca">
+        <span class="tv-logo">O</span>
+        <span class="tv-nome">Fila de hoje</span>
+      </div>
+      <div class="tv-numeros">
+        <span class="tv-bloco"><span class="tv-big" style="color:#4ade80">${saiuHoje}</span><span class="tv-rot">${saiuHoje===1?"saiu hoje":"saíram hoje"}</span></span>
+        ${media!==null?`<span class="tv-bloco tv-media"><span class="tv-rot">média ${media}/dia</span></span>`:""}
+        <span class="tv-sep"></span>
+        <span class="tv-bloco"><span class="tv-big">${abertas.length}</span><span class="tv-rot">na fila</span></span>
+        ${atrasadas.length?`<span class="tv-bloco tv-alerta"><span class="tv-big">${atrasadas.length}</span><span class="tv-rot">${atrasadas.length===1?"atrasada":"atrasadas"}</span></span>`:""}
+      </div>
+      <div class="tv-direita">
+        ${maisAntiga!==null&&maisAntiga>0?`<div class="tv-antiga">
+          <div class="tv-rot-cap">a mais antiga</div>
+          <div class="tv-antiga-val">${maisAntiga} ${maisAntiga===1?"dia":"dias"}</div>
+        </div><span class="tv-sep"></span>`:""}
+        <div class="tv-relogio">
+          <div class="tv-data">${esc(dataExt)}</div>
+          <div class="tv-hora">${hh}</div>
+        </div>
+        <button class="tv-sair" id="tv-sair" title="Sair do painel">✕</button>
+      </div>
+    </div>
+
+    ${semDono.length?`<div class="tv-excecao">
+      ${TV_ICONE_ALERTA}
+      <span class="tv-exc-forte">${semDono.length===1?"1 tarefa parada":semDono.length+" tarefas paradas"} sem ninguém para pegar</span>
+      <span class="tv-exc-det">${esc(semDono.slice(0,2).map(t=>t.title).join(" · "))}${semDono.length>2?" e mais "+(semDono.length-2):""}</span>
+      <button class="tv-exc-acao" id="tv-ir-clientes">Definir responsável</button>
+    </div>`:""}
+
+    <div class="tv-grade">
+      ${mostrar.length?mostrar.map(cartao).join("")
+        :`<div class="tv-vazio">${TV_ICONE_OK}<span>Nada na fila. Tudo em dia.</span></div>`}
+    </div>
+
+    <div class="tv-carga">
+      ${carga.length?`<span class="tv-rot-cap">Na mão de cada um</span>
+      <div class="tv-chips">
+        ${carga.map(x=>`<span class="tv-chip${x.n===pico&&pico>1?" tv-chip-pico":""}">${esc(x.e.name.split(" ")[0])} <b>${x.n}</b></span>`).join("")}
+      </div>`:`<span class="tv-rot-cap">Nenhuma tarefa atribuída</span>`}
+      ${fila.length>cabem?`<span class="tv-resto">+${fila.length-cabem} na fila</span>`:""}
+    </div>
+  </div>`;
+}
+
+const TV_ICONE_ANUNCIO=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg>`;
+const TV_ICONE_ALERTA=`<svg class="tv-exc-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>`;
+const TV_ICONE_OK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>`;

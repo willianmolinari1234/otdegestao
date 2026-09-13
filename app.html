@@ -87,6 +87,113 @@ button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--brand)!important;box-shadow:0 0 0 3px rgba(234,88,12,.12)!important}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+/* ─── PAINEL DE PAREDE ──────────────────────────────────────────────
+   A tela de tarefas vista de longe, para uma TV do escritório.
+
+   TUDO aqui é escopado em .tv de propósito: o sistema é claro e este
+   painel é escuro, e uma regra solta pintaria de preto a tela ao lado.
+
+   Os tamanhos são para leitura a metros, não a 60 cm: o menor texto tem
+   16px e a tarja de tempo tem 30px. Não reduza para caber mais cartão —
+   o que não cabe aparece quando os de cima saírem. */
+body.tv-cheia #sidebar{display:none}
+body.tv-cheia #topbar{display:none}
+body.tv-cheia #main{background:#0b1220}
+/* #content tem 22px de padding e rolagem no resto do sistema; no painel os
+   dois atrapalham — a tela é uma só e não rola. */
+body.tv-cheia #content{padding:0;overflow:hidden}
+
+/* 100% e não 100vh: o pai já ocupa a janela inteira, e 100vh aqui dentro
+   somaria a altura de qualquer coisa acima e cortaria o rodapé. */
+.tv{height:100%;background:#0b1220;color:#f1f5f9;display:flex;flex-direction:column;overflow:hidden;
+  font-feature-settings:"tnum"}
+.tv button{font-family:inherit}
+
+.tv-pulso{display:flex;align-items:center;gap:26px;padding:16px 30px;border-bottom:1px solid #1e293b;flex-shrink:0}
+.tv-marca{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.tv-logo{width:36px;height:36px;border-radius:50%;background:var(--brand);display:flex;align-items:center;
+  justify-content:center;color:#fff;font-weight:800;font-size:16px}
+.tv-nome{font-size:21px;font-weight:800;letter-spacing:-.02em}
+.tv-numeros{display:flex;align-items:center;gap:20px}
+.tv-bloco{display:flex;align-items:baseline;gap:9px}
+.tv-big{font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.tv-rot{font-size:15px;font-weight:600;color:#94a3b8}
+.tv-media .tv-rot{color:#64748b}
+.tv-sep{width:1px;height:34px;background:#1e293b;flex-shrink:0}
+.tv-alerta{background:#7f1d1d;border-radius:10px;padding:7px 15px}
+.tv-alerta .tv-big{font-size:30px}
+.tv-alerta .tv-rot{color:#fecaca}
+.tv-direita{margin-left:auto;display:flex;align-items:center;gap:20px;flex-shrink:0}
+.tv-rot-cap{font-size:13px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.tv-antiga{text-align:right}
+.tv-antiga-val{font-size:24px;font-weight:800;color:#fca5a5;line-height:1.15;font-variant-numeric:tabular-nums}
+.tv-relogio{text-align:right}
+.tv-data{font-size:13px;color:#64748b}
+.tv-hora{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
+.tv-sair{background:none;border:none;color:#334155;font-size:19px;cursor:pointer;padding:6px 9px;border-radius:8px;line-height:1}
+.tv-sair:hover{background:#1e293b;color:#94a3b8}
+
+/* A exceção só existe quando existe: é o que a equipe NÃO resolve sozinha,
+   e por isso não pode ficar enterrada entre os cartões. */
+.tv-excecao{display:flex;align-items:center;gap:14px;padding:11px 30px;background:#271a06;
+  border-bottom:1px solid #422006;flex-shrink:0}
+.tv-exc-ico{width:21px;height:21px;color:#fbbf24;flex-shrink:0}
+.tv-exc-forte{font-size:17px;font-weight:700;color:#fbbf24;flex-shrink:0}
+.tv-exc-det{font-size:16px;color:#d97706;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tv-exc-acao{margin-left:auto;font-size:15px;font-weight:700;color:#fbbf24;background:none;
+  border:1px solid #b45309;border-radius:8px;padding:6px 14px;cursor:pointer;flex-shrink:0;white-space:nowrap}
+.tv-exc-acao:hover{background:#422006}
+
+.tv-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));
+  gap:15px;padding:15px 30px;flex-grow:1;min-height:0}
+.tv-card{background:#111a2e;border:1px solid #1e293b;border-radius:13px;overflow:hidden;
+  display:flex;flex-direction:column;min-height:0}
+.tv-tarja{display:flex;align-items:center;justify-content:space-between;padding:9px 15px;flex-shrink:0}
+.tv-tempo{font-size:30px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tv-estado{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.tv-corpo{padding:13px 15px;display:flex;flex-direction:column;gap:9px;flex-grow:1;min-height:0;overflow:hidden}
+.tv-titulo{font-size:21px;font-weight:700;line-height:1.2;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.tv-loja{font-size:16px;color:#94a3b8;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tv-todas{color:#64748b}
+.tv-rodape{display:flex;align-items:center;gap:8px;margin-top:auto;flex-wrap:wrap}
+.tv-dono{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:700}
+.tv-sem-dono{font-size:15px;font-weight:700;color:#fbbf24;background:#271a06;border:1px solid #b45309;
+  border-radius:7px;padding:3px 10px}
+.tv-qtd{display:flex;align-items:center;gap:5px;background:#052e16;color:#86efac;border-radius:7px;
+  padding:4px 10px;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+.tv-qtd svg{width:15px;height:15px}
+.tv-acao{background:#1e293b;color:#f1f5f9;border:none;padding:11px;text-align:center;font-size:15px;
+  font-weight:800;letter-spacing:.03em;cursor:pointer;flex-shrink:0}
+.tv-acao:hover{background:#334155}
+.tv-acao-fim{background:var(--brand);color:#fff}
+.tv-acao-fim:hover{background:var(--brand-dark)}
+.tv-vazio{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;color:#334155;font-size:22px;font-weight:700}
+.tv-vazio svg{width:54px;height:54px;color:#22c55e}
+
+/* Quantas cada um tem ABERTAS — não quantas concluiu. A primeira ajuda a
+   redistribuir; a segunda seria um ranking de desempenho num telão, e disso
+   não sai time melhor, sai gente disputando número. */
+.tv-carga{display:flex;align-items:center;gap:18px;padding:12px 30px;border-top:1px solid #1e293b;flex-shrink:0}
+.tv-chips{display:flex;gap:9px;flex-wrap:wrap;overflow:hidden}
+.tv-chip{display:flex;align-items:center;gap:8px;background:#1e293b;border-radius:8px;padding:5px 13px;
+  font-size:16px;font-weight:700;white-space:nowrap}
+.tv-chip b{color:#cbd5e1;font-variant-numeric:tabular-nums}
+.tv-chip-pico{background:#2a1215;border:1px solid #7f1d1d}
+.tv-chip-pico b{color:#fca5a5}
+.tv-resto{margin-left:auto;font-size:16px;color:#94a3b8;flex-shrink:0;white-space:nowrap}
+
+/* Telas menores que a TV: três colunas, depois duas. O cartão encolhe em
+   número, nunca em tamanho de letra. */
+@media (max-width:1239px){.tv-grade{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:899px){
+  .tv-grade{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tv-numeros{gap:14px}
+  .tv-pulso,.tv-excecao,.tv-grade,.tv-carga{padding-left:16px;padding-right:16px}
+  .tv-exc-det{display:none}
+}
+
 /* O sistema começa OCULTO e só aparece depois que a sessão é confirmada.
    Sem isso, ao abrir sem login, o dashboard piscava por alguns milissegundos
    antes da tela de acesso — expondo a estrutura interna a quem não entrou. */
@@ -538,6 +645,7 @@ tr:last-child td{border-bottom:none}
   <nav id="nav">
     <button class="nav-btn active" data-view="dashboard">◻&nbsp; Dashboard</button>
     <button class="nav-btn" data-view="kanban">▦&nbsp; Tarefas</button>
+    <button class="nav-btn" data-view="painel">▣&nbsp; Painel na TV</button>
     <button class="nav-btn" data-view="clientes">🏪&nbsp; Clientes</button>
     <button class="nav-btn" data-view="integracoes" data-admin>🔗&nbsp; Integrações</button>
     <button class="nav-btn" data-view="equipe" data-admin>◉&nbsp; Equipe</button>
@@ -625,13 +733,13 @@ tr:last-child td{border-bottom:none}
 </script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
      scripts clássicos compartilham escopo e o boot precisa vir por último. -->
-<script src="js/01-estado-e-dados.js?v=00539a01"></script>
+<script src="js/01-estado-e-dados.js?v=4aad6282"></script>
 <script src="js/02-utilitarios.js?v=86443464"></script>
 <script src="js/03-acesso.js?v=cb659190"></script>
-<script src="js/04-telas.js?v=847da74f"></script>
+<script src="js/04-telas.js?v=008716bc"></script>
 <script src="js/05-clientes-e-acesso.js?v=b5e56eaa"></script>
 <script src="js/06-formularios.js?v=88307402"></script>
-<script src="js/07-interacoes-e-boot.js?v=b0d2cf5a"></script>
+<script src="js/07-interacoes-e-boot.js?v=024cdfd2"></script>
 <script src="js/08-produtos.js?v=3d2203a1"></script>
 <div id="diag-report"></div>
 </body>

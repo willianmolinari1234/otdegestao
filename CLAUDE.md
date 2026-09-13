@@ -54,7 +54,7 @@ publicação — e sem build não existe compilador para avisar.
 |---|---|---|
 | `functions/index.js` | 2.063 | Todo o backend: sincronização Shopee, acessos, claims, endpoints |
 | `relatorio-cliente.html` | 1.663 | Fechamento mensal. Apesar do nome, é tela de funcionário |
-| `js/04-telas.js` | 1.531 | Dashboard, lojas, clientes, produtos |
+| `js/04-telas.js` | 1.639 | Dashboard, lojas, clientes, produtos, painel de parede |
 | `cliente.html` | 1.191 | Três modos: cliente, especialista, equipe vendo como cliente |
 | `js/08-produtos.js` | 850 | Admin: importação da planilha, SKU, acessos, conferir margens |
 | `app.html` | 638 | Casca do app, CSS, carregamento dos scripts |
@@ -187,6 +187,10 @@ e modal vive fora do `#content`. Botão novo dentro de modal precisa ser registr
 
 **A classe de modal do projeto é `.form-panel`.** Não existe `form-modal-header`,
 `form-modal-body` nem `modal-close`. Antes de escrever CSS novo, procure a classe que já existe.
+
+**A casca do app é por ID, não por classe:** `#sidebar`, `#topbar`, `#content`. Não existe
+`.topbar` nem `.corpo`. Regra escrita para a classe errada não dá erro — ela simplesmente
+não pinta, e só aparece quando alguém abre a tela. Aconteceu no painel de parede.
 
 **O macOS tem um Java falso.** `command -v java` retorna verdadeiro mesmo sem Java instalado.
 A checagem certa é `java -version >/dev/null 2>&1`, mais `/usr/libexec/java_home` e os

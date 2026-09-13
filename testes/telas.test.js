@@ -377,3 +377,200 @@ test("falhar a conferência da tabela não derruba a comparação com a planilha
   const i = prod.indexOf("const conferirTabela");
   assert.match(prod.slice(i, i + 2600), /catch \(e\) \{\s*console\.error\("conferirTabela:", e\);\s*return "";/);
 });
+
+// ── Painel de parede (13/09/2026) ──────────────────────────────────────
+//
+// A tela de tarefas vista de longe. O que se prova aqui é a ORDEM em que
+// ela responde as perguntas de quem administra uma fila, e uma ausência
+// deliberada: não há ranking de quantas tarefas cada um concluiu.
+
+const ontem = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+const antesDeOntem = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
+const semanaPassada = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
+
+const PAINEL = `
+  emps = [
+    { id:"ana", name:"Ana Souza", ini:"AS", color:"#ea580c", role:"user" },
+    { id:"bruno", name:"Bruno Lima", ini:"BL", color:"#7c3aed", role:"user" },
+  ];
+  custs = [{ id:"c1", name:"Poliane" }];
+  clis = [{ id:"l1", name:"Diamond Tricot", mkt:"Shopee", custId:"c1", respId:"ana" }];
+  tools = [];
+  tsks = [
+    { id:"t0", cli:"l1", emp:"ana", status:"doing", title:"Subir 9 anúncios", pri:"alta", date:"${semanaPassada}", qty:9 },
+    { id:"t1", cli:"l1", emp:"ana", status:"todo", title:"Conferir estoque", pri:"alta", date:"${antesDeOntem}" },
+    { id:"t2", cli:"l1", emp:"bruno", status:"todo", title:"Trocar fotos", pri:"media", date:"${ontem}" },
+    { id:"t3", cli:"l1", emp:"ana", status:"todo", title:"Revisar títulos", pri:"baixa", date:"${HOJE}" },
+    { id:"t4", cli:"l1", emp:"", status:"todo", title:"Ativar desconto", pri:"alta", date:"${ontem}", auto:true },
+    { id:"t5", cli:"l1", emp:"ana", status:"done", title:"Já feita", pri:"media", date:"${ontem}", doneDate:"${HOJE}" },
+    { id:"t6", cli:"l1", emp:"bruno", status:"done", title:"Feita ontem", pri:"media", date:"${ontem}", doneDate:"${ontem}" },
+    { id:"t7", cli:"l1", emp:"ana", status:"done", title:"Feita semana passada", pri:"media", date:"${semanaPassada}", doneDate:"${semanaPassada}" },
+  ];
+  currentUser = { id:"adm", name:"Willian", role:"admin", color:"#ea580c" };
+`;
+
+test("a fila mostra a mais antiga primeiro", async () => {
+  // É a ordem da comanda: o que está esperando há mais tempo sai na frente.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  const pos = (t) => h.indexOf(t);
+  assert.ok(pos("Subir 9 anúncios") < pos("Conferir estoque"), "6 dias antes de 2 dias");
+  assert.ok(pos("Conferir estoque") < pos("Trocar fotos"), "2 dias antes de 1 dia");
+  assert.ok(pos("Trocar fotos") < pos("Revisar títulos"), "1 dia antes de hoje");
+});
+
+test("tarefa concluída sai da fila e vira contagem do dia", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  assert.doesNotMatch(h, /Já feita/, "concluída some da tela, como a comanda pronta");
+  assert.match(h, /saiu hoje|saíram hoje/);
+});
+
+test("a tarefa sem dono sobe para a faixa de exceção", async () => {
+  // É o que a equipe não resolve sozinha: enterrada entre os cartões,
+  // ninguém age.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  const faixa = h.slice(h.indexOf("tv-excecao"), h.indexOf("tv-grade"));
+  assert.match(faixa, /1 tarefa parada/);
+  assert.match(faixa, /Ativar desconto/);
+  assert.match(faixa, /Definir responsável/);
+});
+
+test("sem tarefa órfã, a faixa de exceção não existe", async () => {
+  const ctx = await montarApp(PAINEL.replace('emp:"", status:"todo", title:"Ativar desconto"', 'emp:"ana", status:"todo", title:"Ativar desconto"'));
+  assert.doesNotMatch(eval_(ctx, `return rPainel();`), /tv-excecao/);
+});
+
+test("a carga conta o que cada um tem ABERTO, nunca o que concluiu", async () => {
+  // A ausência é o ponto: um ranking de conclusão num telão faz a pessoa
+  // escolher a tarefa fácil para o número subir.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  const rodape = h.slice(h.indexOf("tv-carga"));
+  assert.match(rodape, /Ana <b>3<\/b>/, "Ana tem 3 abertas (a concluída não conta)");
+  assert.match(rodape, /Bruno <b>1<\/b>/);
+  assert.match(rodape, /Na mão de cada um/);
+});
+
+test("a média diária ignora hoje e não inventa tendência sem histórico", async () => {
+  const ctx = await montarApp(PAINEL);
+  // Dois dias com conclusão (ontem e semana passada): média sai.
+  assert.match(eval_(ctx, `return rPainel();`), /média \d+\/dia/);
+  // Um dia só: não há tendência que se afirme com isso.
+  const h = eval_(ctx, `tsks = tsks.filter(t => t.id !== "t7"); return rPainel();`);
+  assert.doesNotMatch(h, /média/);
+});
+
+test("a tarja de tempo muda de cor pelo atraso", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  assert.match(h, /background:#dc2626/, "vermelho: atrasada de 3 dias ou mais");
+  assert.match(h, /background:#f59e0b/, "âmbar, até 2 dias");
+});
+
+test("o cartão em andamento oferece concluir; o parado, iniciar", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rPainel();`);
+  assert.match(h, /data-next="done"[^>]*>CONCLUIR/);
+  assert.match(h, /data-next="doing"[^>]*>INICIAR/);
+});
+
+test("fila vazia diz que está tudo em dia, em vez de mostrar nada", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `tsks = tsks.filter(t => t.status === "done"); return rPainel();`);
+  assert.match(h, /Nada na fila/);
+  assert.doesNotMatch(h, /tv-card/);
+});
+
+test("cabem 8 cartões e o resto é contado, não escondido", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `
+    tsks = [];
+    for (let i = 0; i < 12; i++) tsks.push({ id:"x"+i, cli:"l1", emp:"ana", status:"todo",
+      title:"Tarefa "+i, pri:"media", date:"${ontem}" });
+    return rPainel();`);
+  assert.equal((h.match(/class="tv-card"/g) || []).length, 8);
+  assert.match(h, /\+4 na fila/);
+});
+
+test("o painel toma a tela inteira, e a devolve ao sair", async () => {
+  // Sem tirar a classe ao trocar de aba, o sistema ficaria sem menu.
+  const telas = fs.readFileSync(path.join(raiz, "js", "04-telas.js"), "utf8");
+  assert.match(telas, /classList\.toggle\("tv-cheia",view==="painel"\)/);
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /tvs\.onclick=\(\)=>\{view="kanban";render\(\);\}/);
+});
+
+test("o painel é uma tela registrada, com nome no topo", async () => {
+  const estado = fs.readFileSync(path.join(raiz, "js", "01-estado-e-dados.js"), "utf8");
+  assert.match(estado, /painel:"Painel"/);
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  assert.match(html, /data-view="painel"/);
+});
+
+test("o painel esconde o que ele substitui, pelos seletores que existem", () => {
+  // O CLAUDE.md registra esta armadilha: escrever CSS para uma classe que o
+  // projeto não tem falha calada. Aqui era `.topbar` e `.corpo` — no sistema
+  // são `#topbar` e `#content`, e a barra do topo teria ficado na tela.
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  for (const alvo of ["#sidebar", "#topbar", "#content"]) {
+    assert.match(html, new RegExp(`body\\.tv-cheia ${alvo}\\{`), `${alvo} não é escondido`);
+    assert.ok(html.includes(`id="${alvo.slice(1)}"`), `${alvo} não existe no HTML`);
+  }
+});
+
+test("a altura do painel não soma a janela duas vezes", () => {
+  // 100vh dentro de um pai que já ocupa a janela corta o rodapé.
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  assert.match(html, /\.tv\{height:100%/);
+});
+
+test("o CSS do painel é todo escopado: o sistema é claro, ele é escuro", async () => {
+  // Uma regra solta pintaria de preto a tela ao lado.
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  const bloco = html.slice(html.indexOf("PAINEL DE PAREDE"), html.indexOf("O sistema começa OCULTO"));
+  const regras = [...bloco.matchAll(/^([.#][a-zA-Z][^{]*)\{/gm)].map((m) => m[1].trim());
+  const soltas = regras.filter((r) => !/\.tv[-\s.:]|\.tv$|body\.tv-cheia/.test(r));
+  assert.deepEqual(soltas, [], "estas regras escapam do painel");
+});
+
+test("o número de cartões segue as colunas, para nenhum ficar espremido", async () => {
+  // Oito cartões em três colunas pedem três linhas; com duas fixas, as de
+  // cima encolhem até o texto sumir. O cartão não encolhe — some da tela, e
+  // o rodapé conta quantos ficaram de fora.
+  const ctx = await montarApp(PAINEL);
+  const doze = `
+    tsks = [];
+    for (let i = 0; i < 12; i++) tsks.push({ id:"x"+i, cli:"l1", emp:"ana", status:"todo",
+      title:"Tarefa "+i, pri:"media", date:"${ontem}" });`;
+
+  const largura = (w) => { ctx.window.innerWidth = w; };
+
+  largura(1440);
+  let h = eval_(ctx, doze + "return rPainel();");
+  assert.equal((h.match(/class="tv-card"/g) || []).length, 8, "TV: 4 colunas");
+  assert.match(h, /\+4 na fila/);
+
+  largura(1100);
+  h = eval_(ctx, doze + "return rPainel();");
+  assert.equal((h.match(/class="tv-card"/g) || []).length, 6, "notebook: 3 colunas");
+  assert.match(h, /\+6 na fila/, "o contador acompanha, em vez de mentir");
+
+  largura(800);
+  h = eval_(ctx, doze + "return rPainel();");
+  assert.equal((h.match(/class="tv-card"/g) || []).length, 4, "estreito: 2 colunas");
+});
+
+test("sem janela para medir, o painel assume a TV", async () => {
+  // No teste e em qualquer render fora do navegador não há innerWidth.
+  const ctx = await montarApp(PAINEL);
+  delete ctx.window.innerWidth;
+  assert.equal(eval_(ctx, `return tvColunas();`), 4);
+});
+
+test("redimensionar redesenha o painel, e o handler é registrado uma vez só", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /if\(!window\._tvResize\)\{/, "sem a guarda, cada redesenho empilha um handler");
+  assert.match(boot, /if\(view!=="painel"\)return;/, "não redesenha as outras telas à toa");
+});
