@@ -172,13 +172,9 @@ function bindAll(){
   C.querySelectorAll("[data-verfichas]").forEach(b=>{
     b.onclick=()=>{prodCliente=b.dataset.verfichas;lsSet("prodCliente",prodCliente);render();};
   });
-  // Prints do "antes" da loja, no diagnóstico.
-  const anAdd=C.querySelector("#antes-add");
-  if(anAdd)anAdd.onclick=()=>antesAdicionar();
-  C.querySelectorAll("[data-antesdel]").forEach(b=>{
-    b.onclick=()=>askConfirm("Remover print","O print sai do registro de como a loja estava. Continuar?",
-      ()=>antesRemover(b.dataset.antesdel));
-  });
+  // Prints do "antes" da loja, no diagnóstico. A mesma ligação serve ao
+  // redesenho avulso do bloco, quando se troca a loja no seletor.
+  antesBind(C);
   const kbf=C.querySelector("#kb-ver-feitas");
   if(kbf)kbf.onclick=()=>{verConcluidas=!verConcluidas;render();};
   // Clicar num nome da carga filtra por ele — e clicar de novo desfaz.

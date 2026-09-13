@@ -953,3 +953,95 @@ test("as funções das abas continuam existindo e sendo chamadas", async () => {
     assert.ok(h.length > 200, `a aba ${aba} não desenhou nada`);
   }
 });
+
+// ─── Os prints do "antes" da loja, no diagnóstico ─────────────────────
+//
+// O bloco nasce vazio ("Escolha uma loja acima") e só ganha conteúdo quando
+// se escolhe a loja no seletor. Essa escolha NÃO passa pelo render(): ela não
+// toca no banco. Sem um redesenho explícito, o bloco ficava congelado no
+// aviso mesmo com a loja escolhida, e o espaço parecia não existir na tela.
+
+/** Um DOM mínimo que aguenta o redesenho avulso do bloco de prints. */
+function domDoDiagnostico(ctx) {
+  const posto = { atual: null };
+  const no = (html) => ({
+    html, replaceWith: (novo) => { posto.atual = novo; },
+    querySelector: () => null, querySelectorAll: () => [],
+  });
+  // innerHTML = "<div …>" tem que virar um firstElementChild; como aqui não há
+  // navegador para interpretar HTML, o próprio texto vira o nó.
+  ctx.document.createElement = () => {
+    const molde = { firstElementChild: null };
+    Object.defineProperty(molde, "innerHTML", {
+      set(v) { molde.firstElementChild = no(v); }, get() { return ""; },
+    });
+    return molde;
+  };
+  const wrap = {
+    firstElementChild: no("<div class=\"an-vazio\">Escolha uma loja acima</div>"),
+    querySelector: () => null, querySelectorAll: () => [],
+  };
+  const campos = {};
+  ctx.document.getElementById = (id) =>
+    id === "diagwrap" ? wrap : (campos[id] ||= { ...elFake, id, value: "" });
+  return posto;
+}
+
+const UMA_LOJA = `
+  custs = [{ id:"c1", name:"Alex" }];
+  clis  = [{ id:"l1", custId:"c1", name:"Bella Embalagens", mkt:"Shopee" }];
+  emps = []; tools = []; tsks = []; prods = []; lists = [];
+  currentUser = { id:"adm", name:"Willian", ini:"WM", role:"admin", color:"#ea580c" };
+`;
+
+test("escolher a loja abre o bloco de prints na hora", async () => {
+  const ctx = await montarApp(UMA_LOJA);
+  const posto = domDoDiagnostico(ctx);
+  eval_(ctx, `diagPickCli("l1");`);
+  assert.ok(posto.atual, "o bloco não foi redesenhado ao escolher a loja");
+  assert.match(posto.atual.html, /Como a loja estava quando pegamos/);
+  assert.match(posto.atual.html, /id="antes-add"/, "e traz o campo de guardar print");
+  assert.doesNotMatch(posto.atual.html, /Escolha uma loja acima/);
+});
+
+test("tirar a loja do seletor devolve o aviso, em vez de prints de ninguém", async () => {
+  const ctx = await montarApp(UMA_LOJA);
+  const posto = domDoDiagnostico(ctx);
+  eval_(ctx, `diagPickCli("l1"); diagPickCli("");`);
+  assert.match(posto.atual.html, /Escolha uma loja acima/);
+});
+
+test("o bloco desenhado do zero já mostra os prints guardados", async () => {
+  const ctx = await montarApp(`
+    custs = [{ id:"c1", name:"Alex" }];
+    clis  = [{ id:"l1", custId:"c1", name:"Bella", mkt:"Shopee",
+               antes:{ prints:[{url:"https://drive.google.com/file/d/AAA/view",legenda:"vitrine"}],
+                       em:"2026-09-01T10:00:00.000Z" } }];
+    emps = []; tools = []; tsks = []; prods = []; lists = [];
+    currentUser = { id:"adm", name:"W", ini:"W", role:"admin", color:"#ea580c" };
+  `);
+  const html = eval_(ctx, `return antesHTML(clis[0]);`);
+  assert.match(html, /1 print</, "conta no singular");
+  assert.match(html, /vitrine/);
+  assert.match(html, /data-antesdel="0"/, "e dá para remover");
+  assert.doesNotMatch(html, /Nenhum print guardado/);
+});
+
+test("redesenhar o bloco religa os botões dele", async () => {
+  // Os cliques do bloco são ligados um a um, não por delegação no #content:
+  // trocar o HTML sem religar deixaria "Guardar print" mudo, sem erro nenhum.
+  const ctx = await montarApp(UMA_LOJA);
+  let religou = false;
+  const posto = domDoDiagnostico(ctx);
+  ctx.document.getElementById = ((antigo) => (id) => {
+    const r = antigo(id);
+    if (id === "diagwrap") r.querySelector = (s) => {
+      if (s === "#antes-add") { religou = true; return { ...elFake }; }
+      return null;
+    };
+    return r;
+  })(ctx.document.getElementById);
+  eval_(ctx, `diagPickCli("l1");`);
+  assert.ok(posto.atual, "o bloco foi redesenhado");
+  assert.ok(religou, "antesRedesenhar() precisa chamar antesBind() no bloco novo");
+});

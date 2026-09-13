@@ -60,7 +60,11 @@ function diagAuto(key){ const a=key.split("-").map(Number),di=a[0],ci=a[1]; cons
 function diagPickCli(id){ const c=clis.find(x=>x.id===id); diagInfo.cliId=id;
   if(c){const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";diagInfo.cliente=own||c.name;diagInfo.loja=c.name;}
   else{diagInfo.cliente="";diagInfo.loja="";}
-  const lj=document.getElementById("diag-loja"); if(lj)lj.value=diagInfo.loja||""; }
+  const lj=document.getElementById("diag-loja"); if(lj)lj.value=diagInfo.loja||"";
+  // Trocar a loja no seletor não passa pelo render(): sem esta linha o
+  // bloco de prints ficava parado no "Escolha uma loja acima" mesmo com
+  // a loja já escolhida, e o espaço parecia não existir.
+  antesRedesenhar(); }
 // ─── O "ANTES" DA LOJA ────────────────────────────────────────────────
 //
 // Prints de como a vitrine estava no dia em que a OTDE pegou a conta. É o
@@ -110,6 +114,30 @@ function antesHTML(loja){
     </div>
     <div class="an-aviso" id="antes-aviso"></div>
   </div>`;
+}
+
+// O bloco de prints é o único pedaço do diagnóstico que se redesenha fora do
+// render(): ele depende da loja escolhida, e a escolha não toca no banco.
+// Como os cliques dele são ligados um a um (não por delegação), redesenhar
+// sem religar deixaria os botões mudos — sem erro nenhum no console.
+function antesRedesenhar(){
+  const wrap=document.getElementById("diagwrap");
+  if(!wrap||!wrap.firstElementChild)return;
+  const molde=document.createElement("div");
+  molde.innerHTML=antesHTML(clis.find(c=>c.id===diagInfo.cliId));
+  wrap.firstElementChild.replaceWith(molde.firstElementChild);
+  antesBind(wrap);
+}
+
+function antesBind(raiz){
+  const R=raiz||document;
+  const add=R.querySelector("#antes-add");
+  if(add)add.onclick=()=>antesAdicionar();
+  R.querySelectorAll("[data-antesdel]").forEach(b=>{
+    b.onclick=()=>askConfirm("Remover print",
+      "O print sai do registro de como a loja estava. Continuar?",
+      ()=>antesRemover(b.dataset.antesdel));
+  });
 }
 
 async function antesAdicionar(){
