@@ -310,6 +310,82 @@ test("o ciclo inteiro: nasce, some a pendência, fecha, volta a pendência, rena
   assert.equal(p3.reabrir[0].id, viva.id);
 });
 
-test("REGRAS não inclui relâmpago nem cupom — é contrato, não acidente", () => {
-  assert.deepEqual(Object.keys(REGRAS).sort(), ["semDesconto", "vencendo"]);
+test("REGRAS não inclui a oferta relâmpago — é contrato, não acidente", () => {
+  // Parte das lojas está bloqueada da ferramenta pela Shopee. Cobrar tarefa
+  // impossível é o jeito mais rápido de ensinar a ignorar o kanban inteiro.
+  // Cupons entraram em 13/09/2026, mas só de quem escolheu o perfil à mão —
+  // ver os testes logo abaixo.
+  assert.deepEqual(Object.keys(REGRAS).sort(), ["cupons", "semDesconto", "vencendo"]);
+  assert.equal("relampago" in REGRAS, false);
+  assert.equal("flash_sale" in REGRAS, false);
+});
+
+// ── Cupons viram tarefa, mas só de quem escolheu o perfil ──────────────
+//
+// Cobrar 4 cupons de uma loja de ticket baixo que ninguém marcou seria repetir
+// o erro da oferta relâmpago: tarefa impossível ensina a ignorar o kanban.
+
+const abaixoFake = (lojas) => lojas
+  .filter((l) => l.cupons < (l.minCupons || 4))
+  .map((l) => ({ cliente: l.cliente, faltas: [{ chave: "cupom", texto: `${l.cupons}/${l.minCupons} cupons` }] }));
+
+const montarCupons = (lojasTools) => montarPendencias({
+  lojasTools,
+  nomeDaLoja: (id) => ({ l1: "Diamond Tricot", l2: "Eva Home" }[id] || id),
+  agoraSeg: 1_760_000_000, hoje: "2026-09-13",
+  semFerramenta: () => [], vencendo: () => [],
+  abaixoDoMinimo: abaixoFake,
+  emDias: (n) => `+${n}`,
+}).filter((p) => p.regra === "cupons");
+
+test("loja com perfil escolhido à mão vira tarefa de cupons", () => {
+  const p = montarCupons([
+    { cliente: "l1", cupons: 1, minCupons: 4, perfilEscolhido: true, promocoes: [] },
+  ]);
+  assert.equal(p.length, 1);
+  assert.equal(p[0].titulo, "Repor cupons — Diamond Tricot");
+  assert.match(p[0].desc, /mínimo 4/);
+  assert.match(p[0].desc, /1\/4 cupons/);
+  assert.equal(p[0].prazo, "+2", "dois dias: não é urgência de hoje como o desconto zerado");
+});
+
+test("loja sem perfil escolhido NÃO vira tarefa, mesmo abaixo do mínimo", () => {
+  const p = montarCupons([
+    { cliente: "l2", cupons: 1, minCupons: 4, perfilEscolhido: false, promocoes: [] },
+  ]);
+  assert.deepEqual(p, [], "preencher o cadastro é o que liga a tarefa dela");
+});
+
+test("o perfil de ticket baixo cobra 2, não 4", () => {
+  const p = montarCupons([
+    { cliente: "l1", cupons: 2, minCupons: 2, perfilEscolhido: true, promocoes: [] },
+    { cliente: "l2", cupons: 1, minCupons: 2, perfilEscolhido: true, promocoes: [] },
+  ]);
+  assert.equal(p.length, 1, "a que tem os 2 combinados não é cobrada");
+  assert.match(p[0].titulo, /Eva Home/);
+});
+
+test("sem a função de mínimo, nada de cupons é cobrado", () => {
+  // Quem já chamava este módulo sem ela continua funcionando sem cobrar
+  // ninguém de surpresa.
+  const p = montarPendencias({
+    lojasTools: [{ cliente: "l1", cupons: 0, minCupons: 4, perfilEscolhido: true, promocoes: [] }],
+    nomeDaLoja: (id) => id, agoraSeg: 1_760_000_000, hoje: "2026-09-13",
+    semFerramenta: () => [], vencendo: () => [],
+  });
+  assert.deepEqual(p.filter((x) => x.regra === "cupons"), []);
+});
+
+test("a tarefa de cupons tem id determinístico, como as outras", () => {
+  assert.equal(idDaTarefa("l1", "cupons"), "auto__l1__cupons");
+});
+
+test("falta sem texto não vira tarefa vazia", () => {
+  const p = montarPendencias({
+    lojasTools: [{ cliente: "l1", perfilEscolhido: true, promocoes: [] }],
+    nomeDaLoja: (id) => id, agoraSeg: 1, hoje: "2026-09-13",
+    semFerramenta: () => [], vencendo: () => [],
+    abaixoDoMinimo: () => [{ cliente: "l1", faltas: [] }],
+  });
+  assert.deepEqual(p.filter((x) => x.regra === "cupons"), []);
 });

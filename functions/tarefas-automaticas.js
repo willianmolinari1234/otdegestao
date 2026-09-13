@@ -30,9 +30,12 @@ export function idDaTarefa(lojaId, regra) {
  * · oferta relâmpago NÃO entra — parte das lojas está bloqueada da ferramenta
  *   por pontuação, e cobrar de alguém uma tarefa impossível é o jeito mais
  *   rápido de ensinar a ignorar o kanban inteiro.
- * · cupons NÃO entram ainda — o mínimo deixou de ser 4 para todas (ver
- *   PERFIS_CUPOM em js/prazos.js) e o cadastro precisa estar preenchido antes
- *   de a regra cobrar alguém. Continua aparecendo no painel do admin.
+ * · cupons entram, mas SÓ para a loja cujo perfil foi escolhido à mão. O
+ *   mínimo deixou de ser 4 para todas (PERFIS_CUPOM em js/prazos.js), e cobrar
+ *   4 de uma loja de ticket baixo que ninguém marcou seria repetir o erro da
+ *   oferta relâmpago: tarefa impossível ensina a ignorar o kanban. Loja sem
+ *   perfil escolhido continua só no painel do admin — e preencher o cadastro
+ *   é o que liga a tarefa dela.
  */
 export const REGRAS = {
   // A única falta que já está custando venda NESTE momento: anúncio sem
@@ -45,6 +48,17 @@ export const REGRAS = {
       "A loja está sem NENHUM desconto ativo. Anúncio sem desconto perde posição na busca "
       + "e sai do 'ofertas': a loja continua no ar vendendo menos, sem nada quebrar.\n\n"
       + "Esta tarefa se fecha sozinha quando a Shopee mostrar um desconto ativo na loja.",
+  },
+  // Cupom abaixo do mínimo combinado com a loja. Prazo de dois dias: não é
+  // urgência de hoje como o desconto zerado, mas também não espera a semana.
+  cupons: {
+    chave: "cupons",
+    pri: "media",
+    titulo: (loja) => `Repor cupons — ${loja}`,
+    desc: (faltas, minimo) =>
+      `Esta loja está com menos cupons ativos do que o combinado (mínimo ${minimo}).\n\n`
+      + faltas.map((f) => `· ${f}`).join("\n")
+      + "\n\nEsta tarefa se fecha sozinha quando a Shopee mostrar os cupons no ar.",
   },
   // Tem data e dono natural: alguém precisa renovar antes de vencer.
   vencendo: {
@@ -198,7 +212,10 @@ export function planejar({ pendencias = [], lojas, tarefas = [], hoje }) {
  * aquele arquivo é servido ao navegador e o backend não deve depender da pasta
  * do front. Quem chama passa as duas funções — e o teste passa versões falsas.
  */
-export function montarPendencias({ lojasTools, nomeDaLoja, agoraSeg, hoje, semFerramenta, vencendo }) {
+export function montarPendencias({
+  lojasTools, nomeDaLoja, agoraSeg, hoje, semFerramenta, vencendo,
+  abaixoDoMinimo = null, emDias = null,
+}) {
   const pend = [];
 
   for (const x of semFerramenta(lojasTools, "desconto", agoraSeg)) {
@@ -235,6 +252,28 @@ export function montarPendencias({ lojasTools, nomeDaLoja, agoraSeg, hoje, semFe
       // Menos de 24h para vencer é urgência de hoje.
       pri: Number(maisCedo.horas || 0) < 24 ? "alta" : REGRAS.vencendo.pri,
     });
+  }
+
+  // Cupons: só para a loja cujo perfil foi escolhido à mão no cadastro.
+  //
+  // `abaixoDoMinimo` chega opcional para quem já chamava este módulo sem ela
+  // continuar funcionando sem cobrar ninguém de surpresa.
+  if (abaixoDoMinimo) {
+    const comPerfil = new Set(
+      lojasTools.filter((l) => l && l.perfilEscolhido).map((l) => l.cliente));
+    for (const x of abaixoDoMinimo(lojasTools, agoraSeg)) {
+      if (!comPerfil.has(x.cliente)) continue;
+      const faltas = (x.faltas || []).map((f) => f.texto).filter(Boolean);
+      if (!faltas.length) continue;
+      const loja = lojasTools.find((l) => l.cliente === x.cliente) || {};
+      pend.push({
+        loja: x.cliente, regra: REGRAS.cupons.chave,
+        titulo: REGRAS.cupons.titulo(nomeDaLoja(x.cliente)),
+        desc: REGRAS.cupons.desc(faltas, loja.minCupons || "combinado"),
+        pri: REGRAS.cupons.pri,
+        prazo: emDias ? emDias(2) : hoje,
+      });
+    }
   }
 
   return pend;

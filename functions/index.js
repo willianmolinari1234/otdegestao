@@ -36,7 +36,7 @@ import { montarProdutoDoCliente, ErroProduto } from "./produto-do-cliente.js";
 import { percentuaisDaLoja } from "./taxas.js";
 // prazos.js é CÓPIA GERADA de js/prazos.js (ver ferramentas/espelhar-prazos.js).
 // As regras do painel e as do gerador de tarefas têm que ser as mesmas.
-import { semFerramenta, vencendo, minCuponsDoPerfil } from "./prazos.js";
+import { semFerramenta, vencendo, minCuponsDoPerfil, abaixoDoMinimo } from "./prazos.js";
 import { montarPendencias, planejar, diaLocal as diaTarefa } from "./tarefas-automaticas.js";
 
 initializeApp();
@@ -864,7 +864,13 @@ async function rodarGerarTarefas() {
   const snapClientes = await db.collection("clients").get();
   for (const d of snapClientes.docs) {
     const c = d.data() || {};
-    lojas.set(d.id, { id: d.id, name: c.name || d.id, respId: c.respId || "", perfilCupons: c.perfilCupons || "padrao" });
+    lojas.set(d.id, {
+      id: d.id, name: c.name || d.id, respId: c.respId || "",
+      perfilCupons: c.perfilCupons || "padrao",
+      // Escolhido à MÃO, não o padrão que o sistema assume. É esta diferença
+      // que decide se os cupons daquela loja podem virar tarefa de alguém.
+      perfilEscolhido: Boolean(c.perfilCupons),
+    });
   }
 
   // Ferramentas por loja, já com o mínimo de cupons que aquela loja deve ter
@@ -882,13 +888,15 @@ async function rodarGerarTarefas() {
       cliente: d.id,
       promocoes: Array.isArray(t.promocoes) ? t.promocoes : [],
       minCupons: minCuponsDoPerfil(cad ? cad.perfilCupons : "padrao"),
+      perfilEscolhido: Boolean(cad && cad.perfilEscolhido),
     });
   }
 
   const pendencias = montarPendencias({
     lojasTools,
     nomeDaLoja: (id) => (lojas.get(id) ? lojas.get(id).name : id),
-    agoraSeg, hoje, semFerramenta, vencendo,
+    agoraSeg, hoje, semFerramenta, vencendo, abaixoDoMinimo,
+    emDias: (n) => diaTarefa(agoraSeg + n * 86400),
   });
 
   // Só as tarefas deste módulo entram na conta. As digitadas por gente nunca

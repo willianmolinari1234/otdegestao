@@ -70,7 +70,7 @@ ignorar o kanban.
 | Loja sem NENHUM desconto ativo | ✅ | hoje | É a única falta que já está custando venda agora |
 | Promoção vencendo em até 2 dias | ✅ | dia do vencimento | Tem data e dono natural |
 | Sem oferta relâmpago | ❌ | — | Parte das lojas está bloqueada da ferramenta por pontuação. Cobrar tarefa impossível ensina a ignorar o kanban |
-| Cupons / Prêmio de Seguidor | ❌ ainda | — | A regra acabou de mudar (perfil). Só depois do cadastro preenchido |
+| Cupons abaixo do mínimo | ✅ **só com perfil escolhido** | 2 dias | Cobrar 4 de uma loja de ticket baixo não marcada repetiria o erro da relâmpago |
 
 As duas que ficaram de fora **continuam no painel do admin**. Sair do painel não
 estava em discussão; o que mudou foi quem vira tarefa de alguém.
@@ -153,8 +153,13 @@ loja certa. Nada disso quebra teste de regra — quebra na tela, calado.
   anúncio, e **zero passou a significar mesmo "não é anúncio"** — antes o zero
   era ignorado e o título voltava a decidir, então marcar 0 não fazia nada.
 
+- **Cupons viram tarefa**, com uma trava: só a loja cujo perfil foi escolhido à
+  mão no cadastro. Loja sem perfil continua só no painel do admin — preencher o
+  cadastro é o que liga a tarefa dela, e cobrar 4 cupons de uma loja de ticket
+  baixo não marcada seria repetir exatamente o erro da oferta relâmpago.
+
 ## O que continua aberto
 
-- Cupons ainda não viram tarefa. Ligar é acrescentar uma regra em
-  `REGRAS` + o trecho correspondente em `montarPendencias`, depois que os perfis
-  estiverem preenchidos.
+- Nenhuma regra nova em aberto. Se aparecer uma, ela entra em `REGRAS` e em
+  `montarPendencias`, e a pergunta a fazer antes é sempre a mesma: **a pessoa
+  que vai receber esta tarefa consegue resolvê-la?**
