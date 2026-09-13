@@ -16,7 +16,8 @@ publicação.
 | Arquivo | Para quê |
 |---|---|
 | `CLAUDE.md` (este) | Contexto permanente: mapa, modelo de dados, decisões travadas, armadilhas |
-| `docs/FASE-8.md` | A fase em andamento: como trabalhar, portões, itens |
+| `docs/FASE-9.md` | A fase em andamento: Mercado Livre e TikTok |
+| `docs/FASE-8.md` | Entregue: cadastro pelo cliente e margem sem planilha |
 | `FASE-7.md` (raiz) | O que já foi entregue de conta compartilhada, e o que falta para ML/TikTok |
 | `TAREFAS-AUTOMATICAS.md` (raiz) | Como o alerta vira tarefa com dono, e o que continua aberto |
 | `docs/arquivo/` | Histórico. Só consulta, não se mexe |
