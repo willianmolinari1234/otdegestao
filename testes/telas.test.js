@@ -350,7 +350,10 @@ test("sem a marca, as duas lojas são cobradas, como antes", async () => {
 test("o formulário de loja traz a marca, e ela é salva", () => {
   const form = fs.readFileSync(path.join(raiz, "js", "06-formularios.js"), "utf8");
   assert.match(form, /id="cf-sem-relampago"/);
-  assert.match(form, /relampagoNaoSeAplica:document\.getElementById\("cf-sem-relampago"\)\.checked/);
+  // A gravação passou a ser condicional: cupom e oferta relâmpago são
+  // ferramentas da Shopee, e uma loja de ML ou TikTok não carrega nenhum dos
+  // dois — nem o valor padrão.
+  assert.match(form, /relampagoNaoSeAplica:ehLojaShopee\(\)\?document\.getElementById\("cf-sem-relampago"\)\.checked:false/);
   // O rascunho da loja sobrevive a criar um cliente no meio do caminho.
   assert.match(form, /cf-sem-relampago"\)\.checked=Boolean\(snap\.semRelampago\)/);
 });
@@ -736,4 +739,79 @@ test("render() desenha mesmo sem tarefa, sem loja e sem funcionário", async () 
     eval_(ctx, `view = ${JSON.stringify(tela)}; render();`);
     assert.ok(el("content").innerHTML.length > 50, `${tela} ficou vazia`);
   }
+});
+
+// ── Menu enxuto: três telas viraram abas (13/09/2026) ──────────────────
+//
+// O menu lateral tinha onze entradas, três delas para telas que pertencem ao
+// mesmo assunto. Menu comprido é menu que ninguém lê inteiro.
+
+test("Clientes agrupa Lojas, Integrações e Produtos", async () => {
+  const ctx = await montarApp(PAINEL);
+  for (const [aba, marca] of [["lojas", /Gerenciar clientes/], ["integracoes", /integ/i], ["produtos", /prod-cliente|prod-recentes/]]) {
+    const h = eval_(ctx, `subAba.clientes = ${JSON.stringify(aba)}; const x = rClientes(); subAba.clientes = "lojas"; return x;`);
+    assert.match(h, /class="abas"/, `a aba ${aba} perdeu a barra de abas`);
+    assert.match(h, new RegExp(`aba aba-on"[^>]*data-abaid="${aba}"`), `${aba} não fica marcada`);
+    assert.match(h, marca, `a aba ${aba} não desenhou o conteúdo dela`);
+  }
+});
+
+test("Equipe agrupa as pessoas e a produtividade", async () => {
+  const ctx = await montarApp(PAINEL);
+  const pessoas = eval_(ctx, `subAba.equipe = "pessoas"; return rEquipe();`);
+  assert.match(pessoas, /aba aba-on"[^>]*data-abaid="pessoas"/);
+  const prod = eval_(ctx, `subAba.equipe = "produtividade"; const x = rEquipe(); subAba.equipe = "pessoas"; return x;`);
+  assert.match(prod, /aba aba-on"[^>]*data-abaid="produtividade"/);
+  assert.match(prod, /Produtividade por funcionário/);
+});
+
+test("as três entradas saíram do menu lateral", () => {
+  const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  for (const v of ["integracoes", "relatorios", "produtos"]) {
+    assert.doesNotMatch(html, new RegExp(`data-view="${v}"`), `${v} ainda está no menu`);
+  }
+  // Sobraram sete: Dashboard, Tarefas, Clientes, Equipe, Relat. de Cliente,
+  // Vendas, Ferramentas e Diagnóstico — o menu que cabe numa olhada.
+  assert.ok((html.match(/class="nav-btn"/g) || []).length <= 8);
+});
+
+test("quem estiver nas views antigas cai na aba certa, não numa tela sem menu", async () => {
+  const { ctx } = await appParaRender(PAINEL);
+  for (const [antiga, tela, aba, campo] of [
+    ["integracoes", "clientes", "integracoes", "clientes"],
+    ["produtos", "clientes", "produtos", "clientes"],
+    ["relatorios", "equipe", "produtividade", "equipe"],
+  ]) {
+    eval_(ctx, `view = ${JSON.stringify(antiga)}; render();`);
+    assert.equal(eval_(ctx, `return view;`), tela, `${antiga} deveria levar a ${tela}`);
+    assert.equal(eval_(ctx, `return subAba[${JSON.stringify(campo)}];`), aba);
+  }
+});
+
+test("clicar numa aba troca e redesenha", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /subAba\[b\.dataset\.aba\]=b\.dataset\.abaid;render\(\)/);
+});
+
+// ── O gráfico de produtividade que não aparecia ────────────────────────
+
+test("a barra de produtividade tem largura própria", async () => {
+  // As colunas verticais anteriores tinham width:100% dentro de um container
+  // centralizado sem largura, e 100% de nada é zero: o gráfico ficava em
+  // branco com os nomes soltos embaixo.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `subAba.equipe = "produtividade"; const x = rEquipe(); subAba.equipe = "pessoas"; return x;`);
+  assert.match(h, /class="pb-trilho"/);
+  assert.match(h, /class="pb-fatia" style="width:\d+(\.\d+)?%/, "a fatia é dimensionada em %");
+  const css = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  assert.match(css, /\.pb-trilho\{flex:1;/, "o trilho ocupa a linha, então a % tem de quê ser");
+});
+
+test("pessoa sem tarefa nenhuma não vira barra fantasma", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `
+    tsks = [];
+    subAba.equipe = "produtividade"; const x = rEquipe(); subAba.equipe = "pessoas"; return x;`);
+  assert.doesNotMatch(h, /class="pb-fatia"/, "sem tarefa, sem fatia");
+  assert.match(h, /class="pb-trilho"/, "mas o trilho vazio continua, mostrando que a pessoa existe");
 });

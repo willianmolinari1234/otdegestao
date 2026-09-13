@@ -87,6 +87,35 @@ button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--brand)!important;box-shadow:0 0 0 3px rgba(234,88,12,.12)!important}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+/* ─── PRODUTIVIDADE POR PESSOA ──────────────────────────────────────
+   Barra horizontal, uma linha por pessoa. As colunas verticais que havia
+   aqui NÃO apareciam: cada barra tinha width:100% dentro de um container
+   centralizado sem largura própria, e 100% de nada é zero. */
+.pb{display:flex;flex-direction:column;gap:9px}
+.pb-linha{display:flex;align-items:center;gap:11px}
+.pb-nome{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--text);
+  width:118px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-trilho{flex:1;display:flex;gap:2px;height:20px;background:#f1f5f9;border-radius:6px;overflow:hidden;
+  min-width:0}
+.pb-fatia{height:100%;min-width:3px}
+.pb-fatia:first-child{border-radius:6px 0 0 6px}
+.pb-fatia:last-child{border-radius:0 6px 6px 0}
+.pb-total{font-size:13px;font-weight:800;color:var(--text);width:32px;text-align:right;flex-shrink:0;
+  font-variant-numeric:tabular-nums}
+
+/* ─── SUB-ABAS ──────────────────────────────────────────────────────
+   Telas que agrupam mais de um assunto. Substituíram três entradas do
+   menu lateral, que tinha onze e ninguém lia inteiro. */
+.abas{display:flex;gap:4px;margin:-4px 0 16px;border-bottom:1px solid var(--border);padding-bottom:0}
+.aba{background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);
+  font-size:13.5px;font-weight:600;padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;
+  margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap}
+.aba:hover{color:var(--text)}
+.aba-on{color:var(--brand-tint);border-bottom-color:var(--brand);font-weight:700}
+.aba-n{background:#f1f5f9;color:#64748b;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;
+  font-variant-numeric:tabular-nums}
+.aba-on .aba-n{background:var(--brand-100);color:var(--brand-tint)}
+
 /* ─── GERENCIAR CLIENTES ────────────────────────────────────────────
    A linha diz o que FALTA, não só o que existe: antes eram quatro ícones
    sem rótulo, e descobrir qual cliente estava incompleto exigia abrir um
@@ -786,10 +815,7 @@ tr:last-child td{border-bottom:none}
     <button class="nav-btn active" data-view="dashboard">◻&nbsp; Dashboard</button>
     <button class="nav-btn" data-view="kanban">▦&nbsp; Tarefas</button>
     <button class="nav-btn" data-view="clientes">🏪&nbsp; Clientes</button>
-    <button class="nav-btn" data-view="integracoes" data-admin>🔗&nbsp; Integrações</button>
     <button class="nav-btn" data-view="equipe" data-admin>◉&nbsp; Equipe</button>
-    <button class="nav-btn" data-view="relatorios">▤&nbsp; Relatórios</button>
-    <button class="nav-btn" data-view="produtos" data-admin>📦&nbsp; Produtos</button>
     <button class="nav-btn" data-view="relcliente">📈&nbsp; Relat. de Cliente</button>
     <button class="nav-btn" data-view="vendas" data-admin>💰&nbsp; Vendas</button>
     <button class="nav-btn" data-view="ferramentas" data-admin>🧰&nbsp; Ferramentas</button>
@@ -872,13 +898,13 @@ tr:last-child td{border-bottom:none}
 </script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
      scripts clássicos compartilham escopo e o boot precisa vir por último. -->
-<script src="js/01-estado-e-dados.js?v=75b1230b"></script>
+<script src="js/01-estado-e-dados.js?v=a16189ce"></script>
 <script src="js/02-utilitarios.js?v=86443464"></script>
 <script src="js/03-acesso.js?v=cb659190"></script>
-<script src="js/04-telas.js?v=be610380"></script>
+<script src="js/04-telas.js?v=215bde2f"></script>
 <script src="js/05-clientes-e-acesso.js?v=7d175275"></script>
-<script src="js/06-formularios.js?v=bb98293a"></script>
-<script src="js/07-interacoes-e-boot.js?v=458a8f21"></script>
+<script src="js/06-formularios.js?v=6a98daaa"></script>
+<script src="js/07-interacoes-e-boot.js?v=1847f212"></script>
 <script src="js/08-produtos.js?v=3d2203a1"></script>
 <div id="diag-report"></div>
 </body>

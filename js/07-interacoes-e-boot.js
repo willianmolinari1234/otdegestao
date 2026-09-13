@@ -126,6 +126,10 @@ function bindAll(){
   const kbe=C.querySelector("#kb-ir-clientes");
   if(kbe)kbe.onclick=irClientes;
   // Abrir e fechar a coluna de concluídas.
+  // Sub-abas das telas que agrupam mais de um assunto.
+  C.querySelectorAll("[data-abaid]").forEach(b=>{
+    b.onclick=()=>{subAba[b.dataset.aba]=b.dataset.abaid;render();};
+  });
   const kbf=C.querySelector("#kb-ver-feitas");
   if(kbf)kbf.onclick=()=>{verConcluidas=!verConcluidas;render();};
   // Clicar num nome da carga filtra por ele — e clicar de novo desfaz.

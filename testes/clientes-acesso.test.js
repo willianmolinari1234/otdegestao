@@ -122,3 +122,39 @@ test("a pré-seleção do dono também vale para a herança dos percentuais", ()
   const form = ler("js/06-formularios.js");
   assert.match(form, /const dono=custAlvoDono\(c,custPre\)/);
 });
+
+// ─── Campos que só existem na Shopee ──────────────────────────────────
+
+test("cupom, oferta relâmpago e username são marcados como só-Shopee", () => {
+  // Pedir perfil de cupons numa loja de Mercado Livre é pedir uma decisão
+  // que não existe naquele marketplace.
+  const form = ler("js/06-formularios.js");
+  const marcados = (form.match(/cf-so-shopee/g) || []).length;
+  assert.ok(marcados >= 4, `esperava os campos marcados, achei ${marcados}`);
+  for (const campo of ["cf-perfil", "cf-sem-relampago"]) {
+    const i = form.indexOf(`id="${campo}"`);
+    const bloco = form.lastIndexOf("cf-so-shopee", i);
+    assert.ok(bloco > 0 && i - bloco < 700, `${campo} não está num bloco só-Shopee`);
+  }
+});
+
+test("trocar o marketplace esconde e mostra os campos na hora", () => {
+  const form = ler("js/06-formularios.js");
+  assert.match(form, /mktSel\.addEventListener\("change",aplicarMkt\)/);
+  assert.match(form, /aplicarMkt\(\);/, "e roda uma vez ao abrir, não só ao trocar");
+  assert.match(form, /const ehShopee=\(mktSel\.value\|\|""\)==="Shopee"/);
+});
+
+test("loja que não é da Shopee não grava perfil de cupons nem marca de relâmpago", () => {
+  // Gravar o padrão faria o painel cobrar dela uma ferramenta que não existe.
+  const form = ler("js/06-formularios.js");
+  assert.match(form, /perfilCupons:ehLojaShopee\(\)\?\(document\.getElementById\("cf-perfil"\)\.value\|\|"padrao"\):""/);
+  assert.match(form, /relampagoNaoSeAplica:ehLojaShopee\(\)\?[^:]+:false/);
+});
+
+test("o alerta de cupons já ignora loja sem perfil escolhido", () => {
+  // Fecha o círculo: loja de ML fica com perfilCupons vazio, e a regra de
+  // tarefa automática só cobra quem tem perfil escolhido à mão.
+  const idx = ler("functions/index.js");
+  assert.match(idx, /perfilEscolhido: Boolean\(c\.perfilCupons\)/);
+});

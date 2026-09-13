@@ -258,7 +258,6 @@ function render(){
   // Block "equipe" view for non-admins
   if(view==="equipe"&&!isAdmin())view="dashboard";
   if(view==="diagnostico"&&!isAdmin())view="dashboard";
-  if(view==="integracoes"&&!isAdmin())view="dashboard";
   // Vendas e Ferramentas são só de admin. Esconder o botão no menu não basta:
   // sem esta guarda a tela continua alcançável por quem tiver a view salva.
   if(view==="vendas"&&!isAdmin())view="dashboard";
@@ -271,7 +270,6 @@ function render(){
   if(view==="planilhas")view="dashboard";
   // Produtos é só do admin: quem não é cai no dashboard em vez de ver um
   // iframe que as regras do Firestore vão esvaziar sem explicar por quê.
-  if(view==="produtos"&&!isAdmin())view="dashboard";
   // O painel deixou de ser uma aba: virou um MODO da tela de tarefas. Quem
   // estava com a aba antiga aberta quando esta versão subir cai no modo, em
   // vez de numa tela que não existe mais.
@@ -281,6 +279,11 @@ function render(){
   // troca aqui derrubou o render() inteiro em produção — nenhuma tela
   // desenhava e nada clicava.
   if(view==="painel"){view="kanban";modoTV=true;}
+  // As três telas que viraram abas. Quem estiver com a view antiga em memória
+  // quando esta versão subir cai na aba certa, e não numa tela sem menu.
+  if(view==="integracoes"){view="clientes";subAba.clientes="integracoes";}
+  if(view==="produtos"){view="clientes";subAba.clientes="produtos";}
+  if(view==="relatorios"){view="equipe";subAba.equipe="produtividade";}
   // Modo TV toma a tela inteira: some a barra lateral e o topo. A classe sai
   // em TODO redesenho que não seja dele, senão trocar de aba deixaria o
   // sistema sem menu e sem saída.
@@ -626,6 +629,23 @@ function urgRow(lbl,v,mx,col){
 }
 
 // ─── KANBAN ───────────────────────────────────────────────────────────
+// ─── SUB-ABAS ─────────────────────────────────────────────────────────
+//
+// O menu lateral tinha onze entradas, três delas para telas que pertencem ao
+// mesmo assunto: Integrações e Produtos falam dos clientes, e o relatório de
+// produtividade fala da equipe. Menu comprido é menu que ninguém lê inteiro —
+// elas viraram abas dentro da tela a que pertencem.
+//
+// A escolha fica em `subAba` e sobrevive ao redesenho, que acontece a cada
+// chegada de dado do Firestore.
+function abasHTML(tela,itens){
+  const atual=subAba[tela];
+  return`<div class="abas">${itens.map(x=>`
+    <button class="aba${x.id===atual?" aba-on":""}" data-aba="${esc(tela)}" data-abaid="${esc(x.id)}">
+      ${x.rot}${x.n!==undefined?`<span class="aba-n">${x.n}</span>`:""}
+    </button>`).join("")}</div>`;
+}
+
 // ─── TAREFAS ──────────────────────────────────────────────────────────
 //
 // Redesenhada em 13/09/2026. O que mudou, e por quê:
@@ -1155,7 +1175,18 @@ function rClientes(){
     ${(fCust!=="all"||fErp!=="all"||fMkt!=="all"||fResp!=="all")?'<button class="btn-sm" id="cli-clear-filter">✕ Limpar</button>':""}
   </div>`;
 
+  // Integrações e Produtos falam dos clientes: eram três entradas de menu para
+  // o mesmo assunto, e menu comprido é menu que ninguém lê inteiro.
+  const abas=isAdmin()?abasHTML("clientes",[
+    {id:"lojas",rot:"🏪 Lojas",n:clis.length},
+    {id:"integracoes",rot:"🔗 Integrações"},
+    {id:"produtos",rot:"📦 Produtos"},
+  ]):"";
+  if(isAdmin()&&subAba.clientes==="integracoes")return abas+rIntegracoes();
+  if(isAdmin()&&subAba.clientes==="produtos")return abas+rProdutos();
+
   return`
+    ${abas}
     ${isAdmin()?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="display:flex;gap:8px">
         <button class="btn-outline" id="manage-custs-btn">👥 Gerenciar clientes (${custs.length})</button>
@@ -1171,7 +1202,18 @@ function rClientes(){
 }
 
 // ─── EQUIPE ───────────────────────────────────────────────────────────
+//
+// Absorveu o relatório de produtividade: ele é sobre estas pessoas, e estava
+// numa entrada de menu separada.
 function rEquipe(){
+  const abas=abasHTML("equipe",[
+    {id:"pessoas",rot:"◉ Equipe",n:emps.length},
+    {id:"produtividade",rot:"▤ Produtividade"},
+  ]);
+  if(subAba.equipe==="produtividade")return abas+rRelatorios();
+  return abas+rEquipeLista();
+}
+function rEquipeLista(){
   const cards=emps.map(e=>{
     const et=tsks.filter(t=>t.emp===e.id);
     const dn=et.filter(t=>t.status==="done").length;
@@ -1303,17 +1345,31 @@ function rRelatorios(){
   const overdue=allTasks.filter(t=>isOverdue(t)).length;
   const visEmps=isAdmin()?emps:emps.filter(e=>currentUser&&e.id===currentUser.id);
   const maxV=maxOf(visEmps.map(e=>vts.filter(t=>t.emp===e.id).length));
-  const bars=visEmps.map(e=>{
+  // Barra HORIZONTAL, uma linha por pessoa.
+  //
+  // Eram colunas verticais, e elas não apareciam: cada barra tinha width:100%
+  // dentro de um container centralizado sem largura própria, e 100% de nada é
+  // zero. O gráfico ficava em branco com os nomes soltos embaixo.
+  //
+  // Horizontal também lê melhor: o nome fica ao lado do dado em vez de virado
+  // embaixo, e a lista cresce sem espremer ninguém.
+  const linhas=visEmps.map(e=>{
     const a=vts.filter(t=>t.emp===e.id&&t.status==="todo").length;
     const b=vts.filter(t=>t.emp===e.id&&t.status==="doing").length;
     const c=vts.filter(t=>t.emp===e.id&&t.status==="done").length;
-    return`<div class="chart-col">
-      <div style="display:flex;align-items:flex-end;gap:2px;height:120px">
-        ${bar(a,maxV,"#fca5a5",120)}${bar(b,maxV,"#ea580c",120)}${bar(c,maxV,"#4ade80",120)}
-      </div>
-      <div class="chart-lbl">${e.name.split(" ")[0]}</div>
+    const total=a+b+c;
+    const pct=(n)=>maxV>0?(n/maxV*100):0;
+    return`<div class="pb-linha">
+      <span class="pb-nome">${avHTML(e,22)}${esc(e.name.split(" ")[0])}</span>
+      <span class="pb-trilho">
+        ${c?`<span class="pb-fatia" style="width:${pct(c)}%;background:#22c55e" title="${c} concluída(s)"></span>`:""}
+        ${b?`<span class="pb-fatia" style="width:${pct(b)}%;background:#ea580c" title="${b} em andamento"></span>`:""}
+        ${a?`<span class="pb-fatia" style="width:${pct(a)}%;background:#cbd5e1" title="${a} a fazer"></span>`:""}
+      </span>
+      <span class="pb-total">${total}</span>
     </div>`;
   }).join("");
+  const bars=linhas;
   const stData=[
     {lbl:"A fazer",v:vts.filter(t=>t.status==="todo").length,col:"#94a3b8"},
     {lbl:"Em andamento",v:vts.filter(t=>t.status==="doing").length,col:"#ea580c"},
@@ -1413,12 +1469,12 @@ function rRelatorios(){
     </div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">
       <div class="card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:12px">Produtividade por funcionário · ${repRangeLabel()}</div>
-        <div class="chart-group" style="height:130px">${bars}</div>
-        <div class="legend">
-          <span><span class="ldot" style="background:#fca5a5"></span>A fazer</span>
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px">Produtividade por funcionário · ${repRangeLabel()}</div>
+        <div class="pb">${bars||`<div style="color:#cbd5e1;font-size:12.5px;padding:18px 0;text-align:center">Nenhuma tarefa no período.</div>`}</div>
+        <div class="legend" style="margin-top:12px">
+          <span><span class="ldot" style="background:#22c55e"></span>Concluído</span>
           <span><span class="ldot" style="background:#ea580c"></span>Em andamento</span>
-          <span><span class="ldot" style="background:#4ade80"></span>Concluído</span>
+          <span><span class="ldot" style="background:#cbd5e1"></span>A fazer</span>
         </div>
       </div>
       <div class="card">

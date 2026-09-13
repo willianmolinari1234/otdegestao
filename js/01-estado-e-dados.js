@@ -33,7 +33,7 @@ const ERP_PRESETS={
   outro:   {label:"Outro (personalizado)", url:"", hasId:false}
 };
 const COLORS=["#ea580c","#7c3aed","#db2777","#d97706","#2563eb","#dc2626","#16a34a","#0284c7"];
-const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes / Contas",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja",produtos:"Produtos do Cliente",painel:"Painel"};
+const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes",equipe:"Equipe",relatorios:"Relatórios de Produtividade",diagnostico:"Diagnóstico de Conta",integracoes:"Integrações",relcliente:"Relatório de Cliente",vendas:"Vendas · Todas as Lojas",ferramentas:"Ferramentas por Loja",produtos:"Produtos do Cliente",painel:"Painel"};
 const PLBL={alta:"Alta",media:"Média",baixa:"Baixa"};
 const SLBL={todo:"A fazer",doing:"Em andamento",done:"Concluído"};
 const SCOL={todo:"#64748b",doing:"#ea580c",done:"#16a34a"};
@@ -98,6 +98,11 @@ let myOnly=false;
 let verConcluidas=false;
 // Modo TV: a MESMA tela de tarefas, escura e sem controles, para a parede.
 let modoTV=false;
+// Sub-aba de cada tela que agrupa mais de uma coisa. O menu lateral tinha onze
+// entradas, três delas para telas que pertencem ao mesmo assunto: Integrações e
+// Produtos são sobre os clientes, e o relatório de produtividade é sobre a
+// equipe. Menu comprido é menu que ninguém lê inteiro.
+let subAba={clientes:"lojas",equipe:"pessoas"};
 let view="dashboard",fRange="today",fDate=todayISO(),fEmp="all",fCli="all",fCust="all",fSort="prazo",fErp="all",fMkt="all";
 // Filtro por responsável na tela de Clientes. "sem" isola as lojas sem dono,
 // que é a lista que interessa preencher primeiro.

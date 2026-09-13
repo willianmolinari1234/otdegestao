@@ -197,6 +197,17 @@ e modal vive fora do `#content`. Botão novo dentro de modal precisa ser registr
 `.topbar` nem `.corpo`. Regra escrita para a classe errada não dá erro — ela simplesmente
 não pinta, e só aparece quando alguém abre a tela. Aconteceu no painel de parede.
 
+**`width:100%` dentro de um container sem largura própria é zero.** O gráfico de
+produtividade ficou meses em branco por isso: as barras estavam num flex com
+`align-items:center`, que encolhe o filho ao conteúdo — e o conteúdo eram barras de 100%
+de nada. Barra de gráfico leva largura explícita ou um trilho com `flex:1`.
+
+**`const` lido acima da própria declaração derruba a função inteira.** Não é aviso, é erro
+de execução, e `node --check` aprova. Derrubou o `render()` em produção: nenhuma tela
+desenhava e nada clicava. Os testes de `render()` em `telas.test.js` existem por causa
+disso — antes só se testavam as telas uma a uma, que é testar o desenho sem testar o
+caminho que o sistema usa.
+
 **O macOS tem um Java falso.** `command -v java` retorna verdadeiro mesmo sem Java instalado.
 A checagem certa é `java -version >/dev/null 2>&1`, mais `/usr/libexec/java_home` e os
 caminhos keg-only do Homebrew. Sem Java o emulador do Firestore não sobe.

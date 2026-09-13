@@ -150,6 +150,7 @@ function pctNum(v){
 /** `custPre` já deixa o proprietário escolhido — é como o painel de clientes
  *  cadastra uma loja sem obrigar a achar o nome numa lista de 48. */
 const custAlvoDono=(c,pre)=>{const id=c?c.custId:(pre||"");return id?custs.find(x=>x.id===id):null;};
+const ehLojaShopee=()=>{const el=document.getElementById("cf-mkt");return (el&&el.value)==="Shopee";};
 function openClientForm(clientId,custPre){
   const c=clientId?clis.find(x=>x.id===clientId):null;
   // Percentuais herdados do cliente proprietário, só para mostrar no campo.
@@ -189,7 +190,7 @@ function openClientForm(clientId,custPre){
           <option value="">— Sem responsável —</option>${respOpts}
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group cf-so-shopee">
         <label>🎟️ Perfil de cupons</label>
         <select id="cf-perfil" class="finput">
           <option value="padrao"${perfilAtual!=="ticketbaixo"?" selected":""}>Padrão — 4 cupons</option>
@@ -197,7 +198,7 @@ function openClientForm(clientId,custPre){
         </select>
       </div>
     </div>
-    <div class="form-group" style="margin-bottom:12px">
+    <div class="form-group cf-so-shopee" style="margin-bottom:12px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px">
         <input type="checkbox" id="cf-sem-relampago" style="width:auto;margin:0"${relampagoNaoSeAplica?" checked":""}/>
         <span>⚡ Esta loja <b>não participa de oferta relâmpago</b></span>
@@ -207,9 +208,9 @@ function openClientForm(clientId,custPre){
       </div>
     </div>
     <div style="font-size:11.5px;color:#64748b;margin-bottom:12px;max-width:540px">
-      O responsável recebe automaticamente as tarefas que nascem dos alertas desta loja.
+      O responsável recebe automaticamente as tarefas que nascem dos alertas desta loja.<span class="cf-so-shopee">
       O perfil de cupons define quantos o painel cobra — loja de ticket baixo não é
-      acusada de faltar dois cupons que ela não deve ter.
+      acusada de faltar dois cupons que ela não deve ter.</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;max-width:540px">
       <div class="form-group">
@@ -236,7 +237,7 @@ function openClientForm(clientId,custPre){
         <option value="ultimos30"${c&&c.baseCobranca==="ultimos30"?" selected":""}>Últimos 30 dias</option>
       </select>
     </div>
-    <div class="form-group" style="margin-bottom:12px">
+    <div class="form-group cf-so-shopee" style="margin-bottom:12px">
       <label>🛒 Username Shopee <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(usado pela extensão de importação automática)</span></label>
       <input id="cf-shopee-user" class="finput" placeholder="ex: azure.tricot, continentalbones" value="${c&&c.shopeeUsername?esc(c.shopeeUsername):""}"/>
     </div>
@@ -256,6 +257,19 @@ function openClientForm(clientId,custPre){
   </div>`;
   showFormModal(formHTML);
   document.getElementById("cf-close").onclick=document.getElementById("cf-cancel").onclick=closeFormModal;
+  // Cupons, oferta relâmpago e username são ferramentas da SHOPEE. Mostrá-los
+  // numa loja de Mercado Livre ou TikTok faz o cadastro pedir uma decisão que
+  // não existe naquele marketplace — e o perfil de cupons gravado ali ficaria
+  // cobrando uma loja que nem tem cupom.
+  const mktSel=document.getElementById("cf-mkt");
+  const aplicarMkt=()=>{
+    const ehShopee=(mktSel.value||"")==="Shopee";
+    document.querySelectorAll(".cf-so-shopee").forEach(el=>{
+      el.style.display=ehShopee?"":"none";
+    });
+  };
+  if(mktSel){mktSel.addEventListener("change",aplicarMkt);aplicarMkt();}
+
   document.getElementById("cf-new-cust").onclick=()=>{
     const snap={
       name:document.getElementById("cf-name").value,
@@ -311,8 +325,11 @@ function openClientForm(clientId,custPre){
       // automática nasce sem dono e fica visível só para o admin).
       respId:document.getElementById("cf-resp").value||"",
       // "padrao" (4 cupons) ou "ticketbaixo" (2). Ver PERFIS_CUPOM em prazos.js.
-      perfilCupons:document.getElementById("cf-perfil").value||"padrao",
-      relampagoNaoSeAplica:document.getElementById("cf-sem-relampago").checked,
+      // Só a Shopee tem cupom e oferta relâmpago. Gravar o padrão numa loja de
+      // outro marketplace faria o painel cobrar dela uma ferramenta que não
+      // existe lá.
+      perfilCupons:ehLojaShopee()?(document.getElementById("cf-perfil").value||"padrao"):"",
+      relampagoNaoSeAplica:ehLojaShopee()?document.getElementById("cf-sem-relampago").checked:false,
       // % de comissão da OTDE sobre o faturamento desta loja.
       // Vazio = usa o padrão do sistema (2%).
       comissao:(()=>{const v=document.getElementById("cf-comissao").value.trim();
