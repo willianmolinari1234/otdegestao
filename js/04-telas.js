@@ -337,7 +337,13 @@ function avisoFerramentasHTML(){
   // em 2, não nos 4 do padrão.
   const lojasTools=toolsComMinimo();
   const semDesc=new Set(window.prazos.semFerramenta(lojasTools,"desconto",agora).map(x=>x.cliente));
-  const semRel=new Set(window.prazos.semFerramentaNemAgendada(lojasTools,"flash_sale",agora).map(x=>x.cliente));
+  // Loja bloqueada da oferta relâmpago pela Shopee (ou que optou por não
+  // participar) sai do alerta. Cobrar o que ninguém pode fazer é o jeito mais
+  // rápido de ensinar a equipe a rolar a tela sem ler — foi o que aconteceu
+  // com o aviso de "3 descontos", que disparava em 35 de 40 lojas.
+  const semRel=new Set(window.prazos.semFerramentaNemAgendada(lojasTools,"flash_sale",agora)
+    .map(x=>x.cliente)
+    .filter(id=>!(clis.find(c=>c.id===id)||{}).relampagoNaoSeAplica));
   const minimos=new Map(window.prazos.abaixoDoMinimo(lojasTools,agora).map(x=>[x.cliente,x]));
   const vence=window.prazos.vencendo(lojasTools,agora,2);
 

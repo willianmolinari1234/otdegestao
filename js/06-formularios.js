@@ -161,6 +161,7 @@ function openClientForm(clientId){
     .sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"))
     .map(e=>`<option value="${e.id}"${c&&c.respId===e.id?" selected":""}>${esc(e.name)}</option>`).join("");
   const perfilAtual=(c&&c.perfilCupons)||"padrao";
+  const relampagoNaoSeAplica=Boolean(c&&c.relampagoNaoSeAplica);
   const acc=c&&c.access?c.access:{url:"",user:"",pass:"",notes:""};
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -190,6 +191,15 @@ function openClientForm(clientId){
           <option value="padrao"${perfilAtual!=="ticketbaixo"?" selected":""}>Padrão — 4 cupons</option>
           <option value="ticketbaixo"${perfilAtual==="ticketbaixo"?" selected":""}>Ticket baixo — 2 cupons (3% + Prêmio de Seguidor)</option>
         </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px">
+        <input type="checkbox" id="cf-sem-relampago" style="width:auto;margin:0"${relampagoNaoSeAplica?" checked":""}/>
+        <span>⚡ Esta loja <b>não participa de oferta relâmpago</b></span>
+      </label>
+      <div style="font-size:11.5px;color:#64748b;margin-top:5px;max-width:540px;line-height:1.5">
+        Marque quando a Shopee bloqueou a loja da ferramenta por pontuação, ou quando a loja optou por não participar. O painel para de cobrar a oferta dela — cobrar o que ninguém pode fazer ensina a equipe a ignorar o painel inteiro.
       </div>
     </div>
     <div style="font-size:11.5px;color:#64748b;margin-bottom:12px;max-width:540px">
@@ -249,6 +259,7 @@ function openClientForm(clientId){
       shopeeUser:document.getElementById("cf-shopee-user").value,
       resp:document.getElementById("cf-resp").value,
       perfil:document.getElementById("cf-perfil").value,
+      semRelampago:document.getElementById("cf-sem-relampago").checked,
       url:document.getElementById("cf-acc-url").value,
       user:document.getElementById("cf-acc-user").value,
       pass:document.getElementById("cf-acc-pass").value,
@@ -272,6 +283,7 @@ function openClientForm(clientId){
               document.getElementById("cf-shopee-user").value=snap.shopeeUser||"";
               document.getElementById("cf-resp").value=snap.resp||"";
               document.getElementById("cf-perfil").value=snap.perfil||"padrao";
+              document.getElementById("cf-sem-relampago").checked=Boolean(snap.semRelampago);
               document.getElementById("cf-acc-url").value=snap.url;
               document.getElementById("cf-acc-user").value=snap.user;
               document.getElementById("cf-acc-pass").value=snap.pass;
@@ -296,6 +308,7 @@ function openClientForm(clientId){
       respId:document.getElementById("cf-resp").value||"",
       // "padrao" (4 cupons) ou "ticketbaixo" (2). Ver PERFIS_CUPOM em prazos.js.
       perfilCupons:document.getElementById("cf-perfil").value||"padrao",
+      relampagoNaoSeAplica:document.getElementById("cf-sem-relampago").checked,
       // % de comissão da OTDE sobre o faturamento desta loja.
       // Vazio = usa o padrão do sistema (2%).
       comissao:(()=>{const v=document.getElementById("cf-comissao").value.trim();

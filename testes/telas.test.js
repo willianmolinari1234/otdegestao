@@ -308,3 +308,49 @@ test("a conferência usa a mesma herança do fechamento mensal", async () => {
   assert.deepEqual(taxas.percentuaisDaLoja({}, {}),
     { pctOtde: 2, pctImposto: 0 }, "os padrões têm que ser os mesmos: 2% e 0%");
 });
+
+// ── Oferta relâmpago: parar de cobrar quem não pode participar ─────────
+
+const RELAMPAGO = `
+  emps = [{ id:"ana", name:"Ana Souza", color:"#ea580c", role:"user" }];
+  custs = [{ id:"c1", name:"Poliane" }];
+  clis = [
+    { id:"l1", name:"Diamond Tricot", mkt:"Shopee", custId:"c1", respId:"ana" },
+    { id:"l2", name:"Eva Home", mkt:"Shopee", custId:"c1", respId:"ana", relampagoNaoSeAplica:true },
+  ];
+  // Nenhuma das duas tem oferta relâmpago; as duas têm desconto, para o
+  // aviso não se encher de outra coisa.
+  tools = [
+    { cliente:"l1", promocoes:[{ tipo:"desconto", inicio:1, fim:9e9 }] },
+    { cliente:"l2", promocoes:[{ tipo:"desconto", inicio:1, fim:9e9 }] },
+  ];
+  tsks = [];
+  currentUser = { id:"adm", name:"Willian", role:"admin", color:"#ea580c" };
+`;
+
+/** Quantas lojas recebem o selo de oferta relâmpago no aviso. */
+const selosDeRelampago = (h) => (h.match(/sem oferta relâmpago/g) || []).length;
+
+test("loja bloqueada da oferta relâmpago não é cobrada por ela", async () => {
+  // Cobrar o que ninguém pode fazer é o jeito mais rápido de ensinar a equipe
+  // a rolar a tela sem ler. Ela continua no aviso por outras pendências —
+  // o que sai é só a cobrança da relâmpago.
+  const ctx = await montarApp(RELAMPAGO);
+  const h = eval_(ctx, `return avisoFerramentasHTML();`);
+  assert.equal(selosDeRelampago(h), 1, "só a loja que participa é cobrada");
+  const linhaEva = h.slice(h.indexOf("Eva Home"));
+  assert.doesNotMatch(linhaEva.slice(0, 400), /sem oferta relâmpago/);
+});
+
+test("sem a marca, as duas lojas são cobradas, como antes", async () => {
+  const ctx = await montarApp(RELAMPAGO.replace(", relampagoNaoSeAplica:true", ""));
+  assert.equal(selosDeRelampago(eval_(ctx, `return avisoFerramentasHTML();`)), 2);
+});
+
+test("o formulário de loja traz a marca, e ela é salva", () => {
+  const form = fs.readFileSync(path.join(raiz, "js", "06-formularios.js"), "utf8");
+  assert.match(form, /id="cf-sem-relampago"/);
+  assert.match(form, /relampagoNaoSeAplica:document\.getElementById\("cf-sem-relampago"\)\.checked/);
+  // O rascunho da loja sobrevive a criar um cliente no meio do caminho.
+  assert.match(form, /cf-sem-relampago"\)\.checked=Boolean\(snap\.semRelampago\)/);
+});

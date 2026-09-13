@@ -141,16 +141,20 @@ loja certa. Nada disso quebra teste de regra — quebra na tela, calado.
 5. **Equipe** — `↻ n retrabalho` aparece só depois que alguém marcar concluído
    com a pendência ainda no ar.
 
+## Consertado em 13/09/2026
+
+- **A oferta relâmpago parou de cobrar quem não pode participar.** O cadastro da
+  loja ganhou "⚡ Esta loja não participa de oferta relâmpago", para a Shopee ter
+  bloqueado por pontuação ou para a loja ter optado por fora. Marcada, ela sai do
+  alerta — e continua no aviso pelas outras pendências.
+- **A meta de anúncios/dia parou de medir texto.** O título era varrido por um
+  número solto, então "Revisar 3 fotos do anúncio" valia 3 anúncios. Agora o
+  campo Qtd. manda, o título só é lido quando o número está colado na palavra
+  anúncio, e **zero passou a significar mesmo "não é anúncio"** — antes o zero
+  era ignorado e o título voltava a decidir, então marcar 0 não fazia nada.
+
 ## O que continua aberto
 
 - Cupons ainda não viram tarefa. Ligar é acrescentar uma regra em
   `REGRAS` + o trecho correspondente em `montarPendencias`, depois que os perfis
   estiverem preenchidos.
-- A oferta relâmpago segue alertando no painel lojas que estão **bloqueadas** da
-  ferramenta. O alerta está errado para elas, não só inconveniente — pede um
-  campo de "não se aplica" por loja.
-- **A meta de anúncios/dia mede texto, não trabalho.** `isAdTask()` procura a
-  palavra "anúncio" no título e `adQtyOf()` cai num `\b(\d+)\b` genérico:
-  "Revisar 3 fotos do anúncio" conta como 3 anúncios. A porcentagem ao lado do
-  nome de cada funcionário no dashboard mede como a pessoa digita. Conserto:
-  tornar `qty` obrigatório na tarefa de anúncio e parar de adivinhar pelo título.

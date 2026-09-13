@@ -31,20 +31,44 @@ function rangeLabel(){
 // ─── HELPERS ──────────────────────────────────────────────────────────
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 // Ad helpers: detect "anúncio" tasks and extract a quantity from the title
+// ─── QUANTOS ANÚNCIOS UMA TAREFA VALE ─────────────────────────────────
+//
+// A porcentagem ao lado do nome de cada funcionário no dashboard sai daqui.
+// Ela media COMO A PESSOA DIGITAVA, não o trabalho: o título era varrido por
+// um \b(\d+)\b solto, então "Revisar 3 fotos do anúncio" valia 3 anúncios, e
+// "Subir os 10 anúncios da Eva Home até dia 5" podia valer 5.
+//
+// Agora o campo Qtd. do formulário manda. O título só é lido quando o número
+// está COLADO na palavra anúncio — "Subir 5 anúncios" —, que é o único caso em
+// que adivinhar não é adivinhação. Sem isso, uma tarefa de anúncio vale 1.
 const ADS_RE=/(anúncio|anuncio|an[uú]ncios)/i;
-function isAdTask(t){return ADS_RE.test(t.title||"");}
+
+// O que o formulário chama de "0 = não é anúncio". Antes o zero era ignorado e
+// o título voltava a decidir, então marcar 0 não fazia o que a tela prometia.
+function qtyExplicita(t){
+  if(!t||t.qty===null||t.qty===undefined||t.qty==="")return null;
+  const n=typeof t.qty==="number"?t.qty:parseInt(t.qty,10);
+  return isFinite(n)&&n>=0?n:null;
+}
+
+function isAdTask(t){
+  const q=qtyExplicita(t);
+  if(q!==null)return q>0;          // o campo preenchido é a palavra final
+  return ADS_RE.test(t&&t.title||"");
+}
+
+// Número colado na palavra anúncio, nos dois sentidos. Nada de número solto.
 function extractAdQty(title){
-  // Find a number near the word "anúncio(s)" — e.g. "Subir 5 anúncios", "20 anuncios"
   const s=String(title||"");
-  const m=s.match(/(\d+)\s*an[uú]ncio/i)||s.match(/an[uú]ncios?\s*(\d+)/i)||s.match(/\b(\d+)\b/);
+  const m=s.match(/(\d+)\s*an[uú]ncio/i)||s.match(/an[uú]ncios?\s*(\d+)/i);
   return m?Math.max(0,parseInt(m[1],10)||0):0;
 }
-// Quantity of ads a task represents: explicit qty field wins, else read from title, else 1 if it's an ad task
+
 function adQtyOf(t){
-  if(t&&typeof t.qty==="number"&&t.qty>0)return t.qty;
-  if(t&&t.qty!=null&&t.qty!==""){const n=parseInt(t.qty,10);if(n>0)return n;}
-  const fromTitle=extractAdQty(t.title);
-  return fromTitle>0?fromTitle:1;
+  const q=qtyExplicita(t);
+  if(q!==null)return q;
+  const doTitulo=extractAdQty(t&&t.title);
+  return doTitulo>0?doTitulo:(isAdTask(t)?1:0);
 }
 // Selo da tarefa que nasceu de um alerta.
 //
