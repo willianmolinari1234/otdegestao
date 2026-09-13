@@ -368,7 +368,17 @@ function render(){
   // sistema sem menu e sem saída.
   const emTV=view==="kanban"&&modoTV;
   document.body.classList.toggle("tv-cheia",emTV);
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
+  // As QUATRO telas do menu. As outras não sumiram: viraram abas, e quem
+  // desenha cada uma é rClientes() ou rEquipe(). Mantê-las aqui deixava sete
+  // entradas que nunca eram alcançadas — o desvio logo acima já trocou a view
+  // antes de chegar neste mapa.
+  const TELAS={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe};
+  // View desconhecida VIRA dashboard, em vez de só desenhar o dashboard:
+  // corrigir a variável deixa o menu destacado e o título certo. Sem esta
+  // rede, uma view fora da lista deixaria `desenhar` indefinido e derrubaria
+  // o render() inteiro — o modo de falha que já tirou o sistema do ar.
+  if(!TELAS[view])view="dashboard";
+  const fn=TELAS[view];
   const desenhar=emTV?rPainel:fn;
   document.getElementById("content").innerHTML=desenhar();
   bindAll();
@@ -388,7 +398,7 @@ function render(){
   if(view==="diagnostico"||(view==="clientes"&&subAba.clientes==="diagnostico"))diagRender();
   // Sync nav active state
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
-  document.getElementById("page-title").textContent=TITLES[view];
+  document.getElementById("page-title").textContent=TITLES[view]||"";
   // Update overdue pill
   const ov=visibleTasks().filter(t=>isOverdue(t)).length;
   const pill=document.getElementById("overdue-pill");

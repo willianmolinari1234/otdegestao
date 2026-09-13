@@ -909,3 +909,47 @@ test("toda tela que precisa de montagem depois do desenho é chamada", async () 
   assert.match(boot, /if\(C\.querySelector\("#prod-recentes"\)\)carregarFichasRecentes\(\)/,
     "o painel de fichas se monta pela presença do elemento, não pela view");
 });
+
+// ── O roteador enxuto (13/09/2026) ─────────────────────────────────────
+
+test("o roteador lista só as quatro telas do menu", () => {
+  // As outras viraram abas: quem desenha cada uma é rClientes() ou rEquipe().
+  // Sete entradas órfãs no mapa nunca eram alcançadas — o desvio troca a view
+  // antes de chegar lá — e confundiam quem fosse ler depois.
+  const telas = fs.readFileSync(path.join(raiz, "js", "04-telas.js"), "utf8");
+  const mapa = telas.match(/const TELAS=\{[^}]*\}/);
+  assert.ok(mapa, "o roteador precisa existir");
+  assert.equal(mapa[0], "const TELAS={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe}");
+  // O mapa das ABAS, dentro de rClientes(), continua existindo — é ele que
+  // desenha cada uma. O que saiu foi só a duplicata no roteador principal.
+  assert.match(telas, /const outras=\{integracoes:rIntegracoes/);
+});
+
+test("view desconhecida vira dashboard, e não quebra o desenho", async () => {
+  // Sem esta rede, uma view fora da lista deixaria `desenhar` indefinido e
+  // derrubaria o render() inteiro — o mesmo modo de falha que já tirou o
+  // sistema do ar uma vez. Corrigir a VARIÁVEL, e não só o desenho, deixa o
+  // menu destacado e o título certo.
+  const { ctx, el } = await appParaRender(PAINEL);
+  eval_(ctx, `view = "uma-tela-que-nao-existe"; render();`);
+  assert.equal(eval_(ctx, `return view;`), "dashboard");
+  assert.ok(el("content").innerHTML.length > 100, "desenhou alguma coisa");
+  assert.equal(el("page-title").textContent, "Dashboard");
+});
+
+test("as funções das abas continuam existindo e sendo chamadas", async () => {
+  // Tirar do roteador não pode ter tirado do sistema.
+  const ctx = await montarApp(PAINEL);
+  for (const [tela, aba, fn] of [
+    ["clientes", "integracoes", "rIntegracoes"],
+    ["clientes", "produtos", "rProdutos"],
+    ["clientes", "diagnostico", "rDiagnostico"],
+    ["equipe", "produtividade", "rRelatorios"],
+  ]) {
+    assert.equal(eval_(ctx, `return typeof ${fn};`), "function", `${fn} sumiu`);
+    const desenho = tela === "clientes" ? "rClientes()" : "rEquipe()";
+    const h = eval_(ctx, `subAba[${JSON.stringify(tela)}] = ${JSON.stringify(aba)};
+      const x = ${desenho}; subAba.clientes = "lojas"; subAba.equipe = "pessoas"; return x;`);
+    assert.ok(h.length > 200, `a aba ${aba} não desenhou nada`);
+  }
+});
