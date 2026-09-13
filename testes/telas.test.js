@@ -894,3 +894,18 @@ test("o menu lateral navega pelo caminho novo e sai do modo TV", () => {
   const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
   assert.match(boot, /navegarPara\(\(\)=>\{view=btn\.dataset\.view;modoTV=false;\}\)/);
 });
+
+test("o diagnóstico monta os critérios mesmo sendo sub-aba", async () => {
+  // Ele preenche #diag-dims DEPOIS do desenho, e essa lista é o corpo da
+  // tela. Ao virar sub-aba, a chamada parou de disparar e a página abria com
+  // cabeçalho, nota zerada e "0 de 0 critérios" — sem erro no console.
+  const telas = fs.readFileSync(path.join(raiz, "js", "04-telas.js"), "utf8");
+  assert.match(telas, /if\(view==="diagnostico"\|\|\(view==="clientes"&&subAba\.clientes==="diagnostico"\)\)diagRender\(\)/);
+});
+
+test("toda tela que precisa de montagem depois do desenho é chamada", async () => {
+  // A mesma armadilha vale para o painel de fichas da aba Produtos.
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /if\(C\.querySelector\("#prod-recentes"\)\)carregarFichasRecentes\(\)/,
+    "o painel de fichas se monta pela presença do elemento, não pela view");
+});

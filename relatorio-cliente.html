@@ -77,8 +77,16 @@
   .dtable th.num,.dtable td.num{text-align:right;}
   .dtable td{padding:9px 12px;border-top:1px solid var(--border);}
   .dtable tr:hover td{background:var(--brand-50);}
+  .tsum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .tsum-bloco{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 18px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:2px;min-width:132px;}
+  .tsum-n{font-size:26px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+  .tsum-rot{font-size:12px;color:var(--text-muted);}
   .tool-store{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);margin-bottom:14px;overflow:hidden;}
-  .tool-store h3{margin:0;padding:12px 16px;font-size:14px;font-weight:600;background:var(--bg);border-bottom:1px solid var(--border);}
+  .tool-store h3{margin:0;padding:11px 16px;font-size:14px;font-weight:700;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .tool-sums{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+  .tool-sum{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 9px;}
+  .tool-sum b{color:var(--text);font-variant-numeric:tabular-nums;}
+  .tool-x{color:var(--text-muted);font-weight:700;font-size:12px;}
   .tool-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--border);}
   .tool-row:first-of-type{border-top:none;}
   .tool-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--brand-50);color:var(--brand-tint);white-space:nowrap;}
@@ -403,10 +411,7 @@
   </div><!-- /viewVendas -->
 
   <div id="viewFerramentas" style="display:none;">
-    <div class="controls" style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:14px;font-weight:600;">Ferramentas ativas por loja</span>
-      <span style="font-size:12px;color:var(--text-muted);margin-left:auto;">Contagem regressiva até acabar cada promoção.</span>
-    </div>
+    <div id="toolsResumo"></div>
     <div class="empty" id="toolsEmpty"><div class="ico">🧰</div>Aguardando a integração com a Shopee. Depois de conectar as lojas, as promoções ativas (desconto, leve mais por menos, flash sale, cupons) aparecem aqui com o tempo restante.</div>
     <div id="toolsAlertas"></div>
     <div id="toolsList" style="display:none;"></div>
@@ -1388,19 +1393,77 @@ async function loadFerramentas() {
   }
   $("toolsEmpty").style.display = "none";
   $("toolsList").style.display = "block";
+
+  // Resumo do topo. Antes era um cabeçalho quase vazio ocupando um cartão
+  // inteiro; agora responde de uma olhada o que a tela inteira responderia
+  // depois de muito rolar.
+  {
+    const agora = Date.now() / 1000;
+    const todas = withPromos.flatMap((d) => d.promocoes || []);
+    const ativas = todas.filter((p) => Number(p.fim || 0) > agora);
+    const hoje = ativas.filter((p) => Number(p.fim) < agora + 86400);
+    const semNada = docs.length - withPromos.length;
+    const bloco = (n, rot, cor) => `<div class="tsum-bloco">
+      <span class="tsum-n"${cor ? ` style="color:${cor}"` : ""}>${n}</span>
+      <span class="tsum-rot">${rot}</span></div>`;
+    $("toolsResumo").innerHTML = `<div class="tsum">
+      ${bloco(withPromos.length, withPromos.length === 1 ? "loja com promoção" : "lojas com promoção")}
+      ${bloco(ativas.length, ativas.length === 1 ? "promoção ativa" : "promoções ativas")}
+      ${hoje.length ? bloco(hoje.length, hoje.length === 1 ? "acaba em 24h" : "acabam em 24h", "#dc2626") : ""}
+      ${semNada > 0 ? bloco(semNada, semNada === 1 ? "loja sem nenhuma" : "lojas sem nenhuma", "#b45309") : ""}
+    </div>`;
+  }
   $("toolsList").innerHTML = withPromos.map((d) => {
-    const rows = (d.promocoes || [])
-      .slice()
-      // Agrupa por tipo (cupons juntos, etc.) e, dentro do grupo, do que
-      // acaba antes para o que acaba depois.
-      .sort((a, b) => {
-        const g = (TOOL_ORDER[a.tipo] ?? 99) - (TOOL_ORDER[b.tipo] ?? 99);
-        if (g !== 0) return g;
-        return Number(a.fim || 0) - Number(b.fim || 0);
-      })
-      .map((p) => `<div class="tool-row"><span class="tool-badge">${TOOL_LABEL[p.tipo] || p.tipo}</span><span class="tool-name">${escapeHtml(p.nome || "")}</span><span class="tool-time" data-fim="${p.fim || 0}">–</span></div>`)
+    const promos = (d.promocoes || []).slice().sort((a, b) => {
+      const g = (TOOL_ORDER[a.tipo] ?? 99) - (TOOL_ORDER[b.tipo] ?? 99);
+      if (g !== 0) return g;
+      return Number(a.fim || 0) - Number(b.fim || 0);
+    });
+
+    // AGRUPA promoções que terminam na mesma hora e são do mesmo tipo.
+    //
+    // Uma loja com oito combos "leve mais por menos" gerava oito linhas
+    // idênticas, e a tela virava um rolo em que o que importa — a relâmpago
+    // que acaba em quatro horas — some no meio. Agora cada linha é um grupo,
+    // com os nomes distintos juntos e a contagem quando repetem.
+    const grupos = [];
+    for (const p of promos) {
+      const hora = Math.floor(Number(p.fim || 0) / 3600);
+      const ultimo = grupos[grupos.length - 1];
+      if (ultimo && ultimo.tipo === p.tipo && ultimo.hora === hora) ultimo.itens.push(p);
+      else grupos.push({ tipo: p.tipo, hora, fim: p.fim, itens: [p] });
+    }
+
+    const rows = grupos.map((g) => {
+      // Nomes distintos, cada um com quantas vezes aparece.
+      const contagem = new Map();
+      for (const p of g.itens) {
+        const nome = (p.nome || "").trim() || "sem nome";
+        contagem.set(nome, (contagem.get(nome) || 0) + 1);
+      }
+      const nomes = [...contagem.entries()]
+        .map(([nome, n]) => escapeHtml(nome) + (n > 1 ? ` <b class="tool-x">×${n}</b>` : ""))
+        .join(" · ");
+      const total = g.itens.length;
+      return `<div class="tool-row">
+        <span class="tool-badge">${TOOL_LABEL[g.tipo] || g.tipo}${total > 1 ? ` ${total}` : ""}</span>
+        <span class="tool-name">${nomes}</span>
+        <span class="tool-time" data-fim="${g.fim || 0}">–</span>
+      </div>`;
+    }).join("");
+
+    // Resumo no cabeçalho: quantas de cada tipo, sem precisar contar linha.
+    const porTipo = new Map();
+    for (const p of promos) porTipo.set(p.tipo, (porTipo.get(p.tipo) || 0) + 1);
+    const resumo = [...porTipo.entries()]
+      .sort((a, b) => (TOOL_ORDER[a[0]] ?? 99) - (TOOL_ORDER[b[0]] ?? 99))
+      .map(([t, n]) => `<span class="tool-sum">${TOOL_LABEL[t] || t}<b>${n}</b></span>`)
       .join("");
-    return `<div class="tool-store"><h3>${escapeHtml(nameOf(d.id))}</h3>${rows}</div>`;
+
+    return `<div class="tool-store">
+      <h3><span>${escapeHtml(nameOf(d.id))}</span><span class="tool-sums">${resumo}</span></h3>
+      ${rows}
+    </div>`;
   }).join("");
   renderAlertasFerramentas(docs, nameOf);
   updateCountdowns();

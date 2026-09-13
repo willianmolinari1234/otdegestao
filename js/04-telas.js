@@ -381,7 +381,11 @@ function render(){
            if(_foco.ini!=null&&el.setSelectionRange)el.setSelectionRange(_foco.ini,_foco.fim); }catch{}
     }
   }
-  if(view==="diagnostico")diagRender();
+  // O diagnóstico monta a lista de critérios DEPOIS do desenho, e ela é o
+  // corpo da tela. Quando ele virou sub-aba de Clientes esta linha parou de
+  // disparar, e a página passou a abrir pela metade: cabeçalho, nota zerada
+  // e "0 de 0 critérios avaliados", sem erro nenhum no console.
+  if(view==="diagnostico"||(view==="clientes"&&subAba.clientes==="diagnostico"))diagRender();
   // Sync nav active state
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   document.getElementById("page-title").textContent=TITLES[view];
