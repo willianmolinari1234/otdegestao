@@ -66,6 +66,14 @@ const eval_ = (ctx, expr) => vm.runInContext(`(() => { ${expr} })()`, ctx);
 const evalObj_ = (ctx, expr) =>
   JSON.parse(vm.runInContext(`JSON.stringify((() => { ${expr} })())`, ctx));
 
+// A data das tarefas de mentira é SEMPRE hoje, calculada na hora.
+//
+// Com data fixa, o teste do dashboard passava no dia em que foi escrito e
+// quebrava sozinho no dia seguinte: rDash() lista só o período corrente, e uma
+// tarefa de anteontem sai dele. Teste que quebra sem ninguém mexer em nada
+// ensina a equipe a ignorar a suíte inteira.
+const HOJE = new Date().toISOString().slice(0, 10);
+
 const BASE = `
   emps = [{ id:"ana", name:"Ana Souza", color:"#ea580c", role:"user" }];
   custs = [{ id:"c1", name:"Poliane" }];
@@ -78,7 +86,7 @@ const BASE = `
     { cliente:"l2", promocoes:[] },
   ];
   tsks = [{ id:"auto__l2__semDesconto", auto:true, cli:"l2", emp:"", status:"todo",
-    title:"Ativar desconto — Eva Home", desc:"x", pri:"alta", date:"2026-09-11", reaberturas:2 }];
+    title:"Ativar desconto — Eva Home", desc:"x", pri:"alta", date:"${HOJE}", reaberturas:2 }];
   currentUser = { id:"adm", name:"Willian", role:"admin", color:"#ea580c" };
 `;
 
@@ -167,11 +175,11 @@ test("o mínimo de cupons da loja chega ao painel: ticket baixo não é acusada 
 test("a tela de Equipe soma as reaberturas — e esconde o zero", async () => {
   const ctx = await montarApp(BASE);
   const com = eval_(ctx, `
-    tsks=[{id:"a",auto:true,emp:"ana",status:"done",reaberturas:3,pri:"media",date:"2026-09-11",cli:"l1"}];
+    tsks=[{id:"a",auto:true,emp:"ana",status:"done",reaberturas:3,pri:"media",date:"${HOJE}",cli:"l1"}];
     return rEquipe();`);
   assert.match(com, /3 retrabalho/);
   const sem = eval_(ctx, `
-    tsks=[{id:"a",auto:true,emp:"ana",status:"done",reaberturas:0,pri:"media",date:"2026-09-11",cli:"l1"}];
+    tsks=[{id:"a",auto:true,emp:"ana",status:"done",reaberturas:0,pri:"media",date:"${HOJE}",cli:"l1"}];
     return rEquipe();`);
   assert.doesNotMatch(sem, /retrabalho/, "número zerado ocupando espaço ensina a não olhar para ele");
 });
