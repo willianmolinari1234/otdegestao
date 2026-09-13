@@ -272,12 +272,18 @@ function render(){
   // Produtos é só do admin: quem não é cai no dashboard em vez de ver um
   // iframe que as regras do Firestore vão esvaziar sem explicar por quê.
   if(view==="produtos"&&!isAdmin())view="dashboard";
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas,painel:rPainel}[view];
-  // O painel de parede toma a tela inteira: some a barra lateral e o topo.
-  // A classe sai em TODO redesenho que não seja dele, senão trocar de aba
-  // deixaria o sistema sem menu e sem saída.
-  document.body.classList.toggle("tv-cheia",view==="painel");
-  document.getElementById("content").innerHTML=fn();
+  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
+  const desenhar=emTV?rPainel:fn;
+  // O painel deixou de ser uma aba: virou um MODO da tela de tarefas. Quem
+  // estava com a aba antiga aberta quando esta versão subir cai no modo, em
+  // vez de numa tela que não existe mais.
+  if(view==="painel"){view="kanban";modoTV=true;}
+  // Modo TV toma a tela inteira: some a barra lateral e o topo. A classe sai
+  // em TODO redesenho que não seja dele, senão trocar de aba deixaria o
+  // sistema sem menu e sem saída.
+  const emTV=view==="kanban"&&modoTV;
+  document.body.classList.toggle("tv-cheia",emTV);
+  document.getElementById("content").innerHTML=desenhar();
   bindAll();
   enhanceSearchSelects(document.getElementById("content"));
   // Devolve o foco e o cursor para onde estavam antes do redesenho.
@@ -296,7 +302,7 @@ function render(){
   const ov=visibleTasks().filter(t=>isOverdue(t)).length;
   const pill=document.getElementById("overdue-pill");
   document.getElementById("overdue-text").innerHTML=ov===1?"<strong>1</strong> tarefa atrasada":`<strong>${ov}</strong> tarefas atrasadas`;
-  pill.style.display=ov>0?"inline-flex":"none";pill.style.alignItems="center";
+  pill.style.display=(ov>0&&view!=="kanban")?"inline-flex":"none";pill.style.alignItems="center";
   pill.style.cursor=ov>0?"pointer":"default";
   pill.onclick=ov>0?()=>{view="kanban";fRange="all";fEmp="all";fCli="all";fSort="prazo";render();}:null;
   // Ferramenta de promoções manuais removida — as promoções agora vêm da API da Shopee.
@@ -615,16 +621,106 @@ function urgRow(lbl,v,mx,col){
 }
 
 // ─── KANBAN ───────────────────────────────────────────────────────────
+// ─── TAREFAS ──────────────────────────────────────────────────────────
+//
+// Redesenhada em 13/09/2026. O que mudou, e por quê:
+//
+// 1. DUAS COLUNAS, não três. "Concluído" tinha 396 cartões ocupando um terço
+//    da tela com histórico morto. Virou um botão no rodapé que abre a terceira
+//    coluna quando alguém precisa dela — e é só aí que dá para arrastar de
+//    volta, o que é raro e deliberado.
+//
+// 2. A URGÊNCIA VEM PRIMEIRO. A barra colorida da esquerda mostrava
+//    PRIORIDADE, e quase toda tarefa está marcada como alta — a cor não dizia
+//    nada. Agora ela mostra o ATRASO. Entre uma tarefa "alta" de hoje e uma
+//    "média" parada há nove dias, é a segunda que está custando dinheiro.
+//
+// 3. O PULSO E AS EXCEÇÕES no topo, vindos do painel de parede: a fila está
+//    drenando? o que ninguém pode resolver sozinho?
+//
+// 4. MODO TV é um modo desta tela, não outra tela. Uma para manter.
+//
+// Nada saiu: filtros, ordenação, só as minhas, nova tarefa, editar, excluir,
+// arrastar entre colunas, selo de automática e de reaberta continuam aqui.
+
+/** Dias de atraso (positivo) ou quanto falta (negativo). */
+function tvAtraso(t){ return -daysUntil(t.date); }
+
+/** A cor e o rótulo do tempo de um cartão. Vem do ATRASO, não da prioridade. */
+function kbTempo(t){
+  if(t.status==="done")return{cor:"#16a34a",barra:"#22c55e",txt:"feita",peq:true};
+  const d=tvAtraso(t);
+  if(d>=3)return{cor:"#dc2626",barra:"#dc2626",txt:d+"d"};
+  if(d>=1)return{cor:"#b45309",barra:"#f59e0b",txt:d+"d"};
+  if(d===0)return{cor:"#b45309",barra:"#f59e0b",txt:"hoje",peq:true};
+  if(d===-1)return{cor:"#15803d",barra:"#22c55e",txt:"amanhã",peq:true};
+  // "em 3d" e não "3d": sem o "em", uma tarefa que vence daqui a três dias
+  // se lê exatamente como uma que está três dias atrasada.
+  return{cor:"#15803d",barra:"#22c55e",txt:"em "+Math.abs(d)+"d",peq:true};
+}
+
+/** Quantas tarefas saíram por dia, em média, nos últimos 7 dias fechados.
+ *  Só conta dia que teve conclusão registrada: tarefa concluída antes de o
+ *  carimbo `doneDate` existir não tem data, e incluí-la como zero puxaria a
+ *  média para baixo inventando dias parados que talvez não existiram. */
+function tvMediaDiaria(ts){
+  const dias=new Map();
+  const limite=new Date(todayISO());limite.setDate(limite.getDate()-7);
+  for(const t of ts){
+    if(t.status!=="done"||!t.doneDate)continue;
+    if(t.doneDate>=todayISO())continue;
+    if(new Date(t.doneDate)<limite)continue;
+    dias.set(t.doneDate,(dias.get(t.doneDate)||0)+1);
+  }
+  if(dias.size<2)return null;   // sem histórico não se inventa tendência
+  let soma=0;for(const n of dias.values())soma+=n;
+  return Math.round(soma/dias.size);
+}
+
+/** A faixa escura do topo: a fila está drenando? */
+function kbPulso(ts,abertas,atrasadas,maisAntiga){
+  const saiuHoje=ts.filter(t=>t.status==="done"&&t.doneDate===todayISO()).length;
+  const media=tvMediaDiaria(ts);
+  return`
+    <div class="kb-pulso">
+      <div class="kb-nums">
+        <span class="kb-bloco"><b class="kb-big" style="color:#4ade80">${saiuHoje}</b><span>${saiuHoje===1?"saiu hoje":"saíram hoje"}</span></span>
+        ${media!==null?`<span class="kb-media">média ${media}/dia</span>`:""}
+        <span class="kb-sep"></span>
+        <span class="kb-bloco"><b class="kb-big">${abertas.length}</b><span>na fila</span></span>
+        ${atrasadas.length?`<span class="kb-bloco kb-atraso"><b class="kb-big">${atrasadas.length}</b><span>${atrasadas.length===1?"atrasada":"atrasadas"}</span></span>`:""}
+        ${maisAntiga>0?`<span class="kb-bloco kb-antiga"><span>a mais antiga</span><b>${maisAntiga} ${maisAntiga===1?"dia":"dias"}</b></span>`:""}
+      </div>
+      <div class="kb-acoes">
+        <button class="kb-tv" id="kb-modo-tv" title="Esconde os controles e aumenta tudo, para a TV da parede">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+          Modo TV
+        </button>
+      </div>
+    </div>`;
+}
+
+/** A faixa âmbar: o que a equipe não resolve sozinha. */
+function kbExcecao(semDono){
+  if(!semDono.length)return"";
+  return`
+    <div class="kb-excecao">
+      <svg class="kb-exc-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+      <b>${semDono.length===1?"1 tarefa parada":semDono.length+" tarefas paradas"} sem ninguém para pegar</b>
+      <span class="kb-exc-det">${esc(semDono.slice(0,2).map(t=>t.title).join(" · "))}${semDono.length>2?" e mais "+(semDono.length-2):""}</span>
+      <button class="kb-exc-acao" id="kb-ir-clientes">Definir responsável</button>
+    </div>`;
+}
+
 function rKanban(){
-  let filtered=visibleTasks().filter(t=>(true)
+  const todas=visibleTasks();
+  let filtered=todas.filter(t=>(true)
     &&(fEmp==="all"||t.emp===fEmp)
     &&(fCli==="all"||t.cli===fCli||t.cli==="all")
     &&(fCust==="all"||t.cli==="all"||(getCli(t.cli)&&getCli(t.cli).custId===fCust))
     &&(!myOnly||!currentUser||t.emp===currentUser.id));
-  // Sort: overdue first, then by selected criteria
   filtered.sort((a,b)=>{
     if(fSort==="ordem"){
-      // Manual order: tasks with explicit order first (by order), then by date
       const ao=(typeof a.order==="number")?a.order:1e9, bo=(typeof b.order==="number")?b.order:1e9;
       if(ao!==bo)return ao-bo;
       return a.date.localeCompare(b.date);
@@ -635,67 +731,110 @@ function rKanban(){
     if(fSort==="prioridade"){const o={alta:0,media:1,baixa:2};return o[a.pri]-o[b.pri];}
     return 0;
   });
+
+  // O pulso e a carga falam da fila INTEIRA, não do recorte filtrado: filtrar
+  // por uma pessoa não muda quantas tarefas a equipe tem atrasadas.
+  const abertas=todas.filter(t=>t.status!=="done");
+  const atrasadas=abertas.filter(isOverdue);
+  const semDono=abertas.filter(t=>!t.emp);
+  const maisAntiga=abertas.length?Math.max(...abertas.map(tvAtraso)):0;
+  const carga=emps.map(e=>({e,n:abertas.filter(t=>t.emp===e.id).length}))
+    .filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
+  const pico=carga.length?carga[0].n:0;
+  const feitasHoje=todas.filter(t=>t.status==="done"&&t.doneDate===todayISO()).length;
+
   const empOpts=emps.map(e=>`<option value="${e.id}"${fEmp===e.id?" selected":""}>${esc(e.name)}</option>`).join("");
   // Nome + marketplace: há marcas com loja na Shopee E na Shein, e num
   // <option> não dá para usar selo colorido — então vai em texto mesmo.
   const cliOpts=clis.map(c=>`<option value="${c.id}"${fCli===c.id?" selected":""}>${esc(c.name)}${c.mkt?" · "+esc(c.mkt):""}</option>`).join("");
-  const cols=["todo","doing","done"].map(st=>{
-    const items=filtered.filter(t=>t.status===st);
+
+  const cartao=(t,st)=>{
+    const e=getEmp(t.emp),c=getCliV(t);
+    const j=kbTempo(t);
     const nextSt={todo:"doing",doing:"done",done:"todo"}[st];
-    const nextLbl={todo:"Iniciar →",doing:"Concluir →",done:"↺ Reabrir"}[st];
-    const cards=items.length===0?`<div class="task-empty">Sem tarefas</div>`:items.map((t,idx)=>{
-      const e=getEmp(t.emp),c=getCliV(t);
-      const di=deadlineInfo(t);
-      const ownerName=c&&c.custId?(getCust(c.custId)?getCust(c.custId).name:""):"";
-      return`<div class="task-card${di.overdue?" overdue":""}" draggable="true" data-card="${t.id}" data-status="${st}" style="border-left:3px solid ${PCOL[t.pri]}">
-        <div style="display:flex;align-items:flex-start;gap:6px">
-          <span class="drag-handle" title="Arraste para reordenar">⠿</span>
-          <div data-view="${t.id}" title="Ver detalhes" style="font-size:13px;font-weight:600;line-height:1.35;flex:1;cursor:pointer;color:#0f172a">${esc(t.title)}</div>
-          <div class="card-actions">
-            <button data-view="${t.id}" title="Ver detalhes">👁</button>
-            <button data-edit="${t.id}" title="Editar">✎</button>
-            <button data-del="${t.id}" title="Excluir" class="del">✕</button>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin:7px 0 0 18px;flex-wrap:wrap">
-          <span class="deadline" style="background:${di.bg};color:${di.color}">${di.label}</span>
-          ${priB(t.pri)}
-          ${isAdTask(t)?`<span class="badge" style="background:#dcfce7;color:#16a34a">📢 ${adQtyOf(t)}</span>`:""}
-          ${autoBadgeHTML(t)}
-        </div>
-        ${(e||c)?`<div style="display:flex;align-items:center;gap:6px;margin:8px 0 0 18px;font-size:10.5px;color:#94a3b8;min-width:0">
-          ${e?avHTML(e,18):""}
-          ${c?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}${ownerName?" · "+esc(ownerName):""}</span>`:""}
-        </div>`:""}
-        <button data-move="${t.id}" data-next="${nextSt}" class="move-btn">${nextLbl}</button>
-      </div>`;
-    }).join("");
-    return`<div>
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
-        <div style="width:8px;height:8px;border-radius:50%;background:${SCOL[st]}"></div>
-        <span style="font-size:12.5px;font-weight:700">${SLBL[st]}</span>
-        <span class="badge" style="background:${SBGCOL[st]};color:${SCOL[st]}">${items.length}</span>
+    const nextLbl={todo:"Iniciar →",doing:"Concluir ✓",done:"↺ Reabrir"}[st];
+    const ownerName=c&&c.custId?(getCust(c.custId)?getCust(c.custId).name:""):"";
+    return`<div class="kb-card${isOverdue(t)?" kb-card-atrasada":""}" draggable="true" data-card="${t.id}" data-status="${st}" style="border-left-color:${j.barra}">
+      <div class="kb-linha1">
+        <span class="drag-handle" title="Arraste para reordenar">⠿</span>
+        <span class="kb-tempo${j.peq?" kb-tempo-peq":""}" style="color:${j.cor}">${esc(j.txt)}</span>
+        <span class="kb-titulo" data-view="${t.id}" title="Ver detalhes">${esc(t.title)}</span>
+        ${autoBadgeHTML(t)}
+        <span class="kb-ferramentas">
+          <button data-view="${t.id}" title="Ver detalhes">👁</button>
+          <button data-edit="${t.id}" title="Editar">✎</button>
+          ${t.auto?"":`<button data-del="${t.id}" title="Excluir" class="del">✕</button>`}
+        </span>
       </div>
-      <div class="kanban-col" data-col="${st}">${cards}</div>
+      <div class="kb-linha2">
+        ${e?`<span class="kb-dono">${avHTML(e,21)}${esc(e.name.split(" ")[0])}</span>`
+           :`<span class="kb-sem-dono">sem dono</span>`}
+        ${c?`<span class="kb-loja">${esc(c.name)}${ownerName?" · "+esc(ownerName):""}</span>`
+           :`<span class="kb-loja kb-loja-todas">Todas as lojas</span>`}
+        ${isAdTask(t)?`<span class="kb-qtd">${KB_ICONE_ANUNCIO}${adQtyOf(t)}</span>`:""}
+        <button data-move="${t.id}" data-next="${nextSt}" class="kb-mover${st==="doing"?" kb-mover-fim":""}">${nextLbl}</button>
+      </div>
     </div>`;
-  }).join("");
+  };
+
+  const coluna=(st,rotulo,cor,fundo)=>{
+    // Concluídas: só as de HOJE. Abrir a coluna com as 400 de sempre seria
+    // devolver à tela o histórico morto que ela acabou de tirar do caminho —
+    // e o botão que abre a coluna promete "concluídas hoje".
+    const items=st==="done"
+      ? filtered.filter(t=>t.status==="done"&&t.doneDate===todayISO())
+      : filtered.filter(t=>t.status===st);
+    const cards=items.length===0?`<div class="kb-vazia">Sem tarefas</div>`:items.map(t=>cartao(t,st)).join("");
+    return`<div class="kb-coluna">
+      <div class="kb-cab">
+        <span class="kb-ponto" style="background:${cor}"></span>
+        <span class="kb-cab-nome">${rotulo}</span>
+        <span class="kb-cab-n" style="background:${fundo};color:${cor}">${items.length}</span>
+      </div>
+      <div class="kanban-col kb-lista" data-col="${st}">${cards}</div>
+    </div>`;
+  };
+
+  const temFiltro=fEmp!=="all"||fCli!=="all"||fCust!=="all"||myOnly;
+
   return`
-    <div class="filter-bar">
-      <span style="font-size:11px;color:#64748b;font-weight:600;margin-right:2px">🔍 FILTRAR</span>
+    ${kbPulso(todas,abertas,atrasadas,maisAntiga)}
+    ${kbExcecao(semDono)}
+    <div class="kb-filtros">
+      <span class="kb-rot">🔍 Filtrar</span>
       <select id="k-emp"><option value="all">Todos os funcionários</option>${empOpts}</select>
       <select id="k-cli" data-search data-placeholder="🔍 Buscar loja..."><option value="all">Todas as lojas</option>${cliOpts}</select>
       ${custs.length>0?`<select id="k-cust" data-search data-placeholder="🔍 Buscar cliente..."><option value="all">Todos os clientes</option>${custs.map(cu=>`<option value="${cu.id}"${fCust===cu.id?" selected":""}>${esc(cu.name)}</option>`).join("")}</select>`:""}
-      <span style="font-size:11px;color:#64748b;font-weight:600;margin-left:8px">↕ ORDENAR</span>
+      ${currentUser?`<button class="btn-sm" id="k-myonly" style="${myOnly?"background:#ea580c;color:white;font-weight:700":""}">${myOnly?"👤 Minhas":"👥 Todas"}</button>`:""}
+      <span class="kb-rot" style="margin-left:6px">↕ Ordenar</span>
       <select id="k-sort">
-        <option value="prazo"${fSort==="prazo"?" selected":""}>Por prazo</option>
+        <option value="prazo"${fSort==="prazo"?" selected":""}>Mais antiga primeiro</option>
         <option value="prioridade"${fSort==="prioridade"?" selected":""}>Por prioridade</option>
         <option value="ordem"${fSort==="ordem"?" selected":""}>Ordem manual ⠿</option>
       </select>
-      ${currentUser?`<button class="btn-sm" id="k-myonly" style="${myOnly?"background:#ea580c;color:white;font-weight:700":""}">${myOnly?"👤 Minhas":"👥 Todas"}</button>`:""}
-      ${(fEmp!=="all"||fCli!=="all"||fCust!=="all"||myOnly)?`<button class="btn-sm" id="k-clear">✕ Limpar filtros</button>`:""}
+      ${temFiltro?`<button class="btn-sm" id="k-clear">✕ Limpar filtros</button>`:""}
+      <span class="kb-conta">${filtered.filter(t=>t.status!=="done").length} de ${abertas.length} abertas</span>
     </div>
-    <div class="kanban-grid">${cols}</div>`;
+    <div class="kb-grade${verConcluidas?" kb-grade-3":""}">
+      ${coluna("todo","A fazer","#64748b","#e2e8f0")}
+      ${coluna("doing","Em andamento","#ea580c","#ffedd5")}
+      ${verConcluidas?coluna("done","Concluídas hoje","#16a34a","#dcfce7"):""}
+    </div>
+    <div class="kb-rodape">
+      ${carga.length?`<span class="kb-rot">Na mão de cada um</span>
+      <div class="kb-chips">
+        ${carga.map(x=>`<span class="kb-chip${x.n===pico&&pico>1?" kb-chip-pico":""}" data-filtraremp="${esc(x.e.id)}">${esc(x.e.name.split(" ")[0])} <b>${x.n}</b></span>`).join("")}
+      </div>`:`<span class="kb-rot">Nenhuma tarefa atribuída</span>`}
+      <button class="kb-feitas${verConcluidas?" kb-feitas-on":""}" id="kb-ver-feitas">
+        ${KB_ICONE_OK}
+        ${feitasHoje} ${feitasHoje===1?"concluída hoje":"concluídas hoje"}
+        <span class="kb-feitas-cta">${verConcluidas?"esconder":"ver"}</span>
+      </button>
+    </div>`;
 }
+
+const KB_ICONE_ANUNCIO=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path></svg>`;
+const KB_ICONE_OK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>`;
 
 // ─── RELATÓRIO DE CLIENTE / VENDAS / FERRAMENTAS ──────────────────────
 // As três eram abas dentro do relatorio-cliente.html. Viraram entradas do menu
@@ -1570,9 +1709,6 @@ function tvColunas(){
 }
 function tvMaxCartoes(){ return tvColunas()*2; }
 
-/** Dias de atraso (positivo) ou quanto falta (negativo). */
-function tvAtraso(t){ return -daysUntil(t.date); }
-
 /** A tarja de tempo de um cartão: cor e texto vêm do atraso. */
 function tvTarja(t){
   const d=tvAtraso(t);
@@ -1581,24 +1717,6 @@ function tvTarja(t){
   if(d===0)return{bg:"#f59e0b",fg:"#1c1917",sub:"#451a03",txt:"hoje"};
   if(d===-1)return{bg:"#22c55e",fg:"#052e16",sub:"#14532d",txt:"amanhã"};
   return{bg:"#22c55e",fg:"#052e16",sub:"#14532d",txt:Math.abs(d)+"d"};
-}
-
-/** Quantas tarefas saíram por dia, em média, nos últimos 7 dias fechados.
- *  Só conta dia que teve conclusão registrada: tarefa concluída antes de o
- *  carimbo `doneDate` existir não tem data, e incluí-la como zero puxaria a
- *  média para baixo inventando dias parados que talvez não existiram. */
-function tvMediaDiaria(ts){
-  const dias=new Map();
-  const limite=new Date(todayISO());limite.setDate(limite.getDate()-7);
-  for(const t of ts){
-    if(t.status!=="done"||!t.doneDate)continue;
-    if(t.doneDate>=todayISO())continue;
-    if(new Date(t.doneDate)<limite)continue;
-    dias.set(t.doneDate,(dias.get(t.doneDate)||0)+1);
-  }
-  if(dias.size<2)return null;   // sem histórico não se inventa tendência
-  let soma=0;for(const n of dias.values())soma+=n;
-  return Math.round(soma/dias.size);
 }
 
 function rPainel(){

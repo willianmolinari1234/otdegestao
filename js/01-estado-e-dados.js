@@ -92,6 +92,12 @@ function backendIndisponivel(){
 }
 let currentUser=null;
 let myOnly=false;
+// A coluna de concluídas fica fechada: são centenas de cartões de histórico
+// ocupando um terço da tela. Abre sob demanda — e é só com ela aberta que dá
+// para arrastar uma tarefa de volta, o que é raro e deve ser deliberado.
+let verConcluidas=false;
+// Modo TV: a MESMA tela de tarefas, escura e sem controles, para a parede.
+let modoTV=false;
 let view="dashboard",fRange="today",fDate=todayISO(),fEmp="all",fCli="all",fCust="all",fSort="prazo",fErp="all",fMkt="all";
 // Filtro por responsável na tela de Clientes. "sem" isola as lojas sem dono,
 // que é a lista que interessa preencher primeiro.

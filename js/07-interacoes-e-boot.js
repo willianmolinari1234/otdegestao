@@ -113,12 +113,25 @@ function bindAll(){
   if(pv)pv.onclick=()=>abrirVinculosAnuncios();
   const pcf=C.querySelector("#prod-conferir");
   if(pcf)pcf.onclick=()=>conferirMargens();
-  // Painel de parede: sair volta para as tarefas, e o atalho da faixa âmbar
-  // leva direto ao cadastro onde se define o responsável da loja.
+  // Modo TV: entra pelo botão do topo, sai pelo ✕. É a mesma tela.
+  const kbtv=C.querySelector("#kb-modo-tv");
+  if(kbtv)kbtv.onclick=()=>{modoTV=true;render();};
   const tvs=C.querySelector("#tv-sair");
-  if(tvs)tvs.onclick=()=>{view="kanban";render();};
+  if(tvs)tvs.onclick=()=>{modoTV=false;render();};
+  // O atalho da faixa âmbar leva ao cadastro onde se define o responsável,
+  // já filtrado nas lojas que estão sem.
+  const irClientes=()=>{modoTV=false;view="clientes";fResp="sem";render();};
   const tvc=C.querySelector("#tv-ir-clientes");
-  if(tvc)tvc.onclick=()=>{view="clientes";fResp="sem";render();};
+  if(tvc)tvc.onclick=irClientes;
+  const kbe=C.querySelector("#kb-ir-clientes");
+  if(kbe)kbe.onclick=irClientes;
+  // Abrir e fechar a coluna de concluídas.
+  const kbf=C.querySelector("#kb-ver-feitas");
+  if(kbf)kbf.onclick=()=>{verConcluidas=!verConcluidas;render();};
+  // Clicar num nome da carga filtra por ele — e clicar de novo desfaz.
+  C.querySelectorAll("[data-filtraremp]").forEach(b=>{
+    b.onclick=()=>{fEmp=fEmp===b.dataset.filtraremp?"all":b.dataset.filtraremp;render();};
+  });
   // Redimensionar muda quantos cartões cabem. Registrado UMA vez: o #content
   // sobrevive aos redesenhos, e registrar a cada um empilharia handlers.
   if(!window._tvResize){

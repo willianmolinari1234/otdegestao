@@ -494,19 +494,25 @@ test("cabem 8 cartões e o resto é contado, não escondido", async () => {
   assert.match(h, /\+4 na fila/);
 });
 
-test("o painel toma a tela inteira, e a devolve ao sair", async () => {
+test("o modo TV toma a tela inteira, e a devolve ao sair", async () => {
   // Sem tirar a classe ao trocar de aba, o sistema ficaria sem menu.
   const telas = fs.readFileSync(path.join(raiz, "js", "04-telas.js"), "utf8");
-  assert.match(telas, /classList\.toggle\("tv-cheia",view==="painel"\)/);
+  assert.match(telas, /const emTV=view==="kanban"&&modoTV;/);
+  assert.match(telas, /classList\.toggle\("tv-cheia",emTV\)/);
   const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
-  assert.match(boot, /tvs\.onclick=\(\)=>\{view="kanban";render\(\);\}/);
+  assert.match(boot, /kbtv\.onclick=\(\)=>\{modoTV=true;render\(\);\}/, "entra pelo botão");
+  assert.match(boot, /tvs\.onclick=\(\)=>\{modoTV=false;render\(\);\}/, "sai pelo ✕");
 });
 
-test("o painel é uma tela registrada, com nome no topo", async () => {
-  const estado = fs.readFileSync(path.join(raiz, "js", "01-estado-e-dados.js"), "utf8");
-  assert.match(estado, /painel:"Painel"/);
+test("o modo TV é um modo da tela de tarefas, não uma aba", async () => {
+  // Duas telas para o mesmo trabalho são duas para manter, e elas divergem.
   const html = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
-  assert.match(html, /data-view="painel"/);
+  assert.doesNotMatch(html, /data-view="painel"/, "a aba saiu do menu");
+  const telas = fs.readFileSync(path.join(raiz, "js", "04-telas.js"), "utf8");
+  assert.doesNotMatch(telas, /painel:rPainel/, "e saiu do roteador");
+  // Quem estava com a aba antiga aberta quando a versão subir cai no modo,
+  // em vez de numa tela que não existe mais.
+  assert.match(telas, /if\(view==="painel"\)\{view="kanban";modoTV=true;\}/);
 });
 
 test("o painel esconde o que ele substitui, pelos seletores que existem", () => {
@@ -573,4 +579,99 @@ test("redimensionar redesenha o painel, e o handler é registrado uma vez só", 
   const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
   assert.match(boot, /if\(!window\._tvResize\)\{/, "sem a guarda, cada redesenho empilha um handler");
   assert.match(boot, /if\(view!=="painel"\)return;/, "não redesenha as outras telas à toa");
+});
+
+// ── A tela de tarefas redesenhada (13/09/2026) ─────────────────────────
+//
+// Ela SUBSTITUIU o kanban antigo, então o que se prova primeiro é que nada
+// do trabalho se perdeu no caminho.
+
+test("nada que o kanban fazia se perdeu", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rKanban();`);
+  // filtros
+  assert.match(h, /id="k-emp"/, "filtro por funcionário");
+  assert.match(h, /id="k-cli"/, "filtro por loja");
+  assert.match(h, /id="k-cust"/, "filtro por cliente");
+  assert.match(h, /id="k-sort"/, "ordenação");
+  assert.match(h, /id="k-myonly"/, "só as minhas");
+  // ações por cartão
+  assert.match(h, /data-view="t1"/, "ver detalhes");
+  assert.match(h, /data-edit="t1"/, "editar");
+  assert.match(h, /data-del="t1"/, "excluir");
+  assert.match(h, /data-move="t1"/, "mover de coluna");
+  // arrastar
+  assert.match(h, /draggable="true"/);
+  assert.match(h, /class="kanban-col kb-lista" data-col="todo"/, "a coluna que recebe o arraste");
+});
+
+test("a tarefa automática não oferece excluir", async () => {
+  // Ela volta no próximo sync. Excluir dá a impressão de resolver e não
+  // resolve — o que resolve é a pendência sair do ar na Shopee.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `tsks[3].auto = true; return rKanban();`);
+  const cartao = h.slice(h.indexOf('data-card="t4"'), h.indexOf('data-card="t4"') + 900);
+  assert.match(cartao, /data-edit="t4"/);
+  assert.doesNotMatch(cartao, /data-del="t4"/);
+});
+
+test("a cor do cartão vem do ATRASO, não da prioridade", async () => {
+  // Quase toda tarefa está marcada como alta: a cor da prioridade não
+  // distinguia nada.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rKanban();`);
+  const atrasada = h.slice(h.indexOf('data-card="t0"'), h.indexOf('data-card="t0"') + 200);
+  assert.match(atrasada, /border-left-color:#dc2626/, "6 dias: vermelho");
+  const hoje = h.slice(h.indexOf('data-card="t3"'), h.indexOf('data-card="t3"') + 200);
+  assert.match(hoje, /border-left-color:#f59e0b/, "hoje: âmbar");
+});
+
+test("tarefa futura se distingue de tarefa atrasada", async () => {
+  // "3d" sozinho se lê como atrasada há três dias.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `
+    tsks = [{ id:"f1", cli:"l1", emp:"ana", status:"todo", title:"Futura", pri:"media",
+      date:"${new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10)}" }];
+    return rKanban();`);
+  assert.match(h, /em 3d/);
+});
+
+test("as concluídas ficam fechadas, e abrem só as de hoje", async () => {
+  // Abrir com as 400 de sempre devolveria à tela o histórico morto que ela
+  // acabou de tirar do caminho.
+  const ctx = await montarApp(PAINEL);
+  let h = eval_(ctx, `verConcluidas = false; return rKanban();`);
+  assert.doesNotMatch(h, /Concluídas hoje/);
+  assert.match(h, /1 concluída hoje/, "o rodapé conta e oferece abrir");
+
+  h = eval_(ctx, `verConcluidas = true; const x = rKanban(); verConcluidas = false; return x;`);
+  assert.match(h, /Concluídas hoje/);
+  assert.match(h, /Já feita/, "a de hoje entra");
+  assert.doesNotMatch(h, /Feita ontem/, "a de ontem não");
+  assert.doesNotMatch(h, /Feita semana passada/);
+});
+
+test("o pulso fala da fila inteira, mesmo com filtro ligado", async () => {
+  // Filtrar por uma pessoa não muda quantas tarefas a equipe tem atrasadas.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `fEmp = "bruno"; const x = rKanban(); fEmp = "all"; return x;`);
+  const pulso = h.slice(0, h.indexOf("kb-filtros"));
+  assert.match(pulso, /<b class="kb-big">5<\/b><span>na fila<\/span>/, "as 5 abertas da equipe");
+  assert.match(h, /1 de 5 abertas/, "o recorte filtrado aparece à parte");
+});
+
+test("clicar num nome da carga filtra por ele, e clicar de novo desfaz", async () => {
+  const ctx = await montarApp(PAINEL);
+  assert.match(eval_(ctx, `return rKanban();`), /data-filtraremp="ana"/);
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /fEmp=fEmp===b\.dataset\.filtraremp\?"all":b\.dataset\.filtraremp/);
+});
+
+test("a faixa de exceção e o pulso do painel vieram para a tela de trabalho", async () => {
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rKanban();`);
+  assert.match(h, /1 tarefa parada/, "a tarefa sem dono");
+  assert.match(h, /id="kb-ir-clientes"/, "com o atalho para resolver");
+  assert.match(h, /saiu hoje|saíram hoje/, "o pulso");
+  assert.match(h, /a mais antiga/);
 });

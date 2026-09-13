@@ -54,7 +54,7 @@ publicação — e sem build não existe compilador para avisar.
 |---|---|---|
 | `functions/index.js` | 2.063 | Todo o backend: sincronização Shopee, acessos, claims, endpoints |
 | `relatorio-cliente.html` | 1.663 | Fechamento mensal. Apesar do nome, é tela de funcionário |
-| `js/04-telas.js` | 1.639 | Dashboard, lojas, clientes, produtos, painel de parede |
+| `js/04-telas.js` | 1.690 | Dashboard, tarefas (com modo TV), lojas, clientes, produtos |
 | `cliente.html` | 1.191 | Três modos: cliente, especialista, equipe vendo como cliente |
 | `js/08-produtos.js` | 850 | Admin: importação da planilha, SKU, acessos, conferir margens |
 | `app.html` | 638 | Casca do app, CSS, carregamento dos scripts |
