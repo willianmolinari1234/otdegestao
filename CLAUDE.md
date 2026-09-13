@@ -4,8 +4,9 @@ Agência que administra ~41 lojas em marketplaces para ~48 proprietários.
 O sistema vigia as lojas (API oficial da Shopee), fecha o mês com o cliente e dá
 tela própria ao cliente e ao especialista.
 
-Base deste documento: commit `66ae1d6`, 9.753 linhas, 172 testes + 18 testes de regras.
-Fases 0 a 5 entregues.
+Base deste documento: 13/09/2026, 11.416 linhas, 369 testes + 37 testes de regras.
+Fases 0 a 7 entregues; a fase 8 (cadastro pelo cliente e margem) está pronta e aguardando
+publicação.
 
 **Este arquivo é só contexto permanente.** O plano do que está sendo feito agora vive em
 `docs/`, num arquivo por fase. Não duplique contexto lá nem plano aqui.
@@ -16,6 +17,8 @@ Fases 0 a 5 entregues.
 |---|---|
 | `CLAUDE.md` (este) | Contexto permanente: mapa, modelo de dados, decisões travadas, armadilhas |
 | `docs/FASE-8.md` | A fase em andamento: como trabalhar, portões, itens |
+| `FASE-7.md` (raiz) | O que já foi entregue de conta compartilhada, e o que falta para ML/TikTok |
+| `TAREFAS-AUTOMATICAS.md` (raiz) | Como o alerta vira tarefa com dono, e o que continua aberto |
 | `docs/arquivo/` | Histórico. Só consulta, não se mexe |
 
 ## Quem é o Willian
@@ -48,22 +51,29 @@ publicação — e sem build não existe compilador para avisar.
 
 | Arquivo | Linhas | O que faz |
 |---|---|---|
-| `functions/index.js` | 1.698 | Todo o backend: sincronização Shopee, criação/remoção de acessos, claims |
+| `functions/index.js` | 2.063 | Todo o backend: sincronização Shopee, acessos, claims, endpoints |
 | `relatorio-cliente.html` | 1.663 | Fechamento mensal. Apesar do nome, é tela de funcionário |
-| `js/04-telas.js` | 1.376 | Dashboard, lojas, clientes, produtos |
-| `cliente.html` | 842 | Três modos: cliente, especialista, equipe vendo como cliente |
-| `app.html` | 634 | Casca do app, CSS, carregamento dos scripts |
-| `js/08-produtos.js` | 630 | Admin: importação da planilha, SKU, criação de acessos |
-| `js/06-formularios.js` | 578 | Formulários e modais |
+| `js/04-telas.js` | 1.531 | Dashboard, lojas, clientes, produtos |
+| `cliente.html` | 1.191 | Três modos: cliente, especialista, equipe vendo como cliente |
+| `js/08-produtos.js` | 850 | Admin: importação da planilha, SKU, acessos, conferir margens |
+| `app.html` | 638 | Casca do app, CSS, carregamento dos scripts |
+| `js/06-formularios.js` | 621 | Formulários e modais |
 | `js/custos.js` | 430 | **Peso morto.** Ver abaixo |
 | `js/05-clientes-e-acesso.js` | 409 | Cadastro de proprietários, marketplaces, credenciais |
 | `js/planilha-produtos.js` | 305 | Leitor da planilha do cliente, aba por aba |
-| `js/prazos.js` | 256 | Regras de alerta, inclusive Prêmio de Seguidor |
-| `js/07-interacoes-e-boot.js` | 255 | Boot, roteamento, delegação de eventos |
-| `js/01-estado-e-dados.js` | 227 | Estado global e listeners do Firestore |
-| `js/02-utilitarios.js` | 171 | Formatação, `mktsDoCliente()`, crachá do proprietário |
-| `firestore.rules` | 140 | Isolamento entre clientes |
+| `js/07-interacoes-e-boot.js` | 298 | Boot, roteamento, delegação de eventos |
+| `js/prazos.js` | 280 | Regras de alerta, Prêmio de Seguidor, perfil de cupons. **Espelhado** |
+| `js/taxas.js` | 262 | O que cada marketplace desconta, e a margem. **Espelhado** |
+| `functions/tarefas-automaticas.js` | 241 | Decide quais alertas viram tarefa. Função pura |
+| `js/01-estado-e-dados.js` | 239 | Estado global e listeners do Firestore |
+| `js/02-utilitarios.js` | 211 | Formatação, `mktsDoCliente()`, crachá do proprietário |
+| `firestore.rules` | 166 | Isolamento entre clientes |
 | `js/03-acesso.js` | 139 | Login e checagem de funcionário |
+| `functions/produto-do-cliente.js` | 110 | Monta a ficha que o cliente gravou. Função pura |
+| `functions/vinculos-anuncios.js` | 95 | Identidade de anúncio em conta compartilhada |
+| `functions/backfill-denormalizados.js` | 79 | Decide o que preencher no backfill. Função pura |
+| `js/ficha-produto.js` | 70 | Campos da ficha e obrigatórios. **Espelhado** |
+| `js/drive.js` | 50 | Link do Drive vira miniatura |
 
 `js/custos.js` não tem nenhum consumidor. O `app.html` importa e expõe em `window.custos`,
 mas nenhuma linha lê. O leitor de planilha em produção é o `js/planilha-produtos.js`,
@@ -85,7 +95,18 @@ products/{cust__chave} custId · sku · nome · custo · preco · margem · lucr
                        criadoEm · criadoPor{uid, emNomeDe} · atualizadoPor
 
 listings/{loja__anuncio}  custId · sku · mkt · storeId · itemId · preco · status
+                          margem · lucro (da PLANILHA — nunca recalculados)
                           custNome · storeNome · storeMkt · mkts[] (denormalizados)
+
+pedidos/{custId__produtoId__mkt}   "Quero anunciar". status "aberto" | "atendido"
+pedidos/{custId__geral__mkt}       o genérico, sem produto
+
+vinculos_anuncios/{sha256(...)}    de qual cliente é cada anúncio numa conta
+                                   compartilhada. Coleção privada: só Admin SDK
+
+customers/{id}   fee (nossa comissão %) · imposto % — a origem da margem
+clients/{id}     comissao % · imposto % (exceção da loja) · respId · perfilCupons
+                 access (SENHA da loja — é por isso que ninguém de fora lê)
 ```
 
 **Campos repetidos são de propósito.** Regra do Firestore não faz join. Para o especialista
@@ -133,8 +154,10 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Claim em vez de `get()` na regra | Cada `get()` é leitura cobrada e latência por item |
 | Ids determinísticos | Reimportar atualiza em vez de duplicar |
 | Margem e lucro vêm da planilha | **Nunca recalcular.** Preço menos custo dá 52% onde o real é 7,5%, porque a planilha já desconta comissão, frete e imposto |
-| Taxas em `js/taxas.js`, não no Firestore | Comissão de marketplace é pública; em arquivo, não mexe em regra e o git guarda quando cada taxa mudou |
-| Estimativa de margem só sai quando a tabela está completa | `TAXAS[mkt].completa` está `false` enquanto faltar o imposto. Com ela false, o cliente vê "ainda não informada" em vez de 52% |
+| Taxa de marketplace em `js/taxas.js`, não no Firestore | Comissão de marketplace é pública; em arquivo, não mexe em regra e o git guarda quando cada taxa mudou |
+| Comissão da OTDE e imposto vêm do CADASTRO | `customers.fee` e `customers.imposto`, com exceção por loja em `clients`. Não são tabela; chegam ao cálculo como parâmetro |
+| A conta só se declara `completa` com os dois percentuais | Sem eles sai a conta do MARKETPLACE, que é tudo que o especialista pode ver. Quanto a OTDE cobra de cada cliente não circula por ele |
+| Herança de percentual: loja → cliente → padrão (2% e 0%) | A mesma do fechamento mensal. Se divergissem, a tela brigaria com o relatório que o cliente recebe todo mês |
 | Autoria dupla em toda gravação | `criadoPor` (quem digitou) e `emNomeDe` (por quem) |
 | A ficha do produto é gravada pelo backend | O cliente não pode escrever `mkts`; gravar pelo navegador faria o produto nascer invisível para o especialista |
 | Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, foto, observações | Mais o nome. Custo fica de fora: a ficha é para anunciar, não para precificar |
@@ -192,8 +215,8 @@ Tem guarda para não acusar loja que ainda não sincronizou.
 
 | Comando | O que faz |
 |---|---|
-| `node --test testes/*.test.js` | 172 testes em 7 arquivos. Rápido, sem emulador |
-| `TESTAR-REGRAS.command` | 18 casos de isolamento no emulador. Precisa de Java, só roda no Mac |
+| `node --test testes/*.test.js` | 369 testes em 19 arquivos. Rápido, sem emulador |
+| `TESTAR-REGRAS.command` | 37 casos de isolamento no emulador. Precisa de Java, só roda no Mac |
 | `PUBLICAR.command` | Testes → sintaxe → carimbo de versão → homolog → confirmação → produção |
 | `CUPONS-DIAGNOSTICO.command` | Amostra de cupons de uma loja escolhida em lista |
 | `REVERTER-se-quebrar.command` | Volta a publicação anterior |
@@ -216,6 +239,9 @@ para outro — e a segunda não dá aviso nenhum.
   `varAntManual` existir, então ainda é tratado como automático).
 - Criar a conta do especialista de Mercado Livre em 📦 Produtos → 🤝 Especialistas.
 - `margem` e `lucro` dos anúncios antigos: só reimportando as duas abas da Shopee, à mão.
+  Com a fase 8 isso ficou menos urgente — onde não há margem gravada, o sistema estima.
+- Os 198 `products` sem `custId`, sobra da tela de Planilhas de Margem que saiu do sistema.
+  Aparecem como órfãos em todo relatório do backfill. Limpeza é conversa à parte.
 
 ## Respondido: conta compartilhada por especialista
 
