@@ -94,6 +94,9 @@ function showAccessModal(cliId){
 // ─── CUSTOMERS MANAGEMENT PANEL ───────────────────────────────────────
 let custSearchTerm="";
 function showCustomersPanel(){
+  // Contas de acesso já criadas, para a linha dizer quem tem área do cliente.
+  // Lidas uma vez por abertura do painel, não por linha.
+  let accs=[];
   function buildRows(){
     const q=custSearchTerm.toLowerCase().trim();
     const filtered=q?custs.filter(cu=>cu.name.toLowerCase().includes(q)):custs.slice();
@@ -104,16 +107,41 @@ function showCustomersPanel(){
     return filtered.map(cu=>{
       const stores=storesOfCust(cu.id);
       const lg=cu.login||{};
-      const hasLogin=lg.sheet||lg.user||lg.pass||lg.url||lg.notes||(lg.erp&&(lg.erp.user||lg.erp.pass||lg.erp.url||lg.erp.id))||(lg.stores&&Object.keys(lg.stores).length>0);
-      return`<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid #f1f5f9">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13.5px;font-weight:600;color:#0f172a;margin-bottom:2px">${esc(cu.name)}${cu.fee?`<span style="font-size:10.5px;font-weight:700;color:#16a34a;background:#dcfce7;border-radius:5px;padding:1px 7px;margin-left:7px">💰 ${esc(cu.fee)}</span>`:""}</div>
-          <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${stores.length} loja${stores.length!==1?"s":""}${stores.length?" · "+stores.map(s=>esc(s.name)).join(", "):""}</div>
+      // O acesso das lojas agora mora em clients.access; `lg.stores` só
+      // aparece em cadastro antigo que ainda não foi salvo de novo.
+      const lojaComAcesso=stores.some(s=>s.access&&(s.access.url||s.access.user||s.access.pass));
+      const hasLogin=lg.sheet||lg.user||lg.pass||lg.url||lg.notes
+        ||(lg.erp&&(lg.erp.user||lg.erp.pass||lg.erp.url||lg.erp.id))
+        ||(lg.stores&&Object.keys(lg.stores).length>0)||lojaComAcesso;
+      // A linha diz o que FALTA, não só o que existe. Antes eram quatro
+      // ícones sem rótulo e nenhuma pista de qual cliente estava incompleto —
+      // descobrir isso exigia abrir um por um.
+      const semAcesso=stores.filter(s=>!(s.access&&(s.access.url||s.access.user||s.access.pass)));
+      const pendencias=[];
+      if(!stores.length)pendencias.push("sem loja");
+      if(semAcesso.length)pendencias.push(semAcesso.length===stores.length
+        ? "sem login da loja"
+        : `${semAcesso.length} loja(s) sem login`);
+      if(!cu.fee)pendencias.push("sem % de gestão");
+      const temSistema=accs.some(a=>a.custId===cu.id);
+      return`<div class="gc-linha">
+        <div class="gc-info">
+          <div class="gc-nome">${esc(cu.name)}
+            ${cu.fee?`<span class="gc-fee">${esc(cu.fee)} de gestão</span>`:""}
+            ${temSistema?`<span class="gc-tem-sistema" title="Este cliente tem acesso à área dele">acesso criado</span>`:""}
+          </div>
+          <div class="gc-lojas">${stores.length
+            ? stores.map(s=>`<span class="gc-loja">${esc(s.name)}<i>${esc(s.mkt||"")}</i></span>`).join("")
+            : `<span class="gc-vazio">Nenhuma loja vinculada</span>`}</div>
+          ${pendencias.length?`<div class="gc-falta">⚠ ${esc(pendencias.join(" · "))}</div>`:""}
         </div>
-        <button data-acust="${cu.id}" title="Informações de login" style="background:${hasLogin?"#fff7ed":"none"};border:1px solid ${hasLogin?"#fed7aa":"transparent"};color:${hasLogin?"#ea580c":"#94a3b8"};font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px;font-weight:600">🔑${hasLogin?"":""}</button>
-        <button data-syscust="${cu.id}" title="Acesso do cliente ao sistema" style="background:none;border:1px solid transparent;color:#94a3b8;font-size:14px;cursor:pointer;padding:4px 8px;border-radius:6px">👤</button>
-        <button data-ecust="${cu.id}" title="Renomear" style="background:none;border:none;color:#94a3b8;font-size:15px;cursor:pointer;padding:4px 7px;border-radius:6px">✎</button>
-        <button data-dcust="${cu.id}" title="Excluir" style="background:none;border:none;color:#fca5a5;font-size:15px;cursor:pointer;padding:4px 7px;border-radius:6px">✕</button>
+        <div class="gc-botoes">
+          <button data-acust="${cu.id}" class="gc-bt${hasLogin?" gc-bt-on":""}">🔑 Acessos</button>
+          <button data-novaloja="${cu.id}" class="gc-bt" title="Cadastrar uma loja já vinculada a este cliente">+ Loja</button>
+          <button data-syscust="${cu.id}" class="gc-bt" title="Entrar do sistema para o cliente">👤</button>
+          <button data-ecust="${cu.id}" class="gc-bt gc-bt-ico" title="Renomear">✎</button>
+          <button data-dcust="${cu.id}" class="gc-bt gc-bt-ico gc-bt-del" title="Excluir">✕</button>
+        </div>
       </div>`;
     }).join("");
   }
@@ -139,6 +167,17 @@ function showCustomersPanel(){
     if(closeBtn)closeBtn.onclick=closeFormModal;
     const search=document.getElementById("cust-search");
     const rowsBox=document.getElementById("cust-rows");
+    // Quais clientes já têm acesso à área deles. Uma consulta por abertura;
+    // se falhar, o selo some e o resto do painel continua funcionando.
+    (async()=>{
+      try{
+        const snap=await window.fb.getDocs(window.fb.query(
+          window.fb.collection(window.fb.db,"accounts"),
+          window.fb.where("papel","==","cliente")));
+        accs=snap.docs.map(d=>d.data());
+        if(rowsBox.isConnected){rowsBox.innerHTML=buildRows();rebind();}
+      }catch(e){console.error("contas de cliente:",e);}
+    })();
     function rebind(){
       // ATENÇÃO ao mexer aqui: este painel é um MODAL, e modal fica fora do
       // #content — que é onde vive a delegação de cliques do resto do sistema.
@@ -148,6 +187,11 @@ function showCustomersPanel(){
       rowsBox.querySelectorAll("[data-syscust]").forEach(b=>{b.onclick=()=>abrirAcessoDoCliente(b.dataset.syscust);});
       rowsBox.querySelectorAll("[data-ecust]").forEach(b=>{b.onclick=()=>renameCust(b.dataset.ecust);});
       rowsBox.querySelectorAll("[data-dcust]").forEach(b=>{b.onclick=()=>deleteCust(b.dataset.dcust);});
+      // Cadastrar a loja já vinculada ao cliente, sem ter que fechar o painel,
+      // ir em "Nova loja" e procurar o nome dele numa lista de 48.
+      rowsBox.querySelectorAll("[data-novaloja]").forEach(b=>{
+        b.onclick=()=>{closeFormModal();setTimeout(()=>openClientForm(null,b.dataset.novaloja),120);};
+      });
     }
     if(search){
       search.oninput=e=>{custSearchTerm=e.target.value;rowsBox.innerHTML=buildRows();rebind();};
@@ -202,7 +246,18 @@ function openCustAccessForm(custId){
   const storeBlocks=stores.length===0
     ? `<div style="font-size:12px;color:#94a3b8;font-style:italic;padding:4px 0 12px">Nenhuma loja vinculada a este cliente ainda.</div>`
     : stores.map((s,i)=>{
-        const sl=storeLogins[s.id]|| (i===0&&legacyHint?legacyHint:{});
+        // O acesso da loja mora em clients.access — é a fonte que o
+        // firestore.rules cita como "a senha do marketplace da loja", e é
+        // por isso que ninguém de fora lê essa coleção.
+        //
+        // Ele JÁ ESTAVA em dois lugares: aqui, dentro de customers.login.stores,
+        // e lá, em clients.access. Nenhum dos dois lia o outro, então preencher
+        // por esta tela deixava o cadastro da loja vazio e vice-versa. Agora
+        // esta tela lê e grava na loja; o que estiver no formato antigo ainda
+        // aparece, e sobe para a loja no primeiro salvamento.
+        const sl=(s.access&&(s.access.url||s.access.user||s.access.pass))
+          ? s.access
+          : (storeLogins[s.id]||(i===0&&legacyHint?legacyHint:{}));
         return block({
           title:`Loja: ${esc(s.name)}`+(s.mkt?` · ${esc(s.mkt)}`:""),
           icon:"🏪",bg:"#f8fafc",border:"#e2e8f0",titleColor:"#475569",
@@ -298,20 +353,32 @@ function openCustAccessForm(custId){
     }
     document.getElementById("ca-save").onclick=async()=>{
       const v=id=>{const el=document.getElementById(id);return el?el.value:"";};
-      const storesObj={};
+      // O acesso de cada loja vai para a PRÓPRIA loja. Antes ficava aqui
+      // dentro do cliente, e o cadastro da loja nunca ficava sabendo.
+      const gravacoesDeLoja=[];
       stores.forEach(s=>{
         const u=v(`ca-st-url-${s.id}`).trim(),us=v(`ca-st-user-${s.id}`).trim(),ps=v(`ca-st-pass-${s.id}`);
-        if(u||us||ps)storesObj[s.id]={url:u,user:us,pass:ps};
+        const antigo=s.access||{};
+        if(u===(antigo.url||"")&&us===(antigo.user||"")&&ps===(antigo.pass||""))return;
+        gravacoesDeLoja.push(fbUpdate("clients",s.id,{
+          // notes é da loja e esta tela não mexe nele: preservar explicitamente
+          // evita apagar uma observação que alguém escreveu no outro cadastro.
+          access:{url:u,user:us,pass:ps,notes:antigo.notes||""},
+        }));
       });
       const erpProv=v("ca-erp-provider");
       const erpHasId=ERP_PRESETS[erpProv]&&ERP_PRESETS[erpProv].hasId;
       const login={
         sheet:v("ca-sheet").trim(),
         erp:{provider:erpProv,url:v("ca-erp-url").trim(),user:v("ca-erp-user").trim(),pass:v("ca-erp-pass"),id:erpHasId?v("ca-erp-id").trim():""},
-        stores:storesObj,
+        // `stores` sai daqui: o acesso de cada loja passou a morar na loja.
+        // Gravar {} limpa a cópia antiga deste cliente, para não sobrar dois
+        // valores divergentes do mesmo login.
+        stores:{},
         notes:v("ca-notes").trim()
       };
       try{
+        await Promise.all(gravacoesDeLoja);
         await fbUpdate("customers",custId,{login,fee:v("ca-fee").trim(),imposto:v("ca-imposto").trim()});
         closeFormModal();setTimeout(showCustomersPanel,120);
         showToast("Informações de acesso salvas");

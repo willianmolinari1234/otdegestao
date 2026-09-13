@@ -1101,8 +1101,17 @@ function rClientes(){
   // ERP dropdown options — only ERPs actually in use
   const usedErps=[...new Set(clis.map(erpOfStore).filter(Boolean))];
   const erpOpts=usedErps.map(k=>`<option value="${k}"${fErp===k?" selected":""}>${esc(ERP_PRESETS[k]?ERP_PRESETS[k].label:k)}</option>`).join("");
+  // TODOS os marketplaces do sistema, não só os que já têm loja. Listar só os
+  // em uso escondia Mercado Livre e TikTok justamente de quem está cadastrando
+  // as primeiras lojas deles — e um filtro que não oferece a opção parece que
+  // o sistema não suporta o marketplace.
+  const porMkt=(m)=>clis.filter(c=>c.mkt===m).length;
   const usedMkts=[...new Set(clis.map(c=>c.mkt).filter(Boolean))];
-  const mktOpts=usedMkts.map(m=>`<option value="${esc(m)}"${fMkt===m?" selected":""}>${esc(m)}</option>`).join("");
+  const listaMkts=[...new Set([...MKTS,...usedMkts])];
+  const mktOpts=listaMkts.map(m=>{
+    const n=porMkt(m);
+    return`<option value="${esc(m)}"${fMkt===m?" selected":""}>${esc(m)} (${n})</option>`;
+  }).join("");
   const semResp=clis.filter(c=>!respDaLoja(c)).length;
   const respFiltroOpts=emps.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"","pt-BR"))
     .map(e=>`<option value="${e.id}"${fResp===e.id?" selected":""}>${esc(e.name)} (${clis.filter(c=>c.respId===e.id).length})</option>`).join("");
@@ -1133,18 +1142,18 @@ function rClientes(){
   }).join("");
 
   // Filter bar
-  const filterBar=(custs.length>0||usedMkts.length>0)?`<div class="filter-bar" style="margin-bottom:14px">
+  const filterBar=`<div class="filter-bar" style="margin-bottom:14px">
     <span style="font-size:11px;color:#64748b;font-weight:600">🔍 FILTRAR</span>
     ${custs.length>0?`<select id="cli-cust-filter" data-search data-placeholder="🔍 Buscar cliente..."><option value="all">Todos os clientes (${clis.length} lojas)</option>${cuOpts}</select>`:""}
     ${usedErps.length>0?`<select id="cli-erp-filter"><option value="all">Todos os ERPs</option>${erpOpts}</select>`:""}
-    ${usedMkts.length>0?`<select id="cli-mkt-filter"><option value="all">Todos os marketplaces</option>${mktOpts}</select>`:""}
+    <select id="cli-mkt-filter"><option value="all">Todos os marketplaces (${clis.length})</option>${mktOpts}</select>
     ${isAdmin()?`<select id="cli-resp-filter">
       <option value="all">Todos os responsáveis</option>
       <option value="sem"${fResp==="sem"?" selected":""}>⚠ Sem responsável (${semResp})</option>
       ${respFiltroOpts}
     </select>`:""}
     ${(fCust!=="all"||fErp!=="all"||fMkt!=="all"||fResp!=="all")?'<button class="btn-sm" id="cli-clear-filter">✕ Limpar</button>':""}
-  </div>`:"";
+  </div>`;
 
   return`
     ${isAdmin()?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">

@@ -147,13 +147,17 @@ function pctNum(v){
   return isFinite(n)?n:null;
 }
 
-function openClientForm(clientId){
+/** `custPre` já deixa o proprietário escolhido — é como o painel de clientes
+ *  cadastra uma loja sem obrigar a achar o nome numa lista de 48. */
+const custAlvoDono=(c,pre)=>{const id=c?c.custId:(pre||"");return id?custs.find(x=>x.id===id):null;};
+function openClientForm(clientId,custPre){
   const c=clientId?clis.find(x=>x.id===clientId):null;
   // Percentuais herdados do cliente proprietário, só para mostrar no campo.
-  const dono=c&&c.custId?custs.find(x=>x.id===c.custId):null;
+  const dono=custAlvoDono(c,custPre);
   const herdado={fee:dono?pctNum(dono.fee):null,imposto:dono?pctNum(dono.imposto):null};
   const mOpts=MKTS.map(m=>`<option${c&&c.mkt===m?" selected":""}>${esc(m)}</option>`).join("");
-  const cuOpts=custs.map(cu=>`<option value="${cu.id}"${c&&c.custId===cu.id?" selected":""}>${esc(cu.name)}</option>`).join("");
+  const custAlvo=c?c.custId:(custPre||"");
+  const cuOpts=custs.map(cu=>`<option value="${cu.id}"${custAlvo===cu.id?" selected":""}>${esc(cu.name)}</option>`).join("");
   // Responsável: quem responde por esta loja no dia a dia. É deste campo que
   // sai o dono das tarefas geradas pelos alertas — loja sem responsável gera
   // tarefa sem dono, que aparece só no painel do admin.

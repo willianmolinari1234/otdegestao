@@ -107,7 +107,12 @@ vinculos_anuncios/{sha256(...)}    de qual cliente é cada anúncio numa conta
 
 customers/{id}   fee (nossa comissão %) · imposto % — a origem da margem
 clients/{id}     comissao % · imposto % (exceção da loja) · respId · perfilCupons
-                 access (SENHA da loja — é por isso que ninguém de fora lê)
+                 relampagoNaoSeAplica
+                 access{url,user,pass,notes} — o login da loja no marketplace.
+                 FONTE ÚNICA: as duas telas que editam isso (cadastro da loja e
+                 cadastro do cliente) leem e gravam AQUI. Já houve uma cópia em
+                 customers.login.stores, e como nenhuma das duas lia a outra,
+                 preencher numa deixava a outra vazia.
 ```
 
 **Campos repetidos são de propósito.** Regra do Firestore não faz join. Para o especialista
