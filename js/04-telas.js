@@ -272,17 +272,22 @@ function render(){
   // Produtos é só do admin: quem não é cai no dashboard em vez de ver um
   // iframe que as regras do Firestore vão esvaziar sem explicar por quê.
   if(view==="produtos"&&!isAdmin())view="dashboard";
-  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
-  const desenhar=emTV?rPainel:fn;
   // O painel deixou de ser uma aba: virou um MODO da tela de tarefas. Quem
   // estava com a aba antiga aberta quando esta versão subir cai no modo, em
   // vez de numa tela que não existe mais.
+  //
+  // Esta linha e a de baixo vêm ANTES de escolher quem desenha, e a ordem não
+  // é estética: `const` não pode ser lido acima da própria declaração, e uma
+  // troca aqui derrubou o render() inteiro em produção — nenhuma tela
+  // desenhava e nada clicava.
   if(view==="painel"){view="kanban";modoTV=true;}
   // Modo TV toma a tela inteira: some a barra lateral e o topo. A classe sai
   // em TODO redesenho que não seja dele, senão trocar de aba deixaria o
   // sistema sem menu e sem saída.
   const emTV=view==="kanban"&&modoTV;
   document.body.classList.toggle("tv-cheia",emTV);
+  const fn={dashboard:rDash,kanban:rKanban,clientes:rClientes,equipe:rEquipe,relatorios:rRelatorios,diagnostico:rDiagnostico,integracoes:rIntegracoes,relcliente:rRelCliente,produtos:rProdutos,vendas:rVendas,ferramentas:rFerramentas}[view];
+  const desenhar=emTV?rPainel:fn;
   document.getElementById("content").innerHTML=desenhar();
   bindAll();
   enhanceSearchSelects(document.getElementById("content"));

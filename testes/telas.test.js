@@ -675,3 +675,65 @@ test("a faixa de exceção e o pulso do painel vieram para a tela de trabalho", 
   assert.match(h, /saiu hoje|saíram hoje/, "o pulso");
   assert.match(h, /a mais antiga/);
 });
+
+// ── render(), a função que desenha TODAS as telas ──────────────────────
+//
+// Esta seção existe porque a suíte tinha um buraco: os testes chamavam
+// rDash() e rKanban() direto, e nenhum chamava render() — a função que o
+// sistema usa de verdade. Uma variável lida acima da própria declaração
+// passou por `node --check`, passou por 427 testes, e derrubou o sistema
+// inteiro em produção: nenhuma tela desenhava e nada clicava.
+
+/** Um app pronto para render(): DOM com os ganchos que ele toca. */
+async function appParaRender(fixture) {
+  const alvos = {};
+  const el = (id) => (alvos[id] ||= {
+    ...elFake, id, innerHTML: "", textContent: "", style: {}, onclick: null,
+    classList: { add: noop, remove: noop, toggle: noop },
+    querySelectorAll: () => [], querySelector: () => null, contains: () => false,
+  });
+  const ctx = await montarApp(fixture);
+  ctx.document.getElementById = el;
+  ctx.document.querySelectorAll = () => [];
+  ctx.document.querySelector = () => null;
+  ctx.document.body = { classList: { add: noop, remove: noop, toggle: noop } };
+  ctx.document.activeElement = null;
+  ctx.window.matchMedia = () => ({ matches: false });
+  return { ctx, el };
+}
+
+for (const tela of ["dashboard", "kanban", "clientes", "equipe", "relatorios"]) {
+  test(`render() desenha a tela "${tela}" sem quebrar`, async () => {
+    const { ctx, el } = await appParaRender(PAINEL);
+    eval_(ctx, `view = ${JSON.stringify(tela)}; render();`);
+    assert.ok(el("content").innerHTML.length > 100,
+      `render() não preencheu a tela — o conteúdo ficou com ${el("content").innerHTML.length} caracteres`);
+  });
+}
+
+test("render() entra e sai do modo TV sem quebrar", async () => {
+  const { ctx, el } = await appParaRender(PAINEL);
+  eval_(ctx, `view = "kanban"; modoTV = true; render();`);
+  assert.match(el("content").innerHTML, /class="tv"/, "entrou no modo TV");
+  eval_(ctx, `modoTV = false; render();`);
+  assert.match(el("content").innerHTML, /kb-pulso/, "voltou para a tela de trabalho");
+});
+
+test("render() aceita a aba antiga do painel e cai no modo TV", async () => {
+  const { ctx, el } = await appParaRender(PAINEL);
+  eval_(ctx, `view = "painel"; modoTV = false; render();`);
+  assert.equal(eval_(ctx, `return view;`), "kanban");
+  assert.match(el("content").innerHTML, /class="tv"/);
+});
+
+test("render() desenha mesmo sem tarefa, sem loja e sem funcionário", async () => {
+  // O sistema novo, ou um funcionário que só enxerga o próprio recorte.
+  const { ctx, el } = await appParaRender(`
+    emps = []; custs = []; clis = []; tools = []; tsks = [];
+    currentUser = { id:"adm", name:"Willian", ini:"WM", role:"admin", color:"#ea580c" };
+  `);
+  for (const tela of ["dashboard", "kanban", "clientes"]) {
+    eval_(ctx, `view = ${JSON.stringify(tela)}; render();`);
+    assert.ok(el("content").innerHTML.length > 50, `${tela} ficou vazia`);
+  }
+});
