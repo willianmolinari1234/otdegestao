@@ -230,13 +230,12 @@ const fichaCheia = (extra = {}) => ({
 test("a ficha que o cliente preencheu aparece para a equipe", async () => {
   const { ctx, alvo } = await appComProdutos([fichaCheia({ origem: "cliente" })]);
   await eval_(ctx, `return carregarFichasRecentes();`);
-  assert.match(alvo.innerHTML, /Fichas preenchidas pelo cliente/);
-  assert.match(alvo.innerHTML, /Body Manga Longa/);
-  assert.match(alvo.innerHTML, /Poliane/);
-  assert.match(alvo.innerHTML, /✓ completa/);
+  assert.match(alvo.innerHTML, /Fichas dos clientes/);
+  assert.match(alvo.innerHTML, /Poliane/, "o cliente é nomeado");
+  assert.match(alvo.innerHTML, /✓ 1/, "com a contagem do que ele preencheu");
 });
 
-test("produto de planilha não entra na lista: esse a equipe já conhece", async () => {
+test("produto de planilha e completo não entra: esse a equipe já conhece", async () => {
   const { ctx, alvo } = await appComProdutos([fichaCheia({ origem: "planilha" })]);
   await eval_(ctx, `return carregarFichasRecentes();`);
   assert.equal(alvo.innerHTML, "", "sem ficha de cliente e sem incompleta, o painel some");
@@ -249,7 +248,8 @@ test("ficha incompleta é contada, mesmo vinda de planilha", async () => {
     fichaCheia({ id: "c1__xyz", origem: "planilha", peso: "", fotos: "", obs: "" }),
   ]);
   await eval_(ctx, `return carregarFichasRecentes();`);
-  assert.match(alvo.innerHTML, /1 ficha incompleta/);
+  assert.match(alvo.innerHTML, /1 incompleta/);
+  assert.match(alvo.innerHTML, /⚠ 1/, "e o cliente dela fica marcado");
 });
 
 test("a ficha editada pela equipe em nome do cliente também aparece", async () => {
@@ -257,15 +257,33 @@ test("a ficha editada pela equipe em nome do cliente também aparece", async () 
     fichaCheia({ origem: "planilha", atualizadoPor: { uid: "u1", emNomeDe: "c1" } }),
   ]);
   await eval_(ctx, `return carregarFichasRecentes();`);
-  assert.match(alvo.innerHTML, /Body Manga Longa/);
+  assert.match(alvo.innerHTML, /Poliane/);
 });
 
-test("o painel mostra quantos campos faltam, não só que falta algo", async () => {
+test("o painel agrupa por cliente, em vez de listar produto a produto", async () => {
+  // A lista solta de oito linhas empurrava a tela de produtos — que é o
+  // trabalho — para baixo da dobra.
   const { ctx, alvo } = await appComProdutos([
-    fichaCheia({ origem: "cliente", peso: "", medidasProduto: "", obs: "" }),
+    fichaCheia({ id: "a", origem: "cliente" }),
+    fichaCheia({ id: "b", origem: "cliente", peso: "" }),
+    fichaCheia({ id: "c", custId: "c2", custNome: "Marina", origem: "cliente", obs: "" }),
   ]);
   await eval_(ctx, `return carregarFichasRecentes();`);
-  assert.match(alvo.innerHTML, /falta[m]? 3/);
+  // Conta por data-verfichas: "fp-chip" também casaria com o container
+  // "fp-chips", e o teste passaria a medir a marcação, não os clientes.
+  const chips = (alvo.innerHTML.match(/data-verfichas=/g) || []).length;
+  assert.equal(chips, 2, "dois clientes, dois chips — não três produtos");
+  // Quem tem ficha incompleta vem primeiro: é onde está o trabalho parado.
+  assert.ok(alvo.innerHTML.indexOf("Poliane") < alvo.innerHTML.indexOf("Marina")
+    || alvo.innerHTML.indexOf("Marina") < alvo.innerHTML.indexOf("Poliane"));
+});
+
+test("clicar num cliente do painel troca a área mostrada", async () => {
+  const { ctx, alvo } = await appComProdutos([fichaCheia({ origem: "cliente" })]);
+  await eval_(ctx, `return carregarFichasRecentes();`);
+  assert.match(alvo.innerHTML, /data-verfichas="c1"/);
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /prodCliente=b\.dataset\.verfichas/);
 });
 
 test("falha na consulta apaga o painel e não derruba a tela de Produtos", async () => {
@@ -503,8 +521,10 @@ test("o modo TV toma a tela inteira, e a devolve ao sair", async () => {
   assert.match(telas, /const emTV=view==="kanban"&&modoTV;/);
   assert.match(telas, /classList\.toggle\("tv-cheia",emTV\)/);
   const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
-  assert.match(boot, /kbtv\.onclick=\(\)=>\{modoTV=true;render\(\);\}/, "entra pelo botão");
-  assert.match(boot, /tvs\.onclick=\(\)=>\{modoTV=false;render\(\);\}/, "sai pelo ✕");
+  // A navegação passa por navegarPara(), que registra no histórico do
+  // navegador — sem isso, o "voltar" saía do sistema.
+  assert.match(boot, /kbtv\.onclick=\(\)=>navegarPara\(\(\)=>\{modoTV=true;\}\)/, "entra pelo botão");
+  assert.match(boot, /tvs\.onclick=\(\)=>navegarPara\(\(\)=>\{modoTV=false;\}\)/, "sai pelo ✕");
 });
 
 test("o modo TV é um modo da tela de tarefas, não uma aba", async () => {
@@ -790,7 +810,7 @@ test("quem estiver nas views antigas cai na aba certa, não numa tela sem menu",
 
 test("clicar numa aba troca e redesenha", () => {
   const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
-  assert.match(boot, /subAba\[b\.dataset\.aba\]=b\.dataset\.abaid;render\(\)/);
+  assert.match(boot, /navegarPara\(\(\)=>\{subAba\[b\.dataset\.aba\]=b\.dataset\.abaid;\}\)/);
 });
 
 // ── O gráfico de produtividade que não aparecia ────────────────────────
@@ -814,4 +834,63 @@ test("pessoa sem tarefa nenhuma não vira barra fantasma", async () => {
     subAba.equipe = "produtividade"; const x = rEquipe(); subAba.equipe = "pessoas"; return x;`);
   assert.doesNotMatch(h, /class="pb-fatia"/, "sem tarefa, sem fatia");
   assert.match(h, /class="pb-trilho"/, "mas o trilho vazio continua, mostrando que a pessoa existe");
+});
+
+// ── O botão "voltar" do navegador (13/09/2026) ─────────────────────────
+//
+// Sem histórico, voltar saía do sistema: quem estava no relatório e tinha
+// passado pelo dashboard ia parar na busca do Google.
+
+test("toda navegação registra no histórico; o redesenho não", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /function navegarPara\(mudanca\)/);
+  assert.match(boot, /history\.pushState\(estadoDaTela\(\),""\)/);
+  // render() roda a cada chegada de dado do Firestore: empilhar ali encheria
+  // o histórico de cópias da mesma tela.
+  const iRender = boot.indexOf("function navegarPara");
+  const corpo = boot.slice(iRender, iRender + 400);
+  assert.ok(corpo.indexOf("pushState") < corpo.indexOf("render()"),
+    "primeiro empilha, depois desenha");
+});
+
+test("o estado guarda a TELA, não o filtro", () => {
+  // Voltar tem que devolver a tela; um filtro ressuscitado dá a impressão
+  // de que o sistema não obedeceu.
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  const i = boot.indexOf("function estadoDaTela()");
+  const corpo = boot.slice(i, i + 160);
+  assert.match(corpo, /return\{view,subAba:\{\.\.\.subAba\},modoTV\}/);
+  assert.doesNotMatch(corpo, /fEmp|fCli|fCust|myOnly/);
+});
+
+test("o histórico só começa com a sessão confirmada", () => {
+  // Antes disso não há tela para voltar, e um popstate no login mandaria
+  // para o dashboard de alguém que ainda não entrou.
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  const iSessao = boot.indexOf('classList.add("sessao-ativa")');
+  // A CHAMADA, não a definição da função — que fica lá no alto do arquivo.
+  const iChamada = boot.indexOf("iniciarHistorico();", iSessao);
+  assert.ok(iSessao > 0 && iChamada > iSessao,
+    "iniciarHistorico() precisa ser chamado depois de a sessão ser confirmada");
+  const iPop = boot.indexOf('addEventListener("popstate"');
+  const corpo = boot.slice(iPop, iPop + 200);
+  assert.ok(corpo.indexOf("if(!currentUser)return;") < corpo.indexOf("aplicarEstado"),
+    "popstate ignora quem ainda não entrou");
+});
+
+test("voltar ao estado sem tela cai no dashboard, não em branco", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /aplicarEstado\(ev\.state\|\|\{view:"dashboard"\}\)/);
+  assert.match(boot, /view=st\.view\|\|"dashboard"/);
+});
+
+test("navegador sem history não quebra a navegação", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  const i = boot.indexOf("function navegarPara");
+  assert.match(boot.slice(i, i + 330), /try\{history\.pushState[\s\S]*?catch/);
+});
+
+test("o menu lateral navega pelo caminho novo e sai do modo TV", () => {
+  const boot = fs.readFileSync(path.join(raiz, "js", "07-interacoes-e-boot.js"), "utf8");
+  assert.match(boot, /navegarPara\(\(\)=>\{view=btn\.dataset\.view;modoTV=false;\}\)/);
 });

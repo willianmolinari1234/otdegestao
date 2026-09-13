@@ -87,6 +87,51 @@ button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--brand)!important;box-shadow:0 0 0 3px rgba(234,88,12,.12)!important}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+/* ─── FICHAS DOS CLIENTES (aba Produtos) ────────────────────────────
+   Era uma lista de oito linhas que empurrava a tela de produtos — o
+   trabalho — para baixo da dobra. Virou um resumo por cliente. */
+.fp{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 15px;
+  margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.fp-topo{display:flex;align-items:baseline;gap:11px;margin-bottom:10px;flex-wrap:wrap}
+.fp-tit{font-size:13px;font-weight:800;color:var(--text)}
+.fp-alerta{font-size:12px;font-weight:600;color:#b45309}
+.fp-ok{font-size:12px;color:#16a34a;font-weight:600}
+.fp-chips{display:flex;gap:7px;flex-wrap:wrap}
+.fp-chip{display:flex;align-items:center;gap:7px;background:#f1f5f9;border:1px solid transparent;
+  border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;
+  white-space:nowrap}
+.fp-chip:hover{border-color:#cbd5e1}
+.fp-chip b{color:#16a34a;font-weight:800;font-variant-numeric:tabular-nums}
+.fp-chip-falta{background:#fffbeb;border-color:#fde68a}
+.fp-chip-falta b{color:#b45309}
+
+/* ─── O "ANTES" DA LOJA ─────────────────────────────────────────────
+   Prints de como a vitrine estava no dia em que a OTDE pegou a conta.
+   LINK do Drive, não arquivo: é a decisão travada do projeto. */
+.an{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;
+  margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.an-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:13px}
+.an-tit{font-size:14px;font-weight:800;color:var(--text)}
+.an-sub{font-size:12px;color:var(--text-muted);margin-top:2px;line-height:1.5}
+.an-n{background:#f1f5f9;color:#475569;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:700;
+  flex-shrink:0;font-variant-numeric:tabular-nums}
+.an-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:11px;margin-bottom:13px}
+.an-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fafbfc}
+.an-mini{display:block;aspect-ratio:4/3;background:#f1f5f9;overflow:hidden}
+.an-mini img{width:100%;height:100%;object-fit:cover;display:block}
+.an-semimg{display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;
+  color:#94a3b8;text-decoration:none}
+.an-pe{display:flex;align-items:center;gap:6px;padding:7px 9px}
+.an-leg{flex:1;font-size:11.5px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-del{background:none;border:none;color:#cbd5e1;font-size:13px;cursor:pointer;padding:1px 4px;
+  border-radius:5px;flex-shrink:0}
+.an-del:hover{background:#fef2f2;color:#dc2626}
+.an-vazio{font-size:12.5px;color:#94a3b8;padding:14px;text-align:center;border:1px dashed var(--border);
+  border-radius:10px;margin-bottom:13px;line-height:1.6}
+.an-form{display:flex;gap:8px;flex-wrap:wrap}
+.an-form .finput{flex:1;min-width:180px}
+.an-aviso{font-size:12.5px;color:#b91c1c;margin-top:7px}
+
 /* ─── PRODUTIVIDADE POR PESSOA ──────────────────────────────────────
    Barra horizontal, uma linha por pessoa. As colunas verticais que havia
    aqui NÃO apareciam: cada barra tinha width:100% dentro de um container
@@ -816,10 +861,6 @@ tr:last-child td{border-bottom:none}
     <button class="nav-btn" data-view="kanban">▦&nbsp; Tarefas</button>
     <button class="nav-btn" data-view="clientes">🏪&nbsp; Clientes</button>
     <button class="nav-btn" data-view="equipe" data-admin>◉&nbsp; Equipe</button>
-    <button class="nav-btn" data-view="relcliente">📈&nbsp; Relat. de Cliente</button>
-    <button class="nav-btn" data-view="vendas" data-admin>💰&nbsp; Vendas</button>
-    <button class="nav-btn" data-view="ferramentas" data-admin>🧰&nbsp; Ferramentas</button>
-    <button class="nav-btn" data-view="diagnostico" data-admin>🩺&nbsp; Diagnóstico</button>
   </nav>
   <div class="sidebar-footer">OTDE v1.0</div>
 </aside>
@@ -890,21 +931,23 @@ tr:last-child td{border-bottom:none}
   import * as prazos from "./js/prazos.js?v=b89b4b18";
   import * as ficha from "./js/ficha-produto.js?v=d305bfd7";
   import * as taxas from "./js/taxas.js?v=3a1cac10";
+  import * as drive from "./js/drive.js?v=64e57ef6";
   window.custos = custos;
   window.planilha = planilha;
   window.prazos = prazos;
   window.ficha = ficha;
   window.taxas = taxas;
+  window.drive = drive;
 </script>
 <!-- O código foi dividido por responsabilidade. A ORDEM importa:
      scripts clássicos compartilham escopo e o boot precisa vir por último. -->
 <script src="js/01-estado-e-dados.js?v=a16189ce"></script>
 <script src="js/02-utilitarios.js?v=86443464"></script>
 <script src="js/03-acesso.js?v=cb659190"></script>
-<script src="js/04-telas.js?v=215bde2f"></script>
+<script src="js/04-telas.js?v=9a357d1f"></script>
 <script src="js/05-clientes-e-acesso.js?v=7d175275"></script>
 <script src="js/06-formularios.js?v=6a98daaa"></script>
-<script src="js/07-interacoes-e-boot.js?v=1847f212"></script>
+<script src="js/07-interacoes-e-boot.js?v=85bbac15"></script>
 <script src="js/08-produtos.js?v=3d2203a1"></script>
 <div id="diag-report"></div>
 </body>

@@ -76,6 +76,43 @@ function setupKanbanDnD(C){
   });
 }
 
+// ─── HISTÓRICO DO NAVEGADOR ───────────────────────────────────────────
+//
+// Sem isto, o botão "voltar" do navegador saía do sistema: quem estava no
+// relatório e tinha passado pelo dashboard ia parar na busca do Google, e o
+// caminho de volta era recarregar tudo e clicar de novo.
+//
+// O estado é só o endereço da tela: view, sub-aba e modo TV. Não guarda
+// filtro nem rolagem de propósito — voltar tem que devolver a TELA, e um
+// filtro ressuscitado dá a impressão de que o sistema não obedeceu.
+//
+// Quem mexe no histórico é a NAVEGAÇÃO, nunca o render(): ele roda a cada
+// chegada de dado do Firestore, e empilhar uma entrada por vez encheria o
+// histórico de cópias da mesma tela.
+function estadoDaTela(){
+  return{view,subAba:{...subAba},modoTV};
+}
+function aplicarEstado(st){
+  if(!st)return;
+  view=st.view||"dashboard";
+  if(st.subAba)subAba={...subAba,...st.subAba};
+  modoTV=Boolean(st.modoTV);
+  render();
+}
+/** Troca de tela E registra no histórico. Todo clique de navegação passa aqui. */
+function navegarPara(mudanca){
+  if(mudanca&&typeof mudanca==="function")mudanca();
+  try{history.pushState(estadoDaTela(),"");}catch(e){/* navegador sem history: só navega */}
+  render();
+}
+function iniciarHistorico(){
+  try{history.replaceState(estadoDaTela(),"");}catch(e){return;}
+  window.addEventListener("popstate",ev=>{
+    if(!currentUser)return;
+    aplicarEstado(ev.state||{view:"dashboard"});
+  });
+}
+
 function bindAll(){
   const C=document.getElementById("content");
   // Report range pills
@@ -115,12 +152,12 @@ function bindAll(){
   if(pcf)pcf.onclick=()=>conferirMargens();
   // Modo TV: entra pelo botão do topo, sai pelo ✕. É a mesma tela.
   const kbtv=C.querySelector("#kb-modo-tv");
-  if(kbtv)kbtv.onclick=()=>{modoTV=true;render();};
+  if(kbtv)kbtv.onclick=()=>navegarPara(()=>{modoTV=true;});
   const tvs=C.querySelector("#tv-sair");
-  if(tvs)tvs.onclick=()=>{modoTV=false;render();};
+  if(tvs)tvs.onclick=()=>navegarPara(()=>{modoTV=false;});
   // O atalho da faixa âmbar leva ao cadastro onde se define o responsável,
   // já filtrado nas lojas que estão sem.
-  const irClientes=()=>{modoTV=false;view="clientes";fResp="sem";render();};
+  const irClientes=()=>navegarPara(()=>{modoTV=false;view="clientes";subAba.clientes="lojas";fResp="sem";});
   const tvc=C.querySelector("#tv-ir-clientes");
   if(tvc)tvc.onclick=irClientes;
   const kbe=C.querySelector("#kb-ir-clientes");
@@ -128,7 +165,19 @@ function bindAll(){
   // Abrir e fechar a coluna de concluídas.
   // Sub-abas das telas que agrupam mais de um assunto.
   C.querySelectorAll("[data-abaid]").forEach(b=>{
-    b.onclick=()=>{subAba[b.dataset.aba]=b.dataset.abaid;render();};
+    b.onclick=()=>navegarPara(()=>{subAba[b.dataset.aba]=b.dataset.abaid;});
+  });
+  // Clicar no nome de um cliente troca a área mostrada para a dele — é o que
+  // se faz com a informação de que a ficha dele está incompleta.
+  C.querySelectorAll("[data-verfichas]").forEach(b=>{
+    b.onclick=()=>{prodCliente=b.dataset.verfichas;lsSet("prodCliente",prodCliente);render();};
+  });
+  // Prints do "antes" da loja, no diagnóstico.
+  const anAdd=C.querySelector("#antes-add");
+  if(anAdd)anAdd.onclick=()=>antesAdicionar();
+  C.querySelectorAll("[data-antesdel]").forEach(b=>{
+    b.onclick=()=>askConfirm("Remover print","O print sai do registro de como a loja estava. Continuar?",
+      ()=>antesRemover(b.dataset.antesdel));
   });
   const kbf=C.querySelector("#kb-ver-feitas");
   if(kbf)kbf.onclick=()=>{verConcluidas=!verConcluidas;render();};
@@ -294,6 +343,10 @@ async function boot(){
         hideAuthScreen();
         document.getElementById("loading-overlay").style.display="none";
         updateUserChip();
+        // O histórico só começa com a sessão confirmada: antes disso não há
+        // tela para voltar, e um popstate no login mandaria para o dashboard
+        // de alguém que ainda não entrou.
+        iniciarHistorico();
         startListeners();
       }catch(e){
         console.error("Boot error:",e);
@@ -324,8 +377,7 @@ document.getElementById("new-task-btn").onclick=()=>{if(currentUser)openTaskForm
 document.getElementById("nav").addEventListener("click",e=>{
   const btn=e.target.closest(".nav-btn");
   if(!btn||!btn.dataset.view||!currentUser)return;
-  view=btn.dataset.view;
-  render();
+  navegarPara(()=>{view=btn.dataset.view;modoTV=false;});
 });
 
 boot();

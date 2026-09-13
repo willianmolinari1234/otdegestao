@@ -61,10 +61,89 @@ function diagPickCli(id){ const c=clis.find(x=>x.id===id); diagInfo.cliId=id;
   if(c){const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";diagInfo.cliente=own||c.name;diagInfo.loja=c.name;}
   else{diagInfo.cliente="";diagInfo.loja="";}
   const lj=document.getElementById("diag-loja"); if(lj)lj.value=diagInfo.loja||""; }
+// ─── O "ANTES" DA LOJA ────────────────────────────────────────────────
+//
+// Prints de como a vitrine estava no dia em que a OTDE pegou a conta. É o
+// único jeito de, seis meses depois, mostrar ao cliente o que mudou — e de
+// a equipe lembrar do ponto de partida quando alguém perguntar.
+//
+// Guardado no documento da LOJA (`clients/{id}.antes`), não numa coleção
+// nova: a regra já deixa funcionário ler e gravar `clients`, então isto não
+// mexe no isolamento nem abre portão de teste de regras.
+//
+// LINK, não arquivo. É a decisão travada do projeto: foto e vídeo moram no
+// Google Drive e o sistema guarda o endereço. O arquivo precisa estar como
+// "qualquer pessoa com o link", igual às fotos de produto.
+function antesHTML(loja){
+  if(!loja)return`<div class="an-vazio">Escolha uma loja acima para registrar como ela estava.</div>`;
+  const antes=(loja.antes&&Array.isArray(loja.antes.prints))?loja.antes.prints:[];
+  const quando=loja.antes&&loja.antes.em?fmtDate(String(loja.antes.em).slice(0,10)):"";
+  const cartao=(p,i)=>{
+    const img=window.drive?window.drive.urlImagemDrive(p.url,420):null;
+    const abrir=window.drive?window.drive.urlAbrirDrive(p.url):p.url;
+    return`<div class="an-card">
+      <a class="an-mini" href="${esc(abrir)}" target="_blank" rel="noopener">
+        ${img?`<img src="${esc(img)}" alt="${esc(p.legenda||"Print")}" loading="lazy">`
+             :`<span class="an-semimg">abrir link ↗</span>`}
+      </a>
+      <div class="an-pe">
+        <span class="an-leg">${esc(p.legenda||"sem legenda")}</span>
+        <button class="an-del" data-antesdel="${i}" title="Remover">✕</button>
+      </div>
+    </div>`;
+  };
+  return`
+  <div class="an">
+    <div class="an-topo">
+      <div>
+        <div class="an-tit">📸 Como a loja estava quando pegamos</div>
+        <div class="an-sub">Prints da vitrine, dos anúncios, da página — o ponto de partida.${quando?` Registrado em ${esc(quando)}.`:""}</div>
+      </div>
+      <span class="an-n">${antes.length} ${antes.length===1?"print":"prints"}</span>
+    </div>
+    ${antes.length?`<div class="an-grade">${antes.map(cartao).join("")}</div>`
+                  :`<div class="an-vazio">Nenhum print guardado ainda. Em seis meses, é isto que mostra ao cliente o que mudou.</div>`}
+    <div class="an-form">
+      <input id="antes-url" class="finput" placeholder="Cole o link do print no Google Drive (como 'qualquer pessoa com o link')">
+      <input id="antes-leg" class="finput" placeholder="O que é? Ex.: vitrine, anúncio principal">
+      <button class="btn-primary" id="antes-add">Guardar print</button>
+    </div>
+    <div class="an-aviso" id="antes-aviso"></div>
+  </div>`;
+}
+
+async function antesAdicionar(){
+  const loja=clis.find(c=>c.id===diagInfo.cliId);
+  const av=document.getElementById("antes-aviso");
+  const url=(document.getElementById("antes-url").value||"").trim();
+  const leg=(document.getElementById("antes-leg").value||"").trim();
+  if(!loja){av.textContent="Escolha uma loja primeiro.";return;}
+  if(!url){av.textContent="Cole o link do print.";return;}
+  const lista=(loja.antes&&Array.isArray(loja.antes.prints))?loja.antes.prints.slice():[];
+  lista.push({url,legenda:leg,em:new Date().toISOString()});
+  try{
+    await fbUpdate("clients",loja.id,{antes:{prints:lista,em:(loja.antes&&loja.antes.em)||new Date().toISOString(),
+      por:currentUser?currentUser.id:""}});
+    showToast("Print guardado");
+  }catch(e){av.textContent="Não consegui guardar: "+(e.message||"");}
+}
+
+async function antesRemover(i){
+  const loja=clis.find(c=>c.id===diagInfo.cliId);
+  if(!loja||!loja.antes)return;
+  const lista=(loja.antes.prints||[]).slice();
+  lista.splice(Number(i),1);
+  try{
+    await fbUpdate("clients",loja.id,{antes:{...loja.antes,prints:lista}});
+    showToast("Print removido");
+  }catch(e){showToast("Erro: "+(e.message||""),"error");}
+}
+
 function rDiagnostico(){
   const inf=(k,ph,t)=>`<div><label>${ph}</label><input id="diag-${k}" type="${t||'text'}" value="${(diagInfo[k]||'').replace(/"/g,'&quot;')}" placeholder="${ph}" oninput="diagInfo['${k}']=this.value"></div>`;
   const cliSel=()=>{const o=clis.slice().sort((a,b)=>{const an=(a.custId&&getCust(a.custId)?getCust(a.custId).name:a.name)||"",bn=(b.custId&&getCust(b.custId)?getCust(b.custId).name:b.name)||"";return an.localeCompare(bn);}).map(c=>{const own=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";const lbl=own&&own!==c.name?own+" · "+c.name:c.name;return `<option value="${c.id}"${diagInfo.cliId===c.id?' selected':''}>${esc(lbl)}</option>`;}).join("");return `<div><label>Cliente</label><select id="diag-clisel" onchange="diagPickCli(this.value)"><option value="">${clis.length?'— Selecionar cliente —':'Nenhum cliente cadastrado'}</option>${o}</select></div>`;};
-  return `<div id="diagwrap"><div class="d-head">
+  const lojaSel=clis.find(c=>c.id===diagInfo.cliId);
+  return `<div id="diagwrap">${antesHTML(lojaSel)}<div class="d-head">
     <span class="d-eyebrow">● Diagnóstico inicial</span>
     <div class="d-title">Raio-X da conta em <span class="hl">poucos minutos</span></div>
     <div class="d-sub">Avalie cada item de Crítico a Ótimo e registre os números reais. A nota de saúde (0–100) se monta sozinha.</div>
@@ -257,11 +336,8 @@ function render(){
   cleanupRenewalTasks();
   // Block "equipe" view for non-admins
   if(view==="equipe"&&!isAdmin())view="dashboard";
-  if(view==="diagnostico"&&!isAdmin())view="dashboard";
   // Vendas e Ferramentas são só de admin. Esconder o botão no menu não basta:
   // sem esta guarda a tela continua alcançável por quem tiver a view salva.
-  if(view==="vendas"&&!isAdmin())view="dashboard";
-  if(view==="ferramentas"&&!isAdmin())view="dashboard";
   if(view==="promos")view="dashboard"; // ferramenta de promoções manuais desativada
   // Planilhas de Margem saiu do sistema. A guarda fica pelo mesmo motivo da
   // linha acima: quem estiver com a tela aberta quando a versão nova subir
@@ -284,6 +360,9 @@ function render(){
   if(view==="integracoes"){view="clientes";subAba.clientes="integracoes";}
   if(view==="produtos"){view="clientes";subAba.clientes="produtos";}
   if(view==="relatorios"){view="equipe";subAba.equipe="produtividade";}
+  for(const v of ["relcliente","vendas","ferramentas","diagnostico"]){
+    if(view===v){view="clientes";subAba.clientes=v;}
+  }
   // Modo TV toma a tela inteira: some a barra lateral e o topo. A classe sai
   // em TODO redesenho que não seja dele, senão trocar de aba deixaria o
   // sistema sem menu e sem saída.
@@ -1177,13 +1256,23 @@ function rClientes(){
 
   // Integrações e Produtos falam dos clientes: eram três entradas de menu para
   // o mesmo assunto, e menu comprido é menu que ninguém lê inteiro.
+  // Tudo que fala de cliente e loja mora aqui. Eram SETE entradas de menu
+  // para o mesmo assunto — o menu tinha onze itens e ninguém lia até o fim.
   const abas=isAdmin()?abasHTML("clientes",[
     {id:"lojas",rot:"🏪 Lojas",n:clis.length},
     {id:"integracoes",rot:"🔗 Integrações"},
     {id:"produtos",rot:"📦 Produtos"},
+    {id:"relcliente",rot:"📈 Relatório"},
+    {id:"vendas",rot:"💰 Vendas"},
+    {id:"ferramentas",rot:"🧰 Ferramentas"},
+    {id:"diagnostico",rot:"🩺 Diagnóstico"},
   ]):"";
-  if(isAdmin()&&subAba.clientes==="integracoes")return abas+rIntegracoes();
-  if(isAdmin()&&subAba.clientes==="produtos")return abas+rProdutos();
+  if(isAdmin()){
+    const outras={integracoes:rIntegracoes,produtos:rProdutos,relcliente:rRelCliente,
+                  vendas:rVendas,ferramentas:rFerramentas,diagnostico:rDiagnostico};
+    const fn=outras[subAba.clientes];
+    if(fn)return abas+fn();
+  }
 
   return`
     ${abas}
@@ -1732,14 +1821,37 @@ async function carregarFichasRecentes(){
         <span style="color:#94a3b8;font-size:11.5px;margin-left:auto">${esc(quando(p.atualizadoEm||p.criadoEm))}</span>
       </div>`;
     };
-    const recentes=doCliente.slice(0,8);
+    // Resumo por CLIENTE, não uma lista de oito linhas.
+    //
+    // A lista solta empurrava a tela de produtos — que é o trabalho — para
+    // baixo da dobra. Aqui cada cliente é uma linha, e clicar nela troca a
+    // tela para a área dele, que é o que se faz com a informação.
+    const porCliente=new Map();
+    for(const p of todos){
+      const f=falta(p);
+      const doCli=p.origem==="cliente"||p.atualizadoPor;
+      if(!f.length&&!doCli)continue;
+      const k=p.custId||"";
+      if(!porCliente.has(k))porCliente.set(k,{nome:p.custNome||p.custId||"sem dono",incompletas:0,preenchidas:0});
+      const x=porCliente.get(k);
+      if(f.length)x.incompletas++;
+      if(doCli)x.preenchidas++;
+    }
+    const resumo=[...porCliente.entries()].sort((a,b)=>b[1].incompletas-a[1].incompletas);
+    if(!resumo.length){alvo.innerHTML="";return;}
     alvo.innerHTML=`
-    <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
-      <div style="padding:11px 15px;font-size:13px;font-weight:800;color:#0f172a;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        📝 Fichas preenchidas pelo cliente
-        ${incompletos.length?`<span style="font-weight:600;font-size:12px;color:#b45309">${incompletos.length} ficha${incompletos.length!==1?"s":""} incompleta${incompletos.length!==1?"s":""} entre as mais recentes</span>`:""}
+    <div class="fp">
+      <div class="fp-topo">
+        <span class="fp-tit">📝 Fichas dos clientes</span>
+        ${incompletos.length?`<span class="fp-alerta">${incompletos.length} incompleta${incompletos.length!==1?"s":""} entre as ${todos.length} mais recentes</span>`
+                            :`<span class="fp-ok">nenhuma incompleta entre as ${todos.length} mais recentes</span>`}
       </div>
-      ${recentes.length?recentes.map(linha).join(""):`<div style="padding:12px 15px;font-size:12.5px;color:#94a3b8">Nenhuma ficha preenchida pelo cliente ainda.</div>`}
+      <div class="fp-chips">
+        ${resumo.map(([id,x])=>`<button class="fp-chip${x.incompletas?" fp-chip-falta":""}" data-verfichas="${esc(id)}">
+          ${esc(x.nome)}
+          ${x.incompletas?`<b>⚠ ${x.incompletas}</b>`:`<b>✓ ${x.preenchidas}</b>`}
+        </button>`).join("")}
+      </div>
     </div>`;
   }catch(e){
     // Falhar aqui não pode derrubar a tela de Produtos, que é o trabalho de

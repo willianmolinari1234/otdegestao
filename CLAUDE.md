@@ -50,6 +50,12 @@ Backend: Cloud Functions v2, região `us-central1`.
 caminhos como estão. Mover, renomear ou agrupar em subpastas quebra o carregamento e a
 publicação — e sem build não existe compilador para avisar.
 
+**O menu lateral tem QUATRO entradas**: Dashboard, Tarefas, Clientes, Equipe. Tudo o mais
+é sub-aba (`subAba` em `js/01-estado-e-dados.js`): Clientes agrupa lojas, integrações,
+produtos, relatório, vendas, ferramentas e diagnóstico; Equipe agrupa pessoas e
+produtividade. Eram onze entradas e ninguém lia até o fim. Tela nova entra como aba do
+assunto a que pertence, não como item de menu.
+
 | Arquivo | Linhas | O que faz |
 |---|---|---|
 | `functions/index.js` | 2.063 | Todo o backend: sincronização Shopee, acessos, claims, endpoints |
@@ -108,6 +114,8 @@ vinculos_anuncios/{sha256(...)}    de qual cliente é cada anúncio numa conta
 customers/{id}   fee (nossa comissão %) · imposto % — a origem da margem
 clients/{id}     comissao % · imposto % (exceção da loja) · respId · perfilCupons
                  relampagoNaoSeAplica
+                 antes{prints[{url,legenda,em}],em,por} — como a loja estava
+                 quando a OTDE pegou. Link do Drive, nunca arquivo
                  access{url,user,pass,notes} — o login da loja no marketplace.
                  FONTE ÚNICA: as duas telas que editam isso (cadastro da loja e
                  cadastro do cliente) leem e gravam AQUI. Já houve uma cópia em
@@ -192,6 +200,10 @@ e modal vive fora do `#content`. Botão novo dentro de modal precisa ser registr
 
 **A classe de modal do projeto é `.form-panel`.** Não existe `form-modal-header`,
 `form-modal-body` nem `modal-close`. Antes de escrever CSS novo, procure a classe que já existe.
+
+**O `app.html` tem TRÊS blocos `<style>`**, e o do diagnóstico é `<style id="diag-css">`.
+Quem varrer só o primeiro (uma ferramenta, uma amostra) monta uma tela sem metade do CSS
+e vai caçar um bug que não existe.
 
 **A casca do app é por ID, não por classe:** `#sidebar`, `#topbar`, `#content`. Não existe
 `.topbar` nem `.corpo`. Regra escrita para a classe errada não dá erro — ela simplesmente
