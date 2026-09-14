@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OTDE · Relatório de performance por cliente</title>
+<title>OTDE Performance · Relatório por cliente</title>
 <style>
   :root{
-    --brand:#ea580c; --brand-dark:#c2410c; --brand-50:#fff7ed; --brand-100:#ffedd5; --brand-200:#fed7aa; --brand-tint:#9a3412;
-    --bg:#f5f6f8; --surface:#ffffff; --border:#e5e7eb; --text:#0f172a; --text-muted:#64748b;
+    --brand:#B8872B; --brand-dark:#8A6420; --brand-50:#FBF7EE; --brand-100:#F5EBD6; --brand-200:#E8D4A8; --brand-tint:#6B4D18;
+    --bg:#F7F6F3; --surface:#ffffff; --border:#E7E4DD; --text:#14151A; --text-muted:#6B6A66;
     --green:#16a34a; --green-bg:#eaf3de; --green-tint:#3b6d11;
     --red:#dc2626; --red-bg:#fceaea; --red-tint:#a32d2d;
-    --shadow-sm:0 1px 2px rgba(15,23,42,.05);
-    --shadow-md:0 1px 3px rgba(15,23,42,.06),0 2px 8px rgba(15,23,42,.04);
+    --shadow-sm:0 1px 2px rgba(20,21,26,.05);
+    --shadow-md:0 1px 3px rgba(20,21,26,.06),0 2px 8px rgba(20,21,26,.04);
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;font-feature-settings:"cv11","ss01","ss02";letter-spacing:-0.005em;-webkit-font-smoothing:antialiased;}
@@ -19,44 +19,44 @@
   input,select{font-family:inherit;font-size:14px;}
 
   /* Splash (evita flash da tela de login) */
-  #splash{position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:99;}
-  #splash .logo{width:44px;height:44px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;}
-  #splash p{color:#64748b;font-size:13px;margin:0;}
-  .spin{width:22px;height:22px;border:3px solid #1e293b;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;}
+  #splash{position:fixed;inset:0;background:#14151A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:99;}
+  #splash .logo{width:44px;height:44px;border-radius:12px;background:#0B0B0C;color:#E3C178;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;}
+  #splash p{color:#6B6A66;font-size:13px;margin:0;}
+  .spin{width:22px;height:22px;border:3px solid #1E1B14;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg)}}
 
   /* Login */
-  #login{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:#0f172a;}
+  #login{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:#14151A;}
   .login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.35);padding:32px;width:100%;max-width:360px;}
   .login-card h1{font-size:18px;margin:0 0 4px;}
   .login-card p{color:var(--text-muted);font-size:13px;margin:0 0 20px;}
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;}
   .field input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;}
-  .btn-primary{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:500;width:100%;}
+  .btn-primary{background:#0B0B0C;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:500;width:100%;}
   .btn-primary:hover{background:var(--brand-dark);}
   .err{color:var(--red);font-size:13px;margin-top:8px;min-height:18px;}
 
   /* App shell */
   #app{display:none;}
-  .appbar{background:#0f172a;border-bottom:1px solid #1e293b;padding:0 22px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
+  .appbar{background:#14151A;border-bottom:1px solid #1E1B14;padding:0 22px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;}
   .appbar .brand{display:flex;align-items:center;gap:11px;color:#fff;font-weight:600;font-size:15px;}
-  .appbar .brand small{display:block;font-weight:400;font-size:11px;color:#64748b;line-height:1.2;}
-  .logo{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;box-shadow:0 0 0 3px rgba(234,88,12,.18);}
+  .appbar .brand small{display:block;font-weight:400;font-size:11px;color:#6B6A66;line-height:1.2;}
+  .logo{width:32px;height:32px;border-radius:9px;background:#0B0B0C;color:#E3C178;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;box-shadow:0 0 0 3px rgba(184,135,43,.18);}
   .appbar .actions{display:flex;gap:8px;align-items:center;}
-  .btn-back{color:#94a3b8;font-size:13px;text-decoration:none;padding:7px 12px;border-radius:8px;}
-  .btn-back:hover{background:rgba(255,255,255,.06);color:#e2e8f0;}
-  .btn-ghost{background:transparent;border:1px solid #334155;border-radius:8px;padding:7px 14px;font-size:13px;color:#cbd5e1;}
+  .btn-back{color:#8E8B84;font-size:13px;text-decoration:none;padding:7px 12px;border-radius:8px;}
+  .btn-back:hover{background:rgba(255,255,255,.06);color:#E7E4DD;}
+  .btn-ghost{background:transparent;border:1px solid #4A463D;border-radius:8px;padding:7px 14px;font-size:13px;color:#C9C4B8;}
   .btn-ghost:hover{background:rgba(255,255,255,.06);color:#fff;}
   .content{max-width:900px;margin:0 auto;padding:24px 16px 60px;}
   .tabs{display:flex;gap:8px;margin-bottom:18px;}
   .tab{padding:9px 18px;border-radius:10px;font-size:14px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-weight:500;}
-  .tab.active{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:var(--shadow-brand,0 4px 14px rgba(234,88,12,.25));}
+  .tab.active{background:#0B0B0C;border-color:#0B0B0C;color:#fff;box-shadow:var(--shadow-brand,0 4px 14px rgba(184,135,43,.25));}
   .tab:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
   /* Pílulas de período das vendas da Shopee */
   .rt-pill{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;
            border:1px solid var(--border);background:var(--surface);color:var(--text-muted);}
-  .rt-pill.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .rt-pill.active{background:#8A6420;border-color:#8A6420;color:#fff;}
   .rt-pill:not(.active):hover{background:var(--brand-50);color:var(--brand-tint);}
   /* Quando embutido no sistema (?embed=1), esconde a barra de topo própria */
   body.embed .appbar{display:none;}
@@ -112,7 +112,7 @@
   .form-grid input,.form-grid select,.form-grid textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:14px;}
   .form-grid textarea{grid-column:1/-1;min-height:60px;resize:vertical;}
   .form-actions{padding:0 16px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-  .btn-save{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:500;}
+  .btn-save{background:#0B0B0C;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:500;}
   .btn-save:hover{background:var(--brand-dark);}
   .save-status{font-size:13px;color:var(--text-muted);}
   .save-status.ok{color:var(--green-tint);}
@@ -189,7 +189,7 @@
   <div class="appbar">
     <div class="brand">
       <span class="logo">O</span>
-      <span>Relatórios de performance<small>OTDE Gestão de Contas</small></span>
+      <span>Relatórios de performance<small>OTDE Performance</small></span>
     </div>
     <div class="actions">
       <a class="btn-back" href="/">← Voltar ao sistema</a>
@@ -454,7 +454,7 @@ if (EH_HOMOLOG) {
   document.addEventListener("DOMContentLoaded", () => {
     const f = document.createElement("div");
     f.textContent = "AMBIENTE DE TESTE — os dados aqui não são reais";
-    f.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;"
+    f.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:9999;background:#8A6420;"
       + "color:#fff;text-align:center;font:700 12px system-ui;padding:5px;letter-spacing:.04em";
     document.body.appendChild(f);
     document.body.style.paddingTop = "26px";
@@ -848,7 +848,7 @@ $("fatEditar").addEventListener("click", () => {
   campo.focus();
   campo.select();
   tag.textContent = "· editado à mão";
-  tag.style.color = "#b45309";
+  tag.style.color = "#8A6420";
   $("fatDica").innerHTML = usaUltimos30()
     ? "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o dos últimos 30 dias — o faturamento do mês não muda."
     : "Valor liberado para edição. Ao <strong>Salvar</strong>, ele substitui o da API neste mês e deixa de ser atualizado automaticamente.";
@@ -1043,7 +1043,7 @@ function renderReport(d) {
 // pinta os selos da tela de Clientes e mantém a Shein preta. São duas coisas
 // por decisão: lá é selo, aqui é a identidade do relatório do cliente.
 const TEMA_MKT = {
-  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c" },
+  "shopee":        { bg: "#B8872B", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#8A6420" },
   "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af" },
   "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
   "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
@@ -1149,18 +1149,18 @@ function monthLabel(mon) {
 }
 
 function drawCharts(custo, fat, va, vb) {
-  const muted = "#64748b";
+  const muted = "#6B6A66";
   if (chInvest) chInvest.destroy();
   if (chVar) chVar.destroy();
   chInvest = new Chart($("chInvest"), {
     type: "bar",
-    data: { labels: ["Custo Ads", "Faturamento"], datasets: [{ data: [custo, fat], backgroundColor: ["#fdba74", "#ea580c"], borderRadius: 4, barThickness: 44 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.y) } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#e5e7eb" }, ticks: { color: muted, callback: (v) => "R$ " + (v / 1000) + "k" } } } }
+    data: { labels: ["Custo Ads", "Faturamento"], datasets: [{ data: [custo, fat], backgroundColor: ["#DFC489", "#B8872B"], borderRadius: 4, barThickness: 44 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.y) } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#E7E4DD" }, ticks: { color: muted, callback: (v) => "R$ " + (v / 1000) + "k" } } } }
   });
   chVar = new Chart($("chVar"), {
     type: "bar",
     data: { labels: ["Mês passado", "Mês atual"], datasets: [{ data: [va, vb], backgroundColor: [va >= 0 ? "#16a34a" : "#dc2626", vb >= 0 ? "#16a34a" : "#dc2626"], borderRadius: 4, barThickness: 44 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => (c.parsed.y > 0 ? "+" : "") + c.parsed.y + "%" } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#e5e7eb" }, ticks: { color: muted, callback: (v) => v + "%" } } } }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => (c.parsed.y > 0 ? "+" : "") + c.parsed.y + "%" } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#E7E4DD" }, ticks: { color: muted, callback: (v) => v + "%" } } } }
   });
 }
 
@@ -1410,7 +1410,7 @@ async function loadFerramentas() {
       ${bloco(withPromos.length, withPromos.length === 1 ? "loja com promoção" : "lojas com promoção")}
       ${bloco(ativas.length, ativas.length === 1 ? "promoção ativa" : "promoções ativas")}
       ${hoje.length ? bloco(hoje.length, hoje.length === 1 ? "acaba em 24h" : "acabam em 24h", "#dc2626") : ""}
-      ${semNada > 0 ? bloco(semNada, semNada === 1 ? "loja sem nenhuma" : "lojas sem nenhuma", "#b45309") : ""}
+      ${semNada > 0 ? bloco(semNada, semNada === 1 ? "loja sem nenhuma" : "lojas sem nenhuma", "#8A6420") : ""}
     </div>`;
   }
   $("toolsList").innerHTML = withPromos.map((d) => {
@@ -1500,7 +1500,7 @@ function renderAlertasFerramentas(docs, nameOf) {
   let html = "";
   if (semRelampago.length) {
     html += `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:13px 16px;margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:700;color:#b45309;margin-bottom:${semRelampago.length ? "6px" : "0"};">
+      <div style="font-size:13px;font-weight:700;color:#8A6420;margin-bottom:${semRelampago.length ? "6px" : "0"};">
         ⚡ ${semRelampago.length === 1 ? "1 loja está sem" : `${semRelampago.length} lojas estão sem`} oferta relâmpago
       </div>
       <div style="font-size:12.5px;color:#92400e;line-height:1.7;">${semRelampago.map(escapeHtml).join(" · ")}</div>
@@ -1643,8 +1643,8 @@ async function loadDash() {
   $("dashChartWrap").style.height = Math.max(160, ordered.length * 34 + 60) + "px";
   chDash = new Chart($("chDash"), {
     type: "bar",
-    data: { labels: ordered.map((r) => nameOf(r.cliente)), datasets: [{ data: ordered.map((r) => num(r.faturamento)), backgroundColor: "#ea580c", borderRadius: 4, barThickness: 20 }] },
-    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.x) } } }, scales: { x: { grid: { color: "#e5e7eb" }, ticks: { color: "#64748b", callback: (v) => "R$ " + (v / 1000) + "k" } }, y: { grid: { display: false }, ticks: { color: "#64748b" } } } }
+    data: { labels: ordered.map((r) => nameOf(r.cliente)), datasets: [{ data: ordered.map((r) => num(r.faturamento)), backgroundColor: "#B8872B", borderRadius: 4, barThickness: 20 }] },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.x) } } }, scales: { x: { grid: { color: "#E7E4DD" }, ticks: { color: "#6B6A66", callback: (v) => "R$ " + (v / 1000) + "k" } }, y: { grid: { display: false }, ticks: { color: "#6B6A66" } } } }
   });
 }
 

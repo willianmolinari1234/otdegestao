@@ -6,17 +6,17 @@ function openTaskView(taskId){
   const cu=c&&c.custId?getCust(c.custId):null;
   const di=deadlineInfo(t);
   const canEdit=isAdmin()||(currentUser&&t.emp===currentUser.id);
-  const row=(label,value)=>`<div style="display:flex;gap:14px;padding:11px 0;border-bottom:1px solid #f1f5f9">
-      <div style="font-size:11px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.5px;width:120px;flex-shrink:0;padding-top:2px">${label}</div>
-      <div style="font-size:13.5px;color:#0f172a;flex:1;line-height:1.5">${value}</div>
+  const row=(label,value)=>`<div style="display:flex;gap:14px;padding:11px 0;border-bottom:1px solid #F4F1EA">
+      <div style="font-size:11px;color:#8E8B84;font-weight:700;text-transform:uppercase;letter-spacing:.5px;width:120px;flex-shrink:0;padding-top:2px">${label}</div>
+      <div style="font-size:13.5px;color:#14151A;flex:1;line-height:1.5">${value}</div>
     </div>`;
   const html=`<div class="form-panel" style="padding:24px 28px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px">
       <div style="flex:1">
         <div style="font-size:10.5px;color:var(--brand);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">👁 Detalhes da tarefa</div>
-        <div style="font-size:19px;font-weight:800;color:#0f172a;line-height:1.3;letter-spacing:-.01em">${esc(t.title)}</div>
+        <div style="font-size:19px;font-weight:800;color:#14151A;line-height:1.3;letter-spacing:-.01em">${esc(t.title)}</div>
       </div>
-      <button id="tv-close" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+      <button id="tv-close" style="background:none;border:none;color:#8E8B84;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
       ${stB(t.status)}
@@ -30,11 +30,11 @@ function openTaskView(taskId){
       ${Number(t.reaberturas||0)>0?`<br>Já foi marcada como concluída <strong>${Number(t.reaberturas)}×</strong> com a pendência ainda no ar.`:""}
       <br><span style="color:#6366f1">Título, prazo e descrição são reescritos a cada verificação: editar à mão não segura.</span>
     </div>`:""}
-    ${t.desc?`<div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13.5px;color:#334155;line-height:1.6;white-space:pre-wrap">${esc(t.desc)}</div>`
-            :`<div style="font-size:12.5px;color:#cbd5e1;font-style:italic;margin-bottom:18px">Sem descrição.</div>`}
-    <div style="border-top:1px solid #f1f5f9">
-      ${row("Funcionário", e?`<div style="display:flex;align-items:center;gap:9px">${avHTML(e,26)}<span>${esc(e.name)}</span></div>`:'<span style="color:#94a3b8">—</span>')}
-      ${row("Loja", c?`<span>${esc(c.name)}</span><span style="font-size:11.5px;color:#94a3b8;margin-left:8px">${esc(c.mkt||"")}</span>`:'<span style="color:#94a3b8">—</span>')}
+    ${t.desc?`<div style="background:#FBFAF7;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13.5px;color:#4A463D;line-height:1.6;white-space:pre-wrap">${esc(t.desc)}</div>`
+            :`<div style="font-size:12.5px;color:#C9C4B8;font-style:italic;margin-bottom:18px">Sem descrição.</div>`}
+    <div style="border-top:1px solid #F4F1EA">
+      ${row("Funcionário", e?`<div style="display:flex;align-items:center;gap:9px">${avHTML(e,26)}<span>${esc(e.name)}</span></div>`:'<span style="color:#8E8B84">—</span>')}
+      ${row("Loja", c?`<span>${esc(c.name)}</span><span style="font-size:11.5px;color:#8E8B84;margin-left:8px">${esc(c.mkt||"")}</span>`:'<span style="color:#8E8B84">—</span>')}
       ${cu?row("Cliente proprietário", `👤 ${esc(cu.name)}`):""}
       ${isAdTask(t)?row("📢 Anúncios", `<span style="font-weight:700;color:#16a34a">${adQtyOf(t)}</span> anúncio${adQtyOf(t)!==1?"s":""}`):""}
       ${row("Prazo", `${fmtDate(t.date)}${di.overdue?` <span style="color:#dc2626;font-weight:700;margin-left:6px">· ${di.label}</span>`:""}`)}
@@ -65,7 +65,7 @@ function openTaskForm(taskId){
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-size:14px;font-weight:700">${t?"Editar tarefa":"Nova tarefa"}</span>
-      <button id="tf-close" style="background:none;border:none;color:#94a3b8;font-size:18px">✕</button>
+      <button id="tf-close" style="background:none;border:none;color:#8E8B84;font-size:18px">✕</button>
     </div>
     ${tplHTML}
     <input id="tf-title" class="finput" placeholder="Título da tarefa *" value="${t?esc(t.title):""}" style="margin-bottom:10px;font-size:14px;font-weight:500"/>
@@ -86,7 +86,7 @@ function openTaskForm(taskId){
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="form-group" style="margin-bottom:0"><label>⏰ Prazo</label><input type="date" id="tf-date" class="finput" value="${t?t.date:todayISO()}" style="width:auto"/></div>
-      <div class="form-group" style="margin-bottom:0"><label>📢 Qtd. de anúncios <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(0 = não é anúncio)</span></label><input type="number" min="0" id="tf-qty" class="finput" value="${t&&t.qty!=null&&t.qty!==''?esc(String(t.qty)):''}" placeholder="0" style="width:120px"/></div>
+      <div class="form-group" style="margin-bottom:0"><label>📢 Qtd. de anúncios <span style="color:#8E8B84;font-weight:400;text-transform:none;letter-spacing:0">(0 = não é anúncio)</span></label><input type="number" min="0" id="tf-qty" class="finput" value="${t&&t.qty!=null&&t.qty!==''?esc(String(t.qty)):''}" placeholder="0" style="width:120px"/></div>
     </div>
     <div class="form-actions">
       <button id="tf-cancel" class="btn-sm">Cancelar</button>
@@ -171,7 +171,7 @@ function openClientForm(clientId,custPre){
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-size:14px;font-weight:700">${c?"Editar loja":"Nova loja"}</span>
-      <button id="cf-close" style="background:none;border:none;color:#94a3b8;font-size:18px">✕</button>
+      <button id="cf-close" style="background:none;border:none;color:#8E8B84;font-size:18px">✕</button>
     </div>
     <div style="display:grid;grid-template-columns:2fr 1fr 2fr;gap:10px;margin-bottom:12px">
       <div class="form-group"><label>Nome da loja</label><input id="cf-name" class="finput" placeholder="Ex: Diamond Tricot" value="${c?esc(c.name):""}"/></div>
@@ -203,46 +203,46 @@ function openClientForm(clientId,custPre){
         <input type="checkbox" id="cf-sem-relampago" style="width:auto;margin:0"${relampagoNaoSeAplica?" checked":""}/>
         <span>⚡ Esta loja <b>não participa de oferta relâmpago</b></span>
       </label>
-      <div style="font-size:11.5px;color:#64748b;margin-top:5px;max-width:540px;line-height:1.5">
+      <div style="font-size:11.5px;color:#6B6A66;margin-top:5px;max-width:540px;line-height:1.5">
         Marque quando a Shopee bloqueou a loja da ferramenta por pontuação, ou quando a loja optou por não participar. O painel para de cobrar a oferta dela — cobrar o que ninguém pode fazer ensina a equipe a ignorar o painel inteiro.
       </div>
     </div>
-    <div style="font-size:11.5px;color:#64748b;margin-bottom:12px;max-width:540px">
+    <div style="font-size:11.5px;color:#6B6A66;margin-bottom:12px;max-width:540px">
       O responsável recebe automaticamente as tarefas que nascem dos alertas desta loja.<span class="cf-so-shopee">
       O perfil de cupons define quantos o painel cobra — loja de ticket baixo não é
       acusada de faltar dois cupons que ela não deve ter.</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;max-width:540px">
       <div class="form-group">
-        <label>💰 Comissão (%) <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">— exceção desta loja</span></label>
+        <label>💰 Comissão (%) <span style="color:#8E8B84;font-weight:400;text-transform:none;letter-spacing:0">— exceção desta loja</span></label>
         <input id="cf-comissao" class="finput" type="number" step="0.1" min="0" max="100"
                placeholder="${herdado.fee!==null?`herda ${herdado.fee}% do cliente`:"herda 2% (padrão)"}"
                value="${c&&c.comissao!==undefined&&c.comissao!==null&&c.comissao!==""?esc(String(c.comissao)):""}"/>
       </div>
       <div class="form-group">
-        <label>🧾 Imposto (%) <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">— exceção desta loja</span></label>
+        <label>🧾 Imposto (%) <span style="color:#8E8B84;font-weight:400;text-transform:none;letter-spacing:0">— exceção desta loja</span></label>
         <input id="cf-imposto" class="finput" type="number" step="0.1" min="0" max="100"
                placeholder="${herdado.imposto!==null?`herda ${herdado.imposto}% do cliente`:"herda 0% (não deduz)"}"
                value="${c&&c.imposto!==undefined&&c.imposto!==null&&c.imposto!==""?esc(String(c.imposto)):""}"/>
       </div>
     </div>
-    <div style="font-size:11.5px;color:#64748b;margin-bottom:12px;max-width:540px">
+    <div style="font-size:11.5px;color:#6B6A66;margin-bottom:12px;max-width:540px">
       Deixe em branco para usar o percentual do <strong>cliente proprietário</strong>
       (definido em Clientes → Acesso). Preencha apenas se esta loja tiver condição diferente.
     </div>
     <div class="form-group" style="margin-bottom:12px;max-width:320px">
-      <label>📅 Base de cobrança <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">— só afeta o relatório do cliente</span></label>
+      <label>📅 Base de cobrança <span style="color:#8E8B84;font-weight:400;text-transform:none;letter-spacing:0">— só afeta o relatório do cliente</span></label>
       <select id="cf-base" class="finput">
         <option value="mes"${!c||c.baseCobranca!=="ultimos30"?" selected":""}>Mês fechado (1º ao último dia)</option>
         <option value="ultimos30"${c&&c.baseCobranca==="ultimos30"?" selected":""}>Últimos 30 dias</option>
       </select>
     </div>
     <div class="form-group cf-so-shopee" style="margin-bottom:12px">
-      <label>🛒 Username Shopee <span style="color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0">(usado pela extensão de importação automática)</span></label>
+      <label>🛒 Username Shopee <span style="color:#8E8B84;font-weight:400;text-transform:none;letter-spacing:0">(usado pela extensão de importação automática)</span></label>
       <input id="cf-shopee-user" class="finput" placeholder="ex: azure.tricot, continentalbones" value="${c&&c.shopeeUsername?esc(c.shopeeUsername):""}"/>
     </div>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px">
-      <div style="font-size:11.5px;font-weight:700;color:#9a3412;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">🔑 Informações de acesso</div>
+    <div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:12px 14px">
+      <div style="font-size:11.5px;font-weight:700;color:#6B4D18;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">🔑 Informações de acesso</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <div class="form-group"><label>Link da loja</label><input id="cf-acc-url" class="finput" placeholder="https://shopee.com.br/..." value="${esc(acc.url||"")}"/></div>
         <div class="form-group"><label>Usuário / e-mail</label><input id="cf-acc-user" class="finput" placeholder="Login da conta" value="${esc(acc.user||"")}"/></div>
@@ -363,14 +363,14 @@ let selColor=COLORS[0];
 function openEmployeeForm(empId){
   const e=empId?emps.find(x=>x.id===empId):null;
   if(e)selColor=e.color;
-  const colBtns=COLORS.map((c,i)=>`<button data-ci="${i}" data-cc="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c===selColor?"3px solid #0f172a":"2px solid transparent"};cursor:pointer"></button>`).join("");
+  const colBtns=COLORS.map((c,i)=>`<button data-ci="${i}" data-cc="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c===selColor?"3px solid #14151A":"2px solid transparent"};cursor:pointer"></button>`).join("");
   const helpText=e
-    ?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#9a3412;line-height:1.5">ℹ️ <strong>E-mail e senha não podem ser alterados aqui.</strong> Para mudar a senha, o funcionário pode usar "Esqueci minha senha" na tela de login.</div>`
-    :`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#9a3412;line-height:1.5">📧 <strong>Como funciona:</strong> Cadastre o e-mail e uma senha provisória. Repasse essas credenciais para o funcionário, que poderá trocar a senha depois usando "Esqueci minha senha".</div>`;
+    ?`<div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#6B4D18;line-height:1.5">ℹ️ <strong>E-mail e senha não podem ser alterados aqui.</strong> Para mudar a senha, o funcionário pode usar "Esqueci minha senha" na tela de login.</div>`
+    :`<div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#6B4D18;line-height:1.5">📧 <strong>Como funciona:</strong> Cadastre o e-mail e uma senha provisória. Repasse essas credenciais para o funcionário, que poderá trocar a senha depois usando "Esqueci minha senha".</div>`;
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-size:14px;font-weight:700">${e?"Editar funcionário":"Novo funcionário"}</span>
-      <button id="ef-close" style="background:none;border:none;color:#94a3b8;font-size:18px">✕</button>
+      <button id="ef-close" style="background:none;border:none;color:#8E8B84;font-size:18px">✕</button>
     </div>
     ${helpText}
     <div class="form-row" style="grid-template-columns:2fr 2fr 1fr">
@@ -392,7 +392,7 @@ function openEmployeeForm(empId){
   document.getElementById("color-row").addEventListener("click",ev=>{
     const btn=ev.target.closest("button[data-cc]");if(!btn)return;
     selColor=btn.dataset.cc;
-    document.querySelectorAll("#color-row button").forEach(b=>{b.style.border=b.dataset.cc===selColor?"3px solid #0f172a":"2px solid transparent";});
+    document.querySelectorAll("#color-row button").forEach(b=>{b.style.border=b.dataset.cc===selColor?"3px solid #14151A":"2px solid transparent";});
   });
   document.getElementById("ef-close").onclick=document.getElementById("ef-cancel").onclick=closeFormModal;
   document.getElementById("ef-save").onclick=async()=>{

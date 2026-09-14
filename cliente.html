@@ -8,9 +8,10 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --brand:#ea580c; --brand-50:#fff7ed; --brand-100:#ffedd5; --brand-200:#fed7aa; --brand-tint:#9a3412;
-  --bg:#f5f6f8; --surface:#fff; --border:#e5e7eb; --ink:#0f172a; --ink-2:#475569; --muted:#94a3b8;
-  --escuro:#0f172a; --escuro-2:#1e293b;
+  --brand:#B8872B; --brand-50:#FBF7EE; --brand-100:#F5EBD6; --brand-200:#E8D4A8; --brand-tint:#6B4D18;
+  --bg:#F7F6F3; --surface:#fff; --border:#E7E4DD; --ink:#14151A; --ink-2:#5C584F; --muted:#8E8B84;
+  --escuro:#14151A; --escuro-2:#1E1B14;
+  --ink-preto:#0B0B0C;   /* o preto do logo: ação principal e marca */
 }
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--ink);line-height:1.5;letter-spacing:-.005em;-webkit-font-smoothing:antialiased}
@@ -28,14 +29,14 @@ input,select{font:inherit}
 #abrindo{display:flex;align-items:center;justify-content:center;
   padding:48px 24px;color:var(--muted);font-size:13px;text-align:center;line-height:1.6}
 #abrindo.sumiu{display:none}
-.caixa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 10px 40px -20px rgba(15,23,42,.3)}
-.logo{width:46px;height:46px;border-radius:12px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;margin-bottom:18px}
+.caixa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:34px 32px;width:100%;max-width:380px;box-shadow:0 10px 40px -20px rgba(20,21,26,.3)}
+.logo{width:46px;height:46px;border-radius:12px;background:var(--ink-preto);color:#E3C178;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;margin-bottom:18px}
 .finput{border:1px solid var(--border);border-radius:9px;padding:11px 13px;font-size:14px;width:100%;background:#fff;color:var(--ink)}
 .finput:focus{outline:2px solid var(--brand-200);border-color:var(--brand)}
 .rot{display:block;font-size:12px;color:var(--ink-2);margin-bottom:5px}
-.btn{background:var(--brand);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;width:100%}
+.btn{background:var(--ink-preto);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;width:100%}
 .btn:disabled{opacity:.6}
-.btnsm{background:#f1f5f9;color:var(--ink-2);border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:500}
+.btnsm{background:#F4F1EA;color:var(--ink-2);border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:500}
 .btnsm.on{background:var(--brand-50);color:var(--brand-tint);box-shadow:inset 0 0 0 1px var(--brand-200)}
 .erro{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;padding:9px 12px;font-size:12.5px;margin-top:12px;display:none}
 .erro.ver{display:block}
@@ -44,35 +45,35 @@ input,select{font:inherit}
 #app{display:none;min-height:100vh}
 #app.ver{display:flex}
 aside{width:210px;background:var(--escuro);display:flex;flex-direction:column;padding:18px 10px;flex-shrink:0;min-height:100vh}
-.nav{background:transparent;color:#94a3b8;border:none;border-radius:9px;padding:10px 12px;text-align:left;font-size:13px;display:block;width:100%;font-weight:500}
-.nav.on{background:linear-gradient(90deg,rgba(234,88,12,.18) 0%,rgba(30,41,59,.5) 100%);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--brand)}
+.nav{background:transparent;color:#8E8B84;border:none;border-radius:9px;padding:10px 12px;text-align:left;font-size:13px;display:block;width:100%;font-weight:500}
+.nav.on{background:linear-gradient(90deg,rgba(184,135,43,.18) 0%,rgba(30,41,59,.5) 100%);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--brand)}
 .principal{flex:1;display:flex;flex-direction:column;min-width:0}
 .topo{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 26px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .corpo{padding:22px 26px;flex:1}
-.card{background:var(--surface);border-radius:14px;border:1px solid var(--border);box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.card{background:var(--surface);border-radius:14px;border:1px solid var(--border);box-shadow:0 1px 2px rgba(20,21,26,.05)}
 .selo{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
-.falta{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block;background:#f8fafc;color:var(--muted);border:1px dashed #cbd5e1}
+.falta{border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block;background:#FBFAF7;color:var(--muted);border:1px dashed #C9C4B8}
 table{width:100%;border-collapse:collapse}
-th{padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#64748b;border-bottom:1px solid #e2e8f0}
-td{padding:12px 16px;border-bottom:1px solid #f8fafc;font-size:13px;vertical-align:middle}
+th{padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#6B6A66;border-bottom:1px solid #E7E4DD}
+td{padding:12px 16px;border-bottom:1px solid #FBFAF7;font-size:13px;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:#fcfcfd}
-.lin{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #f1f5f9;font-size:13px}
+.lin{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid #F4F1EA;font-size:13px}
 .lin b{font-weight:600}
 
 /* ── miniaturas de foto/vídeo hospedadas no Drive ── */
 .midias{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:12px}
-.midia{position:relative;display:block;aspect-ratio:1;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#f8fafc;text-decoration:none}
+.midia{position:relative;display:block;aspect-ratio:1;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#FBFAF7;text-decoration:none}
 .midia img{width:100%;height:100%;object-fit:cover;display:block}
-.midia .cap{position:absolute;left:0;right:0;bottom:0;font-size:10px;font-weight:600;color:#fff;background:rgba(15,23,42,.6);padding:2px 5px;text-align:center}
+.midia .cap{position:absolute;left:0;right:0;bottom:0;font-size:10px;font-weight:600;color:#fff;background:rgba(20,21,26,.6);padding:2px 5px;text-align:center}
 .midia.midia-erro{grid-column:1/-1;aspect-ratio:auto;display:flex;gap:8px;align-items:flex-start;padding:10px 12px;font-size:11.5px;line-height:1.45;color:var(--ink-2);background:#fffbeb;border-color:#fde68a}
 .midia.midia-erro b{color:var(--brand-tint);font-weight:700}
 
 /* ── pop-up ── */
-#mask{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+#mask{position:fixed;inset:0;background:rgba(20,21,26,.55);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
 #mask.ver{display:flex}
-.pop{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.35);width:100%;max-width:470px;padding:34px 36px 26px;text-align:center}
+.pop{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(20,21,26,.35);width:100%;max-width:470px;padding:34px 36px 26px;text-align:center}
 @media (max-width:720px){
   aside{display:none}
   .corpo,.topo{padding-left:16px;padding-right:16px}
@@ -85,7 +86,7 @@ tbody tr:hover{background:#fcfcfd}
      que a cabeçalho dava. */
   table thead{display:none}
   table,table tbody,table tr,table td{display:block;width:100%}
-  table tr{border-bottom:1px solid #e2e8f0;padding:4px 0}
+  table tr{border-bottom:1px solid #E7E4DD;padding:4px 0}
   table tr:last-child{border-bottom:none}
   table td{border-bottom:none;padding:5px 16px}
   table td:first-child{padding-top:13px}
@@ -93,7 +94,7 @@ tbody tr:hover{background:#fcfcfd}
   /* Campo com rótulo fica em duas colunas: nome à esquerda, valor à direita. */
   table td[data-rot]{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   table td[data-rot]::before{content:attr(data-rot);font-size:11px;font-weight:700;
-    color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;flex:none}
+    color:#8E8B84;text-transform:uppercase;letter-spacing:.4px;flex:none}
   table td[data-rot=""]{display:block}
   table td[data-rot=""]::before{content:none}
 }
@@ -119,10 +120,10 @@ tbody tr:hover{background:#fcfcfd}
 <div id="app">
   <aside>
     <div style="display:flex;align-items:center;gap:9px;padding:0 6px;margin-bottom:26px">
-      <div id="avatar" style="width:40px;height:40px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0">—</div>
+      <div id="avatar" style="width:40px;height:40px;border-radius:50%%;background:var(--ink-preto);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0">—</div>
       <div style="min-width:0">
-        <p id="nomeCliente" style="color:#f1f5f9;font-weight:800;font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis"></p>
-        <span style="color:#334155;font-size:9.5px">Área do cliente</span>
+        <p id="nomeCliente" style="color:#F4F1EA;font-weight:800;font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis"></p>
+        <span style="color:#4A463D;font-size:9.5px">Área do cliente</span>
       </div>
     </div>
     <nav style="display:flex;flex-direction:column;gap:2px">
@@ -130,7 +131,7 @@ tbody tr:hover{background:#fcfcfd}
       <button class="nav" data-aba="lojas">Minhas lojas</button>
     </nav>
     <div style="margin-top:auto;padding:12px 6px 0;border-top:1px solid var(--escuro-2)">
-      <button id="sair" class="nav" style="color:#64748b">Sair</button>
+      <button id="sair" class="nav" style="color:#6B6A66">Sair</button>
     </div>
   </aside>
 
@@ -227,7 +228,7 @@ const COR = {
   "mercado livre": { bg: "#fff8e1", fg: "#b78a00", bd: "#ffe9a8" },
   "tiktok":        { bg: "#1a1a1a", fg: "#ffffff", bd: "#1a1a1a" },
 };
-const cor = (m) => COR[String(m || "").toLowerCase().trim()] || { bg: "#f1f5f9", fg: "#475569", bd: "#e2e8f0" };
+const cor = (m) => COR[String(m || "").toLowerCase().trim()] || { bg: "#F4F1EA", fg: "#5C584F", bd: "#E7E4DD" };
 
 // "na Shein", "no Mercado Livre". Português não perdoa: "Quero anunciar no
 // Shein" faz a tela parecer feita às pressas — e ela fala com o cliente.
@@ -366,8 +367,8 @@ function marcarSessaoDaEquipe() {
   if (document.getElementById("faixaEquipe")) return;
   const f = document.createElement("div");
   f.id = "faixaEquipe";
-  f.style.cssText = "background:#b45309;color:#fff7ed;padding:7px 20px;display:flex;align-items:center;gap:10px;font-size:12.5px;flex-wrap:wrap";
-  f.innerHTML = `<span style="background:#fff;color:#b45309;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800">EQUIPE</span>
+  f.style.cssText = "background:#8A6420;color:#FBF7EE;padding:7px 20px;display:flex;align-items:center;gap:10px;font-size:12.5px;flex-wrap:wrap";
+  f.innerHTML = `<span style="background:#fff;color:#8A6420;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800">EQUIPE</span>
     <span>Você está vendo e editando a área de <b style="color:#fff">${esc(estado.nome || "um cliente")}</b>. O cliente não vê nada disto.</span>`;
   document.querySelector(".principal").prepend(f);
 }
@@ -459,12 +460,12 @@ function telaLista() {
     const n = estado.produtos.filter((p) => info.get(p.id).mkts.includes(m)).length;
     const pct = estado.produtos.length ? Math.round((n / estado.produtos.length) * 100) : 0;
     const ativo = estado.faltaEm === m;
-    return `<button data-mkt="${esc(m)}" style="text-align:left;background:${ativo ? "#f8fafc" : "#fff"};border:1px solid ${ativo ? c.bd : "var(--border)"};box-shadow:${ativo ? "inset 0 0 0 1px " + c.bd : "0 1px 2px rgba(15,23,42,.05)"};border-radius:12px;padding:12px 14px;display:block;width:100%">
+    return `<button data-mkt="${esc(m)}" style="text-align:left;background:${ativo ? "#FBFAF7" : "#fff"};border:1px solid ${ativo ? c.bd : "var(--border)"};box-shadow:${ativo ? "inset 0 0 0 1px " + c.bd : "0 1px 2px rgba(20,21,26,.05)"};border-radius:12px;padding:12px 14px;display:block;width:100%">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px">
-        <span style="font-size:12.5px;font-weight:700;color:${c.fg === "#ffffff" ? "#0f172a" : c.fg}">${esc(m)}</span>
+        <span style="font-size:12.5px;font-weight:700;color:${c.fg === "#ffffff" ? "#14151A" : c.fg}">${esc(m)}</span>
         <span style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">${n}/${estado.produtos.length}</span>
       </div>
-      <div style="height:6px;border-radius:99px;background:#eef2f7;overflow:hidden">
+      <div style="height:6px;border-radius:99px;background:#FBFAF7;overflow:hidden">
         <div style="height:100%;width:${pct}%;background:${c.fg === "#ffffff" ? "#1a1a1a" : c.fg};border-radius:99px"></div>
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:7px">${n === estado.produtos.length ? "tudo anunciado" : `faltam ${estado.produtos.length - n}`}</div>
@@ -478,12 +479,12 @@ function telaLista() {
   // pendência é contada e tem um botão que reduz a lista exatamente a ela.
   const incompletos = estado.produtos.filter((p) => faltandoNaFicha(p).length);
   const chamadaFicha = incompletos.length ? `
-    <div class="card" style="padding:15px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-left:3px solid #b45309">
+    <div class="card" style="padding:15px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-left:3px solid #8A6420">
       <div>
         <div style="font-weight:700;font-size:13.5px">${incompletos.length === 1 ? "1 produto está" : `${incompletos.length} produtos estão`} com a ficha incompleta</div>
         <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">Sem peso, medidas e foto, quem for anunciar não consegue subir o produto.</div>
       </div>
-      <button id="verIncompletos" class="btnsm" style="background:#b45309;color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">${estado.soIncompletos ? "Ver todos os produtos" : `Preencher ${incompletos.length === 1 ? "a que falta" : "as que faltam"}`}</button>
+      <button id="verIncompletos" class="btnsm" style="background:#8A6420;color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">${estado.soIncompletos ? "Ver todos os produtos" : `Preencher ${incompletos.length === 1 ? "a que falta" : "as que faltam"}`}</button>
     </div>` : "";
 
   // ── quando um marketplace está zerado, isso é o assunto da tela ────
@@ -494,7 +495,7 @@ function telaLista() {
         <div style="font-weight:700;font-size:13.5px">Nenhum produto seu está anunciado ${esc(naNo(zerado))}</div>
         <div style="font-size:12.5px;color:var(--ink-2);margin-top:2px">São ${estado.produtos.length} produtos que já vendem em outro lugar e ainda não estão lá.</div>
       </div>
-      <button data-querytodos="${esc(zerado)}" class="btnsm" style="background:var(--brand);color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">Quero anunciar ${esc(naNo(zerado))}</button>
+      <button data-querytodos="${esc(zerado)}" class="btnsm" style="background:#8A6420;color:#fff;font-weight:700;padding:9px 16px;white-space:nowrap">Quero anunciar ${esc(naNo(zerado))}</button>
     </div>` : "";
 
   // ── filtro e ordem ─────────────────────────────────────────────────
@@ -530,7 +531,7 @@ function telaLista() {
     </div>
     <div class="card" style="overflow:hidden">
       <table>
-        <thead style="background:#f8fafc"><tr>
+        <thead style="background:#FBFAF7"><tr>
           <th style="width:38%">Produto</th>
           <th style="width:11%">SKU</th>
           <th style="width:15%">Preço</th>
@@ -596,14 +597,14 @@ function telaEspecialista() {
 
   const c = cor(estado.mkt);
   const cartao = (chave, n, rot, destaque) => `
-    <button data-fila="${chave}" style="text-align:left;background:${estado.faltaEm === chave ? "#f8fafc" : "#fff"};border:1px solid ${estado.faltaEm === chave ? (destaque || "var(--border)") : "var(--border)"};box-shadow:${estado.faltaEm === chave ? "inset 0 0 0 1px " + (destaque || "#e5e7eb") : "0 1px 2px rgba(15,23,42,.05)"};border-radius:12px;padding:13px 16px;display:block;width:100%">
+    <button data-fila="${chave}" style="text-align:left;background:${estado.faltaEm === chave ? "#FBFAF7" : "#fff"};border:1px solid ${estado.faltaEm === chave ? (destaque || "var(--border)") : "var(--border)"};box-shadow:${estado.faltaEm === chave ? "inset 0 0 0 1px " + (destaque || "#E7E4DD") : "0 1px 2px rgba(20,21,26,.05)"};border-radius:12px;padding:13px 16px;display:block;width:100%">
       <div style="font-size:24px;font-weight:700;line-height:1.1;color:${destaque || "var(--ink)"};font-variant-numeric:tabular-nums">${n}</div>
-      <div style="font-size:12px;color:#64748b;margin-top:3px">${rot}</div>
+      <div style="font-size:12px;color:#6B6A66;margin-top:3px">${rot}</div>
     </button>`;
 
   $("corpo").innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px">
-      ${cartao("falta", faltam, "esperando anúncio", "#b45309")}
+      ${cartao("falta", faltam, "esperando anúncio", "#8A6420")}
       ${cartao("ja", noAr.length, `já ${naNo(estado.mkt)}`, c.fg === "#ffffff" ? "#1a1a1a" : c.fg)}
       ${cartao("", estado.produtos.length, "no total", "")}
     </div>
@@ -621,7 +622,7 @@ function telaEspecialista() {
     </div>
     <div class="card" style="overflow:hidden">
       <table>
-        <thead style="background:#f8fafc"><tr>
+        <thead style="background:#FBFAF7"><tr>
           <th style="width:32%">Produto</th><th style="width:16%">Cliente</th><th style="width:10%">SKU</th>
           <th style="width:12%">Custo</th><th style="width:18%">Preço em outro marketplace</th><th></th>
         </tr></thead>
@@ -677,7 +678,7 @@ function linha(p, i) {
   return `<tr data-prod="${esc(p.id)}">
     <td data-rot=""><div style="font-weight:600">${esc(p.nome || "sem nome")}</div>
       ${p.custo !== undefined ? `<div style="font-size:11.5px;color:var(--muted)">custo ${moeda(p.custo)}</div>` : ""}
-      ${falta.length ? `<div style="font-size:11.5px;color:#b45309;margin-top:2px" title="${esc(falta.join(", "))}">⚠ ${falta.length === 1 ? "falta 1 informação" : `faltam ${falta.length} informações`}</div>` : ""}</td>
+      ${falta.length ? `<div style="font-size:11.5px;color:#8A6420;margin-top:2px" title="${esc(falta.join(", "))}">⚠ ${falta.length === 1 ? "falta 1 informação" : `faltam ${falta.length} informações`}</div>` : ""}</td>
     <td data-rot="SKU" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-2)">${esc(p.sku || "—")}</td>
     <td data-rot="Preço" style="font-variant-numeric:tabular-nums;font-size:12.5px">${preco}</td>
     <td data-rot="Margem">${i.melhor
@@ -725,11 +726,11 @@ window.driveQuebrou = function (imgEl) {
 // comissão, frete e imposto reais. Só onde não há número gravado é que a
 // estimativa entra, e entra dizendo que é estimativa.
 function blocoMargem(a, p) {
-  const rot = `<div style="font-size:11.5px;color:#64748b">Margem de contribuição</div>`;
+  const rot = `<div style="font-size:11.5px;color:#6B6A66">Margem de contribuição</div>`;
   const temLucro = a.lucro !== null && a.lucro !== undefined;
   const temMargem = a.margem !== null && a.margem !== undefined;
   if (temLucro || temMargem) {
-    return `<div>${rot}<div style="font-size:15px;font-weight:600;color:#3b6d11">${temLucro ? moeda(a.lucro) : ""}${temMargem ? `<span style="font-size:12px;color:#64748b;font-weight:500">${temLucro ? " · " : ""}${Number(a.margem).toFixed(1)}%</span>` : ""}</div></div>`;
+    return `<div>${rot}<div style="font-size:15px;font-weight:600;color:#3b6d11">${temLucro ? moeda(a.lucro) : ""}${temMargem ? `<span style="font-size:12px;color:#6B6A66;font-weight:500">${temLucro ? " · " : ""}${Number(a.margem).toFixed(1)}%</span>` : ""}</div></div>`;
   }
   const r = calcularMargem({
     preco: a.preco === null || a.preco === undefined ? null : Number(a.preco),
@@ -749,8 +750,8 @@ function blocoMargem(a, p) {
   }
   const detalhe = r.descontos.map((d) => `${d.rotulo} -${moeda(d.valor)}`).join(" | ");
   return `<div>${rot}
-    <div style="font-size:15px;font-weight:600;color:${r.lucro >= 0 ? "#3b6d11" : "#b91c1c"}" title="${esc(detalhe)}">${moeda(r.lucro)}<span style="font-size:12px;color:#64748b;font-weight:500"> · ${r.margem.toFixed(1).replace(".", ",")}%</span></div>
-    <div style="font-size:11px;color:#94a3b8">${r.completa ? "estimativa · comissão, gestão e imposto já descontados" : "estimativa incompleta"}</div></div>`;
+    <div style="font-size:15px;font-weight:600;color:${r.lucro >= 0 ? "#3b6d11" : "#b91c1c"}" title="${esc(detalhe)}">${moeda(r.lucro)}<span style="font-size:12px;color:#6B6A66;font-weight:500"> · ${r.margem.toFixed(1).replace(".", ",")}%</span></div>
+    <div style="font-size:11px;color:#8E8B84">${r.completa ? "estimativa · comissão, gestão e imposto já descontados" : "estimativa incompleta"}</div></div>`;
 }
 
 function telaProduto() {
@@ -768,7 +769,7 @@ function telaProduto() {
         <span style="font-size:11.5px;color:${c.fg};opacity:.85">${esc(a.storeNome || "")}</span>
       </div>
       <div style="padding:13px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;align-items:center">
-        <div><div style="font-size:11.5px;color:#64748b">Preço</div><div style="font-size:15px;font-weight:600">${moeda(a.preco)}</div></div>
+        <div><div style="font-size:11.5px;color:#6B6A66">Preço</div><div style="font-size:15px;font-weight:600">${moeda(a.preco)}</div></div>
         ${blocoMargem(a, p)}
         ${a.link ? `<div style="text-align:right"><a href="${esc(a.link)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">Ver anúncio</a></div>` : ""}
       </div>
@@ -795,28 +796,28 @@ function telaProduto() {
       <div class="card" style="padding:18px 20px">
         <div style="font-size:15px;font-weight:700;line-height:1.3;margin-bottom:8px">${esc(p.nome || "")}</div>
         ${p.sku ? `<div style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--brand-tint);background:var(--brand-50);border:1px solid var(--brand-100);border-radius:6px;padding:2px 8px;margin-bottom:12px">${esc(p.sku)}</div>` : ""}
-        <div class="lin" style="border-top:none"><span style="color:#64748b">Custo</span><b>${moeda(p.custo)}</b></div>
-        ${p.peso ? `<div class="lin"><span style="color:#64748b">Peso</span><b>${esc(p.peso)}</b></div>` : ""}
-        ${p.medidasProduto ? `<div class="lin"><span style="color:#64748b">Medidas do produto</span><b style="text-align:right">${esc(p.medidasProduto)}</b></div>` : ""}
-        ${p.medidas ? `<div class="lin"><span style="color:#64748b">Medidas da embalagem</span><b style="text-align:right">${esc(p.medidas)}</b></div>` : ""}
-        ${p.material ? `<div class="lin"><span style="color:#64748b">Material</span><b style="text-align:right">${esc(p.material)}</b></div>` : ""}
-        ${p.tamanhos ? `<div class="lin"><span style="color:#64748b">Tamanhos</span><b style="text-align:right">${esc(p.tamanhos)}</b></div>` : ""}
-        ${p.cores ? `<div class="lin"><span style="color:#64748b">Cores</span><b style="text-align:right">${esc(p.cores)}</b></div>` : ""}
+        <div class="lin" style="border-top:none"><span style="color:#6B6A66">Custo</span><b>${moeda(p.custo)}</b></div>
+        ${p.peso ? `<div class="lin"><span style="color:#6B6A66">Peso</span><b>${esc(p.peso)}</b></div>` : ""}
+        ${p.medidasProduto ? `<div class="lin"><span style="color:#6B6A66">Medidas do produto</span><b style="text-align:right">${esc(p.medidasProduto)}</b></div>` : ""}
+        ${p.medidas ? `<div class="lin"><span style="color:#6B6A66">Medidas da embalagem</span><b style="text-align:right">${esc(p.medidas)}</b></div>` : ""}
+        ${p.material ? `<div class="lin"><span style="color:#6B6A66">Material</span><b style="text-align:right">${esc(p.material)}</b></div>` : ""}
+        ${p.tamanhos ? `<div class="lin"><span style="color:#6B6A66">Tamanhos</span><b style="text-align:right">${esc(p.tamanhos)}</b></div>` : ""}
+        ${p.cores ? `<div class="lin"><span style="color:#6B6A66">Cores</span><b style="text-align:right">${esc(p.cores)}</b></div>` : ""}
         ${p.fotos && !Array.isArray(p.fotos) ? `<div style="margin-top:14px"><a href="${esc(p.fotos)}" target="_blank" rel="noopener" class="btnsm" style="text-decoration:none;display:inline-block">📁 Fotos e vídeos</a></div>` : ""}
         ${gradeMidias(p)}
-        ${p.obs ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9">
-          <div style="font-size:11.5px;color:#64748b;margin-bottom:4px">Observações</div>
+        ${p.obs ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #F4F1EA">
+          <div style="font-size:11.5px;color:#6B6A66;margin-bottom:4px">Observações</div>
           <div style="font-size:12.5px;white-space:pre-wrap;line-height:1.55">${esc(p.obs)}</div></div>` : ""}
         ${estado.modo !== "especialista" && faltandoNaFicha(p).length ? `<div style="margin-top:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.5">
           <b>Falta preencher:</b> ${esc(faltandoNaFicha(p).join(", "))}.<br>Sem isso não dá para anunciar este produto.
         </div>` : ""}
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:11.5px;color:var(--muted);line-height:1.6">
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #F4F1EA;font-size:11.5px;color:var(--muted);line-height:1.6">
           Estes dados valem para todos os marketplaces onde você vende.
         </div>
         ${estado.modo !== "especialista" ? `<button data-editar="${esc(p.id)}" class="btnsm" style="width:100%;margin-top:12px">Editar ficha</button>` : ""}
       </div>
       <div>
-        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">Anúncios deste produto</div>
+        <div style="font-size:13px;font-weight:700;color:#4A463D;margin-bottom:10px">Anúncios deste produto</div>
         ${meus.map(cartaoAnuncio).join("") || `<div class="card" style="padding:16px;color:var(--muted);font-size:13px;margin-bottom:12px">Nenhum anúncio registrado ainda.</div>`}
         ${faltando}
         ${formEsp}
@@ -873,7 +874,7 @@ async function popup(mkt, p) {
   $("popConteudo").style.maxWidth = "470px";
   $("popConteudo").style.textAlign = "center";
   $("popConteudo").innerHTML = `
-    <div style="width:44px;height:44px;border-radius:50%;border:3px solid #e2e8f0;border-top-color:var(--brand);margin:14px auto 16px;animation:girar .8s linear infinite"></div>
+    <div style="width:44px;height:44px;border-radius:50%;border:3px solid #E7E4DD;border-top-color:var(--brand);margin:14px auto 16px;animation:girar .8s linear infinite"></div>
     <style>@keyframes girar{to{transform:rotate(360deg)}}</style>
     <div style="font-size:14.5px;color:var(--ink-2)">Registrando seu pedido…</div>`;
   $("mask").classList.add("ver");
@@ -899,7 +900,7 @@ async function popup(mkt, p) {
       <div style="width:60px;height:60px;border-radius:50%;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:29px;font-weight:700;margin:0 auto 18px">✓</div>
       <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px">Pedido registrado</div>
       <div style="font-size:14.5px;color:var(--ink-2);line-height:1.6;margin-bottom:22px">A equipe da OTDE recebeu seu pedido para anunciar ${esc(produtoNome)} ${esc(naNo(mkt))} e vai cuidar disso.${jaExiste ? "<br>Você já tinha pedido este — atualizamos a data." : ""}</div>
-      <div style="font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid #eef2f7;border-radius:10px;padding:9px 14px;margin-bottom:22px;line-height:1.5"><b style="color:var(--ink-2)">${esc(mkt)}</b> · ${esc(produtoNome)}</div>
+      <div style="font-size:12px;color:var(--muted);background:#FBFAF7;border:1px solid #FBFAF7;border-radius:10px;padding:9px 14px;margin-bottom:22px;line-height:1.5"><b style="color:var(--ink-2)">${esc(mkt)}</b> · ${esc(produtoNome)}</div>
       <button id="popOk" class="btn">Entendi</button>`;
   } catch (e) {
     console.error("pedido:", e);
@@ -984,7 +985,7 @@ function abrirFicha(p) {
     </div>
 
     ${estado.souEquipe && !criando ? `
-    <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:14px">
+    <div style="margin-top:16px;border-top:1px solid #F4F1EA;padding-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px">Anúncios deste produto</div>
       ${meus.length ? meus.map((a) => {
         const c = cor(a.mkt || a.storeMkt);

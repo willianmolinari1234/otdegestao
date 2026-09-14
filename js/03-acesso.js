@@ -12,7 +12,7 @@ function showAuthScreen(mode){
   err.classList.remove("show");
   const sidebarLogo=document.querySelector("#sidebar .logo-img");
   const logoSrc=sidebarLogo?sidebarLogo.src:"";
-  logo.innerHTML=`<img src="${logoSrc}" alt="OTDE"/><h2>OTDE</h2><span>Gestão de Contas</span>`;
+  logo.innerHTML=`<img src="${logoSrc}" alt="OTDE Performance"/><h2>OTDE</h2><span>PERFORMANCE</span>`;
   if(mode==="setup"){
     title.textContent="Primeiro acesso";
     sub.textContent="Crie sua conta de administrador. Esse será o login principal do sistema.";
@@ -20,7 +20,7 @@ function showAuthScreen(mode){
       <input class="auth-input" id="auth-name" placeholder="Seu nome completo" autofocus/>
       <input class="auth-input" id="auth-email" type="email" placeholder="Seu e-mail" autocomplete="email"/>
       <input type="password" class="auth-input" id="auth-pass" placeholder="Senha (mín. 6 caracteres)" autocomplete="new-password"/>
-      <a href="#" id="auth-switch-login" style="font-size:11.5px;color:#64748b;text-decoration:none;font-weight:500;display:inline-block;margin-top:-4px">Já tenho conta · Entrar</a>`;
+      <a href="#" id="auth-switch-login" style="font-size:11.5px;color:#6B6A66;text-decoration:none;font-weight:500;display:inline-block;margin-top:-4px">Já tenho conta · Entrar</a>`;
     btn.textContent="Criar conta de admin";
     btn.onclick=async()=>{
       // DESATIVADO por segurança: este fluxo permitia que qualquer pessoa na
@@ -49,8 +49,8 @@ function showAuthScreen(mode){
       <input class="auth-input" id="auth-email" type="email" placeholder="E-mail" autocomplete="email" autofocus/>
       <input type="password" class="auth-input" id="auth-pass" placeholder="Senha" autocomplete="current-password"/>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:-4px">
-        <a href="#" id="auth-forgot" style="font-size:11.5px;color:#ea580c;text-decoration:none;font-weight:600">Esqueci minha senha</a>
-        <span style="font-size:11.5px;color:#94a3b8">Sem conta? Peça ao administrador.</span>
+        <a href="#" id="auth-forgot" style="font-size:11.5px;color:#B8872B;text-decoration:none;font-weight:600">Esqueci minha senha</a>
+        <span style="font-size:11.5px;color:#8E8B84">Sem conta? Peça ao administrador.</span>
       </div>`;
     btn.textContent="Entrar";
     btn.onclick=async()=>{

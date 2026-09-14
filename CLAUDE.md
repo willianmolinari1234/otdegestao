@@ -1,4 +1,4 @@
-# OTDE Gestão
+# OTDE Performance
 
 Agência que administra ~41 lojas em marketplaces para ~48 proprietários.
 O sistema vigia as lojas (API oficial da Shopee), fecha o mês com o cliente e dá
@@ -175,6 +175,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Autoria dupla em toda gravação | `criadoPor` (quem digitou) e `emNomeDe` (por quem) |
 | A ficha do produto é gravada pelo backend | O cliente não pode escrever `mkts`; gravar pelo navegador faria o produto nascer invisível para o especialista |
 | Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, foto, observações | Mais o nome. Custo fica de fora: a ficha é para anunciar, não para precificar |
+| Marca: **OTDE Performance**, ouro sobre preto | Desde 13/09/2026. Antes era OTDE Gestão de Contas, laranja sobre slate |
+| Os neutros são QUENTES, não azulados | Ouro sobre cinza azulado fica esverdeado. Trocar só o acento deixaria o sistema com cara de sujo |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho
 do Firestore**. O gatilho existia e foi removido: dependia do Eventarc, quebrava o deploy
@@ -220,6 +222,17 @@ desenhava e nada clicava. Os testes de `render()` em `telas.test.js` existem por
 disso — antes só se testavam as telas uma a uma, que é testar o desenho sem testar o
 caminho que o sistema usa.
 
+**Ouro com texto branco não se lê.** `--brand` (#B8872B) sobre branco dá contraste de
+2,3:1 — reprova em acessibilidade e some numa tela de trabalho. A regra do sistema:
+**ação principal é PRETA** (`var(--ink)`), **realce e seleção são BRONZE** (#8A6420, 5,2:1),
+e o ouro entra em aba ativa, número de destaque, foco de campo, barra de gráfico e tudo
+que vive sobre preto. `marca.test.js` quebra se alguém escrever ouro com texto branco.
+
+**O logo da tela de entrada não existe.** O `showAuthScreen` lê o `src` do `<img>` da barra
+lateral e reusa. Trocar aquele `<img>` por um `<svg>` em linha deixa a entrada sem marca,
+e sem erro nenhum. O símbolo é um SVG em data URI, quadrado e centrado — o `.logo-img` é um
+círculo com `object-fit:cover`.
+
 **O macOS tem um Java falso.** `command -v java` retorna verdadeiro mesmo sem Java instalado.
 A checagem certa é `java -version >/dev/null 2>&1`, mais `/usr/libexec/java_home` e os
 caminhos keg-only do Homebrew. Sem Java o emulador do Firestore não sobe.
@@ -248,7 +261,7 @@ Tem guarda para não acusar loja que ainda não sincronizou.
 
 | Comando | O que faz |
 |---|---|
-| `node --test testes/*.test.js` | 369 testes em 19 arquivos. Rápido, sem emulador |
+| `node --test testes/*.test.js` | 495 testes em 21 arquivos. Rápido, sem emulador |
 | `TESTAR-REGRAS.command` | 37 casos de isolamento no emulador. Precisa de Java, só roda no Mac |
 | `PUBLICAR.command` | Testes → sintaxe → carimbo de versão → homolog → confirmação → produção |
 | `CUPONS-DIAGNOSTICO.command` | Amostra de cupons de uma loja escolhida em lista |

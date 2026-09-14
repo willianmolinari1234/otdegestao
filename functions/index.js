@@ -79,7 +79,7 @@ export const criarFuncionario = onRequest({ secrets, cors: ["https://otdegestao.
     const user = await getAuth().createUser({ email: String(email), password: String(senha), displayName: String(nome) });
     const ini = String(nome).split(" ").slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
     await db.collection("employees").doc(user.uid).set({
-      id: user.uid, name: String(nome), ini, color: cor || "#ea580c", email: String(email), role,
+      id: user.uid, name: String(nome), ini, color: cor || "#B8872B", email: String(email), role,
     });
     res.json({ ok: true, uid: user.uid });
   } catch (e) {
@@ -456,7 +456,7 @@ export const shopeeCallback = onRequest({ secrets, maxInstances: 10 }, async (re
     res.send(`<!doctype html><meta charset="utf-8">
       <div style="font-family:system-ui;text-align:center;margin-top:80px">
         <h2 style="color:#16a34a">Loja conectada com sucesso ✓</h2>
-        <p style="color:#475569">Pode fechar esta janela e voltar ao sistema.</p>
+        <p style="color:#5C584F">Pode fechar esta janela e voltar ao sistema.</p>
         <script>setTimeout(()=>window.close(),2500)<\/script>
       </div>`);
   } catch (e) {

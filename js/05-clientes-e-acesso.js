@@ -21,7 +21,7 @@ function showAccessModal(cliId){
   const okBtn=document.getElementById("confirm-ok");
   const cancelBtn=document.getElementById("confirm-cancel");
   titleEl.innerHTML=`🔑 Acessos — ${esc(c.name)}`;
-  const ownerLine=cu?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:#64748b">${mktBadge(c.mkt)}<span>·</span><span>👤 ${esc(cu.name)}</span></div>`:`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:#94a3b8">${mktBadge(c.mkt)}<span>·</span><span>sem cliente vinculado</span></div>`;
+  const ownerLine=cu?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:#6B6A66">${mktBadge(c.mkt)}<span>·</span><span>👤 ${esc(cu.name)}</span></div>`:`<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:#8E8B84">${mktBadge(c.mkt)}<span>·</span><span>sem cliente vinculado</span></div>`;
   const row=(label,val,isPass,isLink)=>{
     if(!val)return`<div class="access-row"><label>${label}</label><div class="val empty">não cadastrado</div></div>`;
     const display=isPass?`<span class="val pw-val" data-pw="${esc(val)}">••••••••</span><button class="pw-toggle">👁</button>`
@@ -34,18 +34,18 @@ function showAccessModal(cliId){
   const hasSheet=!!lg.sheet;
   const hasAny=hasStore||hasErp||hasSheet;
   msgEl.innerHTML=`${ownerLine}${hasAny?`
-    ${hasStore?`<div style="font-size:10.5px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 6px">🏪 Acesso da loja</div>
+    ${hasStore?`<div style="font-size:10.5px;font-weight:700;color:#5C584F;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 6px">🏪 Acesso da loja</div>
     ${row("Link",acc.url,false,true)}
     ${row("Usuário",acc.user,false,false)}
     ${row("Senha",acc.pass,true,false)}
     ${acc.notes?`<div class="access-row" style="align-items:flex-start"><label style="padding-top:4px">Notas</label><div class="val" style="font-family:inherit;white-space:pre-wrap">${esc(acc.notes)}</div><button class="copy-btn" data-copy="${esc(acc.notes)}">Copiar</button></div>`:""}`:""}
-    ${hasErp?`<div style="font-size:10.5px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">🧾 ${esc(erpLabel)}</div>
+    ${hasErp?`<div style="font-size:10.5px;font-weight:700;color:#6B4D18;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">🧾 ${esc(erpLabel)}</div>
     ${row("Link",erp.url,false,true)}
     ${row("Usuário",erp.user,false,false)}
     ${row("Senha",erp.pass,true,false)}
     ${erp.id?row("ID / Empresa",erp.id,false,false):""}`:""}
-    ${hasSheet?`<div style="font-size:10.5px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">📊 Planilha</div>${row("Precificação",lg.sheet,false,true)}`:""}
-  `:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:20px 0">Nenhum dado de acesso cadastrado. Cadastre em <strong>Gerenciar clientes → 🔑 (chave do cliente)</strong>.</div>'}`;
+    ${hasSheet?`<div style="font-size:10.5px;font-weight:700;color:#5C584F;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">📊 Planilha</div>${row("Precificação",lg.sheet,false,true)}`:""}
+  `:'<div style="text-align:center;color:#8E8B84;font-size:13px;padding:20px 0">Nenhum dado de acesso cadastrado. Cadastre em <strong>Gerenciar clientes → 🔑 (chave do cliente)</strong>.</div>'}`;
   msgEl.style.textAlign="left";
   msgEl.classList.add("access-scroll");
   okBtn.style.display="none";
@@ -101,9 +101,9 @@ function showCustomersPanel(){
     const q=custSearchTerm.toLowerCase().trim();
     const filtered=q?custs.filter(cu=>cu.name.toLowerCase().includes(q)):custs.slice();
     if(custs.length===0)
-      return '<p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">Nenhum cliente cadastrado. Clique em "Novo cliente" para começar.</p>';
+      return '<p style="text-align:center;color:#8E8B84;padding:24px 0;font-size:13px">Nenhum cliente cadastrado. Clique em "Novo cliente" para começar.</p>';
     if(filtered.length===0)
-      return '<p style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">Nenhum cliente encontrado para essa busca.</p>';
+      return '<p style="text-align:center;color:#8E8B84;padding:24px 0;font-size:13px">Nenhum cliente encontrado para essa busca.</p>';
     return filtered.map(cu=>{
       const stores=storesOfCust(cu.id);
       const lg=cu.login||{};
@@ -148,13 +148,13 @@ function showCustomersPanel(){
   showFormModal(`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div>
-        <div style="font-size:15px;font-weight:800;color:#0f172a">👥 Gerenciar clientes</div>
-        <div style="font-size:11.5px;color:#64748b;margin-top:2px">Proprietários das lojas marketplace</div>
+        <div style="font-size:15px;font-weight:800;color:#14151A">👥 Gerenciar clientes</div>
+        <div style="font-size:11.5px;color:#6B6A66;margin-top:2px">Proprietários das lojas marketplace</div>
       </div>
-      <button id="close-cust-panel" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer">✕</button>
+      <button id="close-cust-panel" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer">✕</button>
     </div>
     <input id="cust-search" class="finput" placeholder="🔍 Buscar cliente pelo nome..." value="${esc(custSearchTerm)}" style="margin-bottom:12px" autocomplete="off"/>
-    <div id="cust-rows" style="background:#fafbfc;border-radius:10px;border:1px solid #e5e7eb;overflow:hidden;max-height:46vh;overflow-y:auto">${buildRows()}</div>
+    <div id="cust-rows" style="background:#FBFAF7;border-radius:10px;border:1px solid #E7E4DD;overflow:hidden;max-height:46vh;overflow-y:auto">${buildRows()}</div>
     <div class="form-actions">
       <button class="btn-primary" id="add-cust-btn">+ Novo cliente</button>
     </div>
@@ -244,7 +244,7 @@ function openCustAccessForm(custId){
 
   // Per-store blocks
   const storeBlocks=stores.length===0
-    ? `<div style="font-size:12px;color:#94a3b8;font-style:italic;padding:4px 0 12px">Nenhuma loja vinculada a este cliente ainda.</div>`
+    ? `<div style="font-size:12px;color:#8E8B84;font-style:italic;padding:4px 0 12px">Nenhuma loja vinculada a este cliente ainda.</div>`
     : stores.map((s,i)=>{
         // O acesso da loja mora em clients.access — é a fonte que o
         // firestore.rules cita como "a senha do marketplace da loja", e é
@@ -260,7 +260,7 @@ function openCustAccessForm(custId){
           : (storeLogins[s.id]||(i===0&&legacyHint?legacyHint:{}));
         return block({
           title:`Loja: ${esc(s.name)}`+(s.mkt?` · ${esc(s.mkt)}`:""),
-          icon:"🏪",bg:"#f8fafc",border:"#e2e8f0",titleColor:"#475569",
+          icon:"🏪",bg:"#FBFAF7",border:"#E7E4DD",titleColor:"#5C584F",
           urlId:`ca-st-url-${s.id}`,urlLabel:"Link da loja",urlPh:"https://shopee.com.br/...",urlVal:sl.url,
           userId:`ca-st-user-${s.id}`,userVal:sl.user,
           passId:`ca-st-pass-${s.id}`,passVal:sl.pass
@@ -271,10 +271,10 @@ function openCustAccessForm(custId){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
       <div>
         <div style="font-size:10.5px;color:var(--brand);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">🔑 Informações de acesso</div>
-        <div style="font-size:18px;font-weight:800;color:#0f172a;line-height:1.3">${esc(cu.name)}</div>
-        <div style="font-size:11.5px;color:#94a3b8;margin-top:3px">${stores.length} loja${stores.length!==1?"s":""}${stores.length?" · "+esc(stores.map(s=>s.name).join(", ")):""}</div>
+        <div style="font-size:18px;font-weight:800;color:#14151A;line-height:1.3">${esc(cu.name)}</div>
+        <div style="font-size:11.5px;color:#8E8B84;margin-top:3px">${stores.length} loja${stores.length!==1?"s":""}${stores.length?" · "+esc(stores.map(s=>s.name).join(", ")):""}</div>
       </div>
-      <button id="ca-close" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
+      <button id="ca-close" style="background:none;border:none;color:#8E8B84;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1">✕</button>
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -292,8 +292,8 @@ function openCustAccessForm(custId){
       </div>
     </div>
 
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:11px;color:#9a3412;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">🧾 ERP — Sistema de emissão de notas</div>
+    <div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:11px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:11px;color:#6B4D18;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">🧾 ERP — Sistema de emissão de notas</div>
       <div class="form-group" style="margin-bottom:10px">
         <label>Qual ERP?</label>
         <select id="ca-erp-provider" class="finput">
@@ -314,7 +314,7 @@ function openCustAccessForm(custId){
       </div>
     </div>
 
-    <div style="font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px">🏪 Acesso das lojas</div>
+    <div style="font-size:11px;color:#5C584F;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px">🏪 Acesso das lojas</div>
     ${storeBlocks}
 
     <div class="form-group" style="margin-top:4px">
@@ -459,7 +459,7 @@ function exportCSV(){
 
 function makePieSVG(data){
   const tot=data.reduce((s,d)=>s+d.v,0);
-  if(!tot)return`<div style="height:100px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px">Sem dados</div>`;
+  if(!tot)return`<div style="height:100px;display:flex;align-items:center;justify-content:center;color:#8E8B84;font-size:12px">Sem dados</div>`;
   const cx=80,cy=65,r=45,ri=25;let ang=-Math.PI/2;
   const paths=data.map(d=>{
     const sw=d.v/tot*Math.PI*2;

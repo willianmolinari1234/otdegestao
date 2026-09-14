@@ -37,10 +37,10 @@ function plDesenharColar() {
   showFormModal(`
   <div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
-      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Importar planilha · ${esc(loja.name)}</div></div>
-      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#14151A">Importar planilha · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:14px;font-size:12.5px;color:#475569;line-height:1.6">
+      <div style="background:#FBFAF7;border:1px solid #E7E4DD;border-radius:11px;padding:12px 15px;margin-bottom:14px;font-size:12.5px;color:#5C584F;line-height:1.6">
         Os produtos entram para <b>${esc(cust.name)}</b>, e os anúncios para a loja
         <b>${esc(loja.name)}</b> (${esc(loja.mkt || "sem marketplace")}).
         Cole <b>uma aba</b> — a da loja ${esc(loja.name)} — com o cabeçalho junto.
@@ -51,8 +51,8 @@ function plDesenharColar() {
         <button id="pl-ler" class="btn-primary">Ler planilha</button>
       </div>
 
-      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #f1f5f9">
-        <div style="font-size:12.5px;color:#475569;line-height:1.6;margin-bottom:10px">
+      <div style="margin-top:18px;padding-top:16px;border-top:1px solid #F4F1EA">
+        <div style="font-size:12.5px;color:#5C584F;line-height:1.6;margin-bottom:10px">
           <b>SKU vem do marketplace, não da planilha.</b> O código cadastrado no
           anúncio já chega junto com cada venda — isto só costura com os anúncios
           que você importou. Nenhuma chamada nova à Shopee.
@@ -132,20 +132,20 @@ function plDesenharConferencia() {
   const cartao = (cor, fundo, borda, n, rot) => `
     <div style="background:${fundo};border:1px solid ${borda};border-radius:11px;padding:11px 14px;flex:1;min-width:120px">
       <div style="font-size:22px;font-weight:700;color:${cor};line-height:1.1">${n}</div>
-      <div style="font-size:11.5px;color:#64748b;margin-top:2px">${rot}</div>
+      <div style="font-size:11.5px;color:#6B6A66;margin-top:2px">${rot}</div>
     </div>`;
 
   const linhaProduto = (p) => `
     <tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">
+      <td style="padding:8px 10px;border-bottom:1px solid #F4F1EA">
         <div style="font-weight:600;font-size:13px">${esc(p.nome)}</div>
-        <div style="font-size:11px;color:#94a3b8">${p.sku ? "SKU " + esc(p.sku) : "identificado pelo nome"}</div>
+        <div style="font-size:11px;color:#8E8B84">${p.sku ? "SKU " + esc(p.sku) : "identificado pelo nome"}</div>
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:13px;white-space:nowrap">${plMoeda(p.custo)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px">
-        ${p.anuncios.map((a) => `<span style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:2px 8px;margin:1px 3px 1px 0;${a.foraDoMarketplace ? "border-color:#fca5a5;background:#fef2f2;color:#b91c1c" : ""}">${plMoeda(a.preco)}${a.foraDoMarketplace ? " · " + esc(a.mkt) : ""}</span>`).join("") || "<span style='color:#cbd5e1'>sem anúncio</span>"}
+      <td style="padding:8px 10px;border-bottom:1px solid #F4F1EA;font-size:13px;white-space:nowrap">${plMoeda(p.custo)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F4F1EA;font-size:12.5px">
+        ${p.anuncios.map((a) => `<span style="display:inline-block;background:#FBFAF7;border:1px solid #E7E4DD;border-radius:7px;padding:2px 8px;margin:1px 3px 1px 0;${a.foraDoMarketplace ? "border-color:#fca5a5;background:#fef2f2;color:#b91c1c" : ""}">${plMoeda(a.preco)}${a.foraDoMarketplace ? " · " + esc(a.mkt) : ""}</span>`).join("") || "<span style='color:#C9C4B8'>sem anúncio</span>"}
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8">${p.fotos ? "📁 fotos" : ""}${p.fotos && p.peso ? " · " : ""}${p.peso ? "peso" : ""}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F4F1EA;font-size:11.5px;color:#8E8B84">${p.fotos ? "📁 fotos" : ""}${p.fotos && p.peso ? " · " : ""}${p.peso ? "peso" : ""}</td>
     </tr>`;
 
   const blocoConflito = (c, i) => `
@@ -153,11 +153,11 @@ function plDesenharConferencia() {
       <div style="font-weight:600;font-size:13px;margin-bottom:2px">${esc(c.nome || c.chave)}</div>
       <div style="font-size:12px;color:#92400e;margin-bottom:9px">Custo diferente ${c.entreAbas ? "do que já está no sistema" : "entre as linhas desta aba"}. Qual é o certo?</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${c.valores.map((v, j) => `<label style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;padding:7px 13px;font-size:13px;cursor:pointer">
-          <input type="radio" name="pl-cf-${i}" data-cf="${esc(c.chave)}" value="${v}" ${j === 0 ? "" : ""} style="margin:0;accent-color:#ea580c"/>${plMoeda(v)}
+        ${c.valores.map((v, j) => `<label style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #E7E4DD;border-radius:9px;padding:7px 13px;font-size:13px;cursor:pointer">
+          <input type="radio" name="pl-cf-${i}" data-cf="${esc(c.chave)}" value="${v}" ${j === 0 ? "" : ""} style="margin:0;accent-color:#B8872B"/>${plMoeda(v)}
         </label>`).join("")}
-        <label style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #e5e7eb;border-radius:9px;padding:7px 13px;font-size:13px;cursor:pointer;color:#64748b">
-          <input type="radio" name="pl-cf-${i}" data-cf="${esc(c.chave)}" value="" checked style="margin:0;accent-color:#94a3b8"/>deixar de fora
+        <label style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #E7E4DD;border-radius:9px;padding:7px 13px;font-size:13px;cursor:pointer;color:#6B6A66">
+          <input type="radio" name="pl-cf-${i}" data-cf="${esc(c.chave)}" value="" checked style="margin:0;accent-color:#8E8B84"/>deixar de fora
         </label>
       </div>
     </div>`;
@@ -165,17 +165,17 @@ function plDesenharConferencia() {
   showFormModal(`
   <div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
-      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Conferir antes de importar · ${esc(loja.name)}</div></div>
-      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#14151A">Conferir antes de importar · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
       <div style="display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap">
         ${cartao("#16a34a", "#f0fdf4", "#bbf7d0", entram.length, "produtos entram")}
-        ${cartao("#0f172a", "#f8fafc", "#e2e8f0", anuncios, "anúncios")}
-        ${cartao(conflitos.length ? "#b45309" : "#94a3b8", "#fffbeb", "#fde68a", conflitos.length, "em conflito")}
-        ${cartao(leitura.semIdentidade.length ? "#b91c1c" : "#94a3b8", "#fef2f2", "#fecaca", leitura.semIdentidade.length, "não consegui ler")}
+        ${cartao("#14151A", "#FBFAF7", "#E7E4DD", anuncios, "anúncios")}
+        ${cartao(conflitos.length ? "#8A6420" : "#8E8B84", "#fffbeb", "#fde68a", conflitos.length, "em conflito")}
+        ${cartao(leitura.semIdentidade.length ? "#b91c1c" : "#8E8B84", "#fef2f2", "#fecaca", leitura.semIdentidade.length, "não consegui ler")}
       </div>
 
-      <div style="font-size:11.5px;color:#94a3b8;margin-bottom:16px;line-height:1.6">
+      <div style="font-size:11.5px;color:#8E8B84;margin-bottom:16px;line-height:1.6">
         ${leitura.vazias} linha(s) de fórmula vazia ignoradas · anúncios por marketplace:
         ${Object.entries(leitura.porMarketplace).map(([k, v]) => `${esc(k)} ${v}`).join(" · ") || "—"}
       </div>
@@ -191,20 +191,20 @@ function plDesenharConferencia() {
       ${leitura.semIdentidade.length ? `<div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.5px;margin:14px 0 9px">Linhas que ficaram de fora</div>
         <div style="background:#fff;border:1px solid #fecaca;border-radius:11px;padding:4px 0;max-height:170px;overflow:auto">
         ${leitura.semIdentidade.slice(0, PL_MAX_LISTA).map((s) => `<div style="padding:6px 14px;font-size:12px;border-bottom:1px solid #fef2f2">
-            <span style="color:#94a3b8">linha ${s.linha}</span> · <span style="color:#b91c1c">${esc(s.motivo)}</span>
-            <div style="color:#64748b;font-family:ui-monospace,Menlo,monospace;font-size:11px;margin-top:2px">${esc(s.conteudo)}</div>
+            <span style="color:#8E8B84">linha ${s.linha}</span> · <span style="color:#b91c1c">${esc(s.motivo)}</span>
+            <div style="color:#6B6A66;font-family:ui-monospace,Menlo,monospace;font-size:11px;margin-top:2px">${esc(s.conteudo)}</div>
           </div>`).join("")}
         </div>` : ""}
 
-      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 9px">Vão entrar</div>
-      <div style="border:1px solid #e2e8f0;border-radius:11px;overflow:auto;max-height:300px">
+      <div style="font-size:11px;font-weight:700;color:#5C584F;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 9px">Vão entrar</div>
+      <div style="border:1px solid #E7E4DD;border-radius:11px;overflow:auto;max-height:300px">
         <table style="width:100%;border-collapse:collapse">
-          <thead style="background:#f8fafc;position:sticky;top:0">
+          <thead style="background:#FBFAF7;position:sticky;top:0">
             <tr>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b">Produto</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b">Custo</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b">Anúncios nesta loja</th>
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b"></th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6B6A66">Produto</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6B6A66">Custo</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6B6A66">Anúncios nesta loja</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6B6A66"></th>
             </tr>
           </thead>
           <tbody>${entram.slice(0, PL_MAX_LISTA).map(linhaProduto).join("")}</tbody>
@@ -330,32 +330,32 @@ function plMostrarSku(j) {
   const { loja } = plEstado;
   const lista = (titulo, itens, cor) => !itens.length ? "" : `
     <div style="font-size:11px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:.5px;margin:14px 0 7px">${titulo}</div>
-    <div style="border:1px solid #e2e8f0;border-radius:10px;max-height:150px;overflow:auto">
-      ${itens.map((x) => `<div style="padding:6px 12px;font-size:12px;border-bottom:1px solid #f8fafc">
-        <span style="font-family:ui-monospace,Menlo,monospace;color:#475569">${esc(x.sku || x.itemId || "—")}</span>
-        <span style="color:#94a3b8"> · ${esc(x.chave || x.nome || "")}</span>
+    <div style="border:1px solid #E7E4DD;border-radius:10px;max-height:150px;overflow:auto">
+      ${itens.map((x) => `<div style="padding:6px 12px;font-size:12px;border-bottom:1px solid #FBFAF7">
+        <span style="font-family:ui-monospace,Menlo,monospace;color:#5C584F">${esc(x.sku || x.itemId || "—")}</span>
+        <span style="color:#8E8B84"> · ${esc(x.chave || x.nome || "")}</span>
       </div>`).join("")}
     </div>`;
 
   showFormModal(`
   <div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
-      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">SKU do marketplace · ${esc(loja.name)}</div></div>
-      <button id="pl-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#14151A">SKU do marketplace · ${esc(loja.name)}</div></div>
+      <button id="pl-close" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:13px 16px;margin-bottom:6px;font-size:13px;color:#0f172a;line-height:1.6">
+      <div style="background:#FBFAF7;border:1px solid #E7E4DD;border-radius:11px;padding:13px 16px;margin-bottom:6px;font-size:13px;color:#14151A;line-height:1.6">
         ${esc(j.veredito)}
       </div>
-      <div style="font-size:11.5px;color:#94a3b8;line-height:1.7;margin-bottom:4px">
+      <div style="font-size:11.5px;color:#8E8B84;line-height:1.7;margin-bottom:4px">
         ${j.lidos.diasDeVenda} dia(s) de venda lidos · ${j.lidos.itens} item(ns) ·
         ${j.anunciosImportados} anúncio(s) importado(s) nesta loja
       </div>
 
       ${lista("Vão receber SKU", j.amostra.casados, "#16a34a")}
-      ${j.semSku ? `<div style="margin-top:14px;font-size:12.5px;color:#b45309;line-height:1.6">
+      ${j.semSku ? `<div style="margin-top:14px;font-size:12.5px;color:#8A6420;line-height:1.6">
         ${j.semSku} anúncio(s) venderam mas <b>não têm SKU preenchido no marketplace</b>. Não há o que puxar para eles — o campo está vazio no próprio anúncio.
       </div>` : ""}
-      ${j.semVenda ? `<div style="margin-top:10px;font-size:12.5px;color:#94a3b8;line-height:1.6">
+      ${j.semVenda ? `<div style="margin-top:10px;font-size:12.5px;color:#8E8B84;line-height:1.6">
         ${j.semVenda} anúncio(s) importado(s) ainda não venderam nada no período sincronizado, então o marketplace não me contou o SKU deles.
       </div>` : ""}
 
@@ -412,10 +412,10 @@ async function abrirAcessoDoCliente(custId) {
   showFormModal(`
   <div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
-      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#0f172a">Acesso ao sistema · ${esc(cust.name)}</div></div>
-      <button id="ac-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
+      <div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#14151A">Acesso ao sistema · ${esc(cust.name)}</div></div>
+      <button id="ac-close" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer;flex-shrink:0">✕</button>
     </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#475569;line-height:1.6">
+      <div style="background:#FBFAF7;border:1px solid #E7E4DD;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#5C584F;line-height:1.6">
         Esta é a conta com que <b>o próprio cliente</b> entra no sistema e vê os
         produtos dele. Não é a senha da loja no marketplace — essa fica no 🔑.
       </div>
@@ -428,10 +428,10 @@ async function abrirAcessoDoCliente(custId) {
           </div>
           <button data-remac="${esc(c.id)}" class="btn-sm" style="color:#b91c1c;white-space:nowrap">Remover acesso</button>
         </div>`).join("") : `
-        <div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Nenhum acesso criado ainda.</div>`}
+        <div style="font-size:12.5px;color:#8E8B84;margin-bottom:14px">Nenhum acesso criado ainda.</div>`}
 
-      <div style="border-top:1px solid #f1f5f9;margin-top:14px;padding-top:16px">
-        <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">${jaTem ? "Criar outro acesso" : "Criar o acesso"}</div>
+      <div style="border-top:1px solid #F4F1EA;margin-top:14px;padding-top:16px">
+        <div style="font-size:11px;font-weight:700;color:#5C584F;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">${jaTem ? "Criar outro acesso" : "Criar o acesso"}</div>
         <div class="form-row">
           <div class="form-group"><label>Nome de quem vai entrar</label><input id="ac-nome" class="finput" value="${esc(cust.name)}"/></div>
           <div class="form-group"><label>E-mail</label><input id="ac-email" class="finput" type="email" placeholder="cliente@exemplo.com"/></div>
@@ -442,7 +442,7 @@ async function abrirAcessoDoCliente(custId) {
             <input id="ac-senha" class="finput" style="flex:1" placeholder="Ele troca depois, por 'Esqueci minha senha'"/>
             <button id="ac-gerar" type="button" class="btn-sm" style="white-space:nowrap">Gerar</button>
           </div>
-          <div style="font-size:11.5px;color:#94a3b8;margin-top:6px;line-height:1.5">Anote agora e mande para o cliente: depois de salvar, nem eu nem você conseguimos ler essa senha de novo.</div>
+          <div style="font-size:11.5px;color:#8E8B84;margin-top:6px;line-height:1.5">Anote agora e mande para o cliente: depois de salvar, nem eu nem você conseguimos ler essa senha de novo.</div>
         </div>
       </div>
 
@@ -529,12 +529,12 @@ async function abrirAcessoEspecialistas() {
   <div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
       <div>
-        <div style="font-size:15px;font-weight:800;color:#0f172a">🤝 Especialistas</div>
-        <div style="font-size:11.5px;color:#64748b;margin-top:2px">Um acesso por marketplace, para os parceiros</div>
+        <div style="font-size:15px;font-weight:800;color:#14151A">🤝 Especialistas</div>
+        <div style="font-size:11.5px;color:#6B6A66;margin-top:2px">Um acesso por marketplace, para os parceiros</div>
       </div>
-      <button id="es-close" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer">✕</button>
+      <button id="es-close" style="background:none;border:none;color:#8E8B84;font-size:18px;cursor:pointer">✕</button>
     </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#475569;line-height:1.6">
+    <div style="background:#FBFAF7;border:1px solid #E7E4DD;border-radius:11px;padding:12px 15px;margin-bottom:16px;font-size:12.5px;color:#5C584F;line-height:1.6">
       O especialista vê os produtos dos clientes que operam no marketplace dele,
       com o custo para precificar, e registra o anúncio que criou. Não enxerga
       nada seu nem de cliente fora do marketplace dele.
@@ -542,18 +542,18 @@ async function abrirAcessoEspecialistas() {
 
     ${contas.length ? contas.map((c) => {
       const st = mktStyle(c.mkt);
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #e5e7eb;border-radius:11px;padding:12px 15px;margin-bottom:9px">
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #E7E4DD;border-radius:11px;padding:12px 15px;margin-bottom:9px">
         <div style="min-width:0">
           <span style="display:inline-block;background:${st.bg};color:${st.fg};border:1px solid ${st.border};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">${esc(c.mkt || "?")}</span>
           <div style="font-weight:600;font-size:13px;margin-top:5px">${esc(c.nome || "sem nome")}</div>
-          <div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis">${esc(c.email || "")}</div>
+          <div style="font-size:12px;color:#6B6A66;overflow:hidden;text-overflow:ellipsis">${esc(c.email || "")}</div>
         </div>
         <button data-remesp="${esc(c.id)}" class="btn-sm" style="color:#b91c1c;white-space:nowrap">Remover</button>
       </div>`;
-    }).join("") : `<div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Nenhum especialista cadastrado ainda.</div>`}
+    }).join("") : `<div style="font-size:12.5px;color:#8E8B84;margin-bottom:14px">Nenhum especialista cadastrado ainda.</div>`}
 
-    <div style="border-top:1px solid #f1f5f9;margin-top:14px;padding-top:16px">
-      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">Novo acesso</div>
+    <div style="border-top:1px solid #F4F1EA;margin-top:14px;padding-top:16px">
+      <div style="font-size:11px;font-weight:700;color:#5C584F;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px">Novo acesso</div>
       <div class="form-row">
         <div class="form-group"><label>Marketplace</label>
           <select id="es-mkt" class="finput">${opcoes.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select>
@@ -569,7 +569,7 @@ async function abrirAcessoEspecialistas() {
           </div>
         </div>
       </div>
-      <div style="font-size:11.5px;color:#94a3b8;margin-top:8px;line-height:1.5">Anote a senha agora: depois de salvar, ninguém consegue lê-la de novo.</div>
+      <div style="font-size:11.5px;color:#8E8B84;margin-top:8px;line-height:1.5">Anote a senha agora: depois de salvar, ninguém consegue lê-la de novo.</div>
     </div>
 
     <div class="form-actions" style="margin-top:16px">
@@ -645,8 +645,8 @@ async function vaChamar(acao, dados) {
 function abrirVinculosAnuncios() {
   showFormModal(`<div class="form-panel" id="va-painel">
     <h3>Identificar anúncios</h3>
-    <p style="font-size:13px;color:#475569">Escolha a conta compartilhada para consultar ou registrar anúncios. O cliente será identificado por um vínculo confirmado, mesmo que o SKU se repita.</p>
-    <p style="font-size:12px;color:#64748b">Este cadastro prepara os vínculos. A sincronização automática dos marketplaces ainda não está conectada.</p>
+    <p style="font-size:13px;color:#5C584F">Escolha a conta compartilhada para consultar ou registrar anúncios. O cliente será identificado por um vínculo confirmado, mesmo que o SKU se repita.</p>
+    <p style="font-size:12px;color:#6B6A66">Este cadastro prepara os vínculos. A sincronização automática dos marketplaces ainda não está conectada.</p>
     <div class="form-group"><label for="va-mkt">Marketplace</label><select class="finput" id="va-mkt"><option>Mercado Livre</option><option>TikTok</option></select></div>
     <div class="form-group"><label for="va-conta">ID da conta no marketplace</label><input class="finput" id="va-conta" maxlength="160" placeholder="Identificador da conta vendedora, não o e-mail" /></div>
     <div class="form-actions"><button class="btn-sm" id="va-fechar">Fechar</button><button class="btn-primary" id="va-consultar">Consultar conta</button></div>
@@ -682,8 +682,8 @@ function abrirVinculosAnuncios() {
     el("conteudo").innerHTML = `
       <div class="form-group"><label for="va-item">ID do anúncio nesta conta</label><input class="finput" id="va-item" maxlength="160" placeholder="Identificador do anúncio, não o SKU" /></div>
       <button id="va-registrar" class="btn-sm">Registrar anúncio pendente</button>
-      <p style="font-size:12px;color:#64748b">Anúncios pendentes ficam fora dos painéis dos clientes. Registrar novamente o mesmo anúncio preserva seu vínculo.</p>
-      <div>${itens.length ? itens.map((x, i) => `<div style="border-top:1px solid #e2e8f0;padding:12px 0">
+      <p style="font-size:12px;color:#6B6A66">Anúncios pendentes ficam fora dos painéis dos clientes. Registrar novamente o mesmo anúncio preserva seu vínculo.</p>
+      <div>${itens.length ? itens.map((x, i) => `<div style="border-top:1px solid #E7E4DD;padding:12px 0">
         <strong>${esc(x.itemId)}</strong> · ${x.status === "confirmado" ? `Confirmado: ${esc(x.custNome)} · ${esc(x.produtoNome)}` : '<span style="color:#92400e">Pendente de identificação</span>'}
         ${x.status === "confirmado" ? "" : `<button class="btn-sm" data-va-escolher="${i}">Identificar cliente</button>`}
       </div>`).join("") : '<p>Nenhum anúncio registrado nesta conta.</p>'}</div>
@@ -751,8 +751,8 @@ function abrirVinculosAnuncios() {
 async function conferirMargens() {
   showFormModal(`<div class="form-panel" id="cm-painel" style="max-width:900px">
     <h3>Conferir as contas de margem</h3>
-    <p style="font-size:13px;color:#475569">Comparando a margem que veio da planilha com a que o sistema calcula pelas taxas. Onde os dois divergirem, falta alguma coisa na conta.</p>
-    <div id="cm-corpo" style="margin-top:16px;font-size:13px;color:#64748b">Carregando…</div>
+    <p style="font-size:13px;color:#5C584F">Comparando a margem que veio da planilha com a que o sistema calcula pelas taxas. Onde os dois divergirem, falta alguma coisa na conta.</p>
+    <div id="cm-corpo" style="margin-top:16px;font-size:13px;color:#6B6A66">Carregando…</div>
     <div class="form-actions"><button class="btn-sm" id="cm-fechar">Fechar</button></div>
   </div>`);
   const painel = document.getElementById("cm-painel");
@@ -770,20 +770,20 @@ async function conferirMargens() {
         window.fb.orderBy("data", "desc"), window.fb.limit(120)));
       const dias = snap.docs.map((d) => d.data());
       const r = window.taxas.conferirTabelaShopee(dias);
-      if (!r) return `<div style="font-size:12.5px;color:#94a3b8;margin-bottom:14px">Ainda não há vendas com detalhe de item para conferir a tabela da Shopee.</div>`;
+      if (!r) return `<div style="font-size:12.5px;color:#8E8B84;margin-bottom:14px">Ainda não há vendas com detalhe de item para conferir a tabela da Shopee.</div>`;
       const perto = Math.abs(r.diferenca) <= 1.5;
-      const cor = perto ? "#15803d" : Math.abs(r.diferenca) <= 4 ? "#b45309" : "#b91c1c";
+      const cor = perto ? "#15803d" : Math.abs(r.diferenca) <= 4 ? "#8A6420" : "#b91c1c";
       const fundo = perto ? "#f0fdf4" : Math.abs(r.diferenca) <= 4 ? "#fffbeb" : "#fef2f7";
       const borda = perto ? "#bbf7d0" : Math.abs(r.diferenca) <= 4 ? "#fde68a" : "#fecaca";
       return `
       <div style="background:${fundo};border:1px solid ${borda};border-radius:10px;padding:13px 15px;margin-bottom:16px">
         <div style="font-size:13px;font-weight:800;color:${cor};margin-bottom:7px">A tabela da Shopee bate com o que ela cobrou?</div>
-        <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:#334155">
+        <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:#4A463D">
           <span>A Shopee cobrou <b>${plMoeda(r.real)}</b> (${String(r.pctReal).replace(".", ",")}% do faturamento)</span>
           <span>A tabela previa <b>${plMoeda(r.estimado)}</b> (${String(r.pctEstimado).replace(".", ",")}%)</span>
           <span style="color:${cor};font-weight:700">diferença ${r.diferenca > 0 ? "+" : ""}${String(r.diferenca).replace(".", ",")} pontos</span>
         </div>
-        <div style="font-size:11.5px;color:#64748b;margin-top:7px;line-height:1.55">
+        <div style="font-size:11.5px;color:#6B6A66;margin-top:7px;line-height:1.55">
           ${perto
             ? "A tabela está certa. O que a margem estima para a Shopee pode ser usado com confiança."
             : r.diferenca > 0
@@ -799,8 +799,8 @@ async function conferirMargens() {
   };
 
   try {
-    corpo.innerHTML = await conferirTabela() + `<div style="font-size:13px;color:#64748b">Comparando com a planilha…</div>`;
-    const cabecalho = corpo.innerHTML.replace(/<div style="font-size:13px;color:#64748b">Comparando[\s\S]*$/, "");
+    corpo.innerHTML = await conferirTabela() + `<div style="font-size:13px;color:#6B6A66">Comparando com a planilha…</div>`;
+    const cabecalho = corpo.innerHTML.replace(/<div style="font-size:13px;color:#6B6A66">Comparando[\s\S]*$/, "");
 
     // Só os anúncios que têm margem da planilha: são os únicos com gabarito.
     const snap = await window.fb.getDocs(window.fb.query(
@@ -808,7 +808,7 @@ async function conferirMargens() {
     const anuncios = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .filter((a) => a.margem !== null && a.margem !== undefined && a.preco);
     if (!anuncios.length) {
-      corpo.innerHTML = cabecalho + `<div style="color:#94a3b8">Nenhum anúncio com margem da planilha para comparar.</div>`;
+      corpo.innerHTML = cabecalho + `<div style="color:#8E8B84">Nenhum anúncio com margem da planilha para comparar.</div>`;
       return;
     }
 
@@ -835,7 +835,7 @@ async function conferirMargens() {
         dif: r.margem === null ? null : Math.abs(r.margem - Number(a.margem)) });
     }
     if (!linhas.length) {
-      corpo.innerHTML = cabecalho + `<div style="color:#94a3b8">Nenhum anúncio com margem E custo para comparar.</div>`;
+      corpo.innerHTML = cabecalho + `<div style="color:#8E8B84">Nenhum anúncio com margem E custo para comparar.</div>`;
       return;
     }
 
@@ -850,19 +850,19 @@ async function conferirMargens() {
     corpo.innerHTML = cabecalho + `
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Comparados</div>
+          <div style="font-size:11px;color:#6B6A66;text-transform:uppercase;letter-spacing:.4px">Comparados</div>
           <div style="font-size:19px;font-weight:800">${linhas.length}</div></div>
         <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Batendo (até 1 ponto)</div>
-          <div style="font-size:19px;font-weight:800;color:${perto === linhas.length ? "#3b6d11" : "#b45309"}">${perto}</div></div>
+          <div style="font-size:11px;color:#6B6A66;text-transform:uppercase;letter-spacing:.4px">Batendo (até 1 ponto)</div>
+          <div style="font-size:19px;font-weight:800;color:${perto === linhas.length ? "#3b6d11" : "#8A6420"}">${perto}</div></div>
         <div class="card" style="padding:11px 14px;flex:1;min-width:150px">
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.4px">Diferença típica</div>
+          <div style="font-size:11px;color:#6B6A66;text-transform:uppercase;letter-spacing:.4px">Diferença típica</div>
           <div style="font-size:19px;font-weight:800">${mediana === null ? "—" : mediana.toFixed(1).replace(".", ",") + " pts"}</div></div>
       </div>
       ${perto === linhas.length ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:9px;padding:10px 13px;margin-bottom:12px;font-size:12.5px">A conta bate com a planilha. O cálculo pode ser usado onde não há margem gravada.</div>`
         : `<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:9px;padding:10px 13px;margin-bottom:12px;font-size:12.5px"><b>Ainda falta alguma coisa na conta.</b> Olhe as maiores diferenças abaixo: se a estimativa sobra sempre mais que a planilha, há um desconto que o sistema não conhece.</div>`}
       <div style="max-height:340px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
-        <thead style="background:#f8fafc;position:sticky;top:0"><tr>
+        <thead style="background:#FBFAF7;position:sticky;top:0"><tr>
           <th style="text-align:left;padding:7px 9px">Produto</th>
           <th style="text-align:left;padding:7px 9px">Loja</th>
           <th style="text-align:right;padding:7px 9px">Preço</th>
@@ -871,12 +871,12 @@ async function conferirMargens() {
           <th style="text-align:right;padding:7px 9px">Diferença</th>
         </tr></thead>
         <tbody>${linhas.slice(0, 60).map((l) => {
-          const c = l.dif === null ? "#94a3b8" : l.dif <= 1 ? "#3b6d11" : l.dif <= 5 ? "#b45309" : "#b91c1c";
+          const c = l.dif === null ? "#8E8B84" : l.dif <= 1 ? "#3b6d11" : l.dif <= 5 ? "#8A6420" : "#b91c1c";
           const detalhe = l.r.falta.length ? "falta " + l.r.falta.join(", ")
             : l.r.descontos.map((d) => `${d.rotulo} -${plMoeda(d.valor)}`).join(" | ");
           return `<tr title="${esc(detalhe)}">
             <td style="padding:7px 9px">${esc(l.p.nome || l.a.sku || "—")}</td>
-            <td style="padding:7px 9px;color:#64748b">${esc(l.a.storeNome || "—")}</td>
+            <td style="padding:7px 9px;color:#6B6A66">${esc(l.a.storeNome || "—")}</td>
             <td style="padding:7px 9px;text-align:right">${plMoeda(l.a.preco)}</td>
             <td style="padding:7px 9px;text-align:right;font-weight:600">${l.real.toFixed(1).replace(".", ",")}%</td>
             <td style="padding:7px 9px;text-align:right;font-weight:600">${l.r.margem === null ? "—" : l.r.margem.toFixed(1).replace(".", ",") + "%"}</td>
@@ -884,7 +884,7 @@ async function conferirMargens() {
           </tr>`;
         }).join("")}</tbody>
       </table></div>
-      <div style="font-size:11.5px;color:#94a3b8;margin-top:9px">Passe o mouse numa linha para ver a conta detalhada. Mostrando ${Math.min(60, linhas.length)} de ${linhas.length}.</div>`;
+      <div style="font-size:11.5px;color:#8E8B84;margin-top:9px">Passe o mouse numa linha para ver a conta detalhada. Mostrando ${Math.min(60, linhas.length)} de ${linhas.length}.</div>`;
   } catch (e) {
     console.error("conferirMargens:", e);
     corpo.innerHTML = `<div style="color:#b91c1c">Não consegui comparar agora: ${esc(e.message || "")}</div>`;

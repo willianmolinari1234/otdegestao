@@ -17,12 +17,12 @@ function daysUntil(dateISO){
 function isOverdue(t){return t.status!=="done"&&daysUntil(t.date)<0;}
 function deadlineInfo(t){
   const d=daysUntil(t.date);
-  if(t.status==="done")return{label:"Concluída",color:"#94a3b8",bg:"#f1f5f9",overdue:false};
+  if(t.status==="done")return{label:"Concluída",color:"#8E8B84",bg:"#F4F1EA",overdue:false};
   if(d<0)return{label:`Atrasada ${Math.abs(d)}d`,color:"#dc2626",bg:"#fee2e2",overdue:true};
-  if(d===0)return{label:"Hoje",color:"#ea580c",bg:"#ffedd5",overdue:false};
+  if(d===0)return{label:"Hoje",color:"#B8872B",bg:"#F5EBD6",overdue:false};
   if(d===1)return{label:"Amanhã",color:"#d97706",bg:"#fef3c7",overdue:false};
   if(d<=3)return{label:`Em ${d}d`,color:"#d97706",bg:"#fef3c7",overdue:false};
-  return{label:`Em ${d}d`,color:"#64748b",bg:"#f1f5f9",overdue:false};
+  return{label:`Em ${d}d`,color:"#6B6A66",bg:"#F4F1EA",overdue:false};
 }
 function rangeLabel(){
   return{today:"Hoje",next7:"Próximos 7 dias",last7:"Últimos 7 dias",last30:"Últimos 30 dias",all:"Todas as datas",custom:`Data: ${fDate}`}[fRange];
@@ -225,7 +225,7 @@ const TPL=[
 function rangeBarHTML(){
   const opts=[["today","Hoje"],["next7","Próximos 7d"],["last7","Últimos 7d"],["last30","Últimos 30d"],["all","Tudo"]];
   return`<div class="range-bar">
-    <span style="font-size:11px;color:#64748b;margin-right:4px;font-weight:600">📅 PERÍODO</span>
+    <span style="font-size:11px;color:#6B6A66;margin-right:4px;font-weight:600">📅 PERÍODO</span>
     ${opts.map(([k,l])=>`<button class="range-pill${fRange===k?" active":""}" data-range="${k}">${l}</button>`).join("")}
     <div class="range-sep"></div>
     <input type="date" class="range-date" id="range-date" value="${fDate}" title="Data específica"/>

@@ -272,7 +272,7 @@ function diagBuildReport(){
   const sv=id=>{const e=document.getElementById("diag-"+id);return e&&e.value?e.value:"—";};
   let ws=0,acc=0;DIAG_DIMS.forEach((d,di)=>{const p=diagDimPct(di);if(p!==null){ws+=d.w;acc+=d.w*p;}});
   const score=ws>0?Math.round(acc/ws):0;
-  const dimsH=DIAG_DIMS.map((d,di)=>{const p=diagDimPct(di);return `<div class="r-bar"><div class="l"><span>${d.n} · ${Math.round(d.w*100)}%</span><span>${p===null?'—':Math.round(p)}</span></div><div class="r-track"><div class="r-fill" style="width:${p===null?0:p}%;background:${p===null?'#D5D8DF':diagHex(p)}"></div></div></div>`;}).join("");
+  const dimsH=DIAG_DIMS.map((d,di)=>{const p=diagDimPct(di);return `<div class="r-bar"><div class="l"><span>${d.n} · ${Math.round(d.w*100)}%</span><span>${p===null?'—':Math.round(p)}</span></div><div class="r-track"><div class="r-fill" style="width:${p===null?0:p}%;background:${p===null?'#C9C4B8':diagHex(p)}"></div></div></div>`;}).join("");
 
   // Lista de problemas do RELATÓRIO DO CLIENTE: sem o campo "Ação".
   // O plano de ação é conduzido pela OTDE internamente — na tela de trabalho
@@ -312,7 +312,7 @@ function diagBuildReport(){
   
   document.getElementById("diag-report").innerHTML=`
     <div class="r-band"><span class="r-logo">${DIAG_CART}</span><div style="flex:1">
-      <div class="rb">OTDE · O Tal de Ecommerce — Gestão de Contas Shopee</div>
+      <div class="rb">OTDE Performance · O Tal de Ecommerce</div>
       <h1>${sv('loja')!=='—'?sv('loja'):'Diagnóstico da conta'}</h1>
       <div class="r-mg"><div><span>Cliente:</span> <b>${diagInfo.cliente||'—'}</b></div><div><span>Tipo:</span> <b>${diagTipo}</b></div><div><span>Categoria:</span> <b>${sv('cat')}</b></div><div><span>Data:</span> <b>${sv('data')}</b></div><div><span>Responsável:</span> <b>${sv('resp')}</b></div></div>
     </div></div>
@@ -508,21 +508,21 @@ function avisoFerramentasHTML(){
   const CORES={
     crit:  {bg:"#fee2e2",fg:"#991b1b",bd:"#fecaca"},
     alerta:{bg:"#fef3c7",fg:"#92400e",bd:"#fde68a"},
-    min:   {bg:"#ffedd5",fg:"#9a3412",bd:"#fed7aa"},
+    min:   {bg:"#F5EBD6",fg:"#6B4D18",bd:"#E8D4A8"},
   };
   const tag=(x)=>{const c=CORES[x.n]||CORES.min;
     return `<span style="display:inline-block;background:${c.bg};color:${c.fg};border:1px solid ${c.bd};border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap">${esc(x.t)}</span>`;};
 
   const linha=(nome,direita,sep="#f5e6d8")=>`
     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid ${sep}">
-      <span style="flex:0 0 auto;min-width:172px;font-size:12.5px;font-weight:600;color:#1e293b">${esc(nome)}</span>
+      <span style="flex:0 0 auto;min-width:172px;font-size:12.5px;font-weight:600;color:#1E1B14">${esc(nome)}</span>
       <span style="display:flex;gap:5px;flex-wrap:wrap">${direita}</span>
     </div>`;
 
   const titulo=(txt,n)=>`
     <div style="display:flex;align-items:center;gap:8px;margin:0 0 2px">
       <span style="font-size:12.5px;font-weight:700;color:#7c2d12;letter-spacing:-.01em">${txt}</span>
-      <span style="background:#ea580c;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${n}</span>
+      <span style="background:#8A6420;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${n}</span>
     </div>`;
 
   const rodape=(txt)=>`<div style="font-size:11.5px;color:#a16207;margin-top:8px;line-height:1.6">${txt}</div>`;
@@ -543,9 +543,9 @@ function avisoFerramentasHTML(){
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${tag(g.tag)}<span style="font-size:11.5px;color:#78716c">${g.nomes.length} loja(s)</span>
       </div>
-      <div style="font-size:12px;color:#475569;line-height:1.7;margin-top:3px">${
+      <div style="font-size:12px;color:#5C584F;line-height:1.7;margin-top:3px">${
         g.nomes.slice(0,AVISO_MAX_NOMES).map(esc).join(" · ")
-      }${g.nomes.length>AVISO_MAX_NOMES?` <span style="color:#94a3b8">…e mais ${g.nomes.length-AVISO_MAX_NOMES}</span>`:""}</div>
+      }${g.nomes.length>AVISO_MAX_NOMES?` <span style="color:#8E8B84">…e mais ${g.nomes.length-AVISO_MAX_NOMES}</span>`:""}</div>
     </div>`;
 
   let html="";
@@ -572,13 +572,13 @@ function avisoFerramentasHTML(){
   if(vence.length){
     html+=`<div style="margin-top:14px">`+titulo("Vencendo em até 2 dias",vence.length)
       +vence.slice(0,AVISO_MAX_VENCENDO).map(p=>linha(nomeLoja(p.cliente),
-        `<span style="font-size:12px;color:#475569">${esc(p.nome)}</span>`
+        `<span style="font-size:12px;color:#5C584F">${esc(p.nome)}</span>`
         +tag({t:window.prazos.comoFalta(p.horas),n:p.horas<24?"crit":"alerta"}))).join("")
       +(vence.length>AVISO_MAX_VENCENDO?rodape(`…e mais ${vence.length-AVISO_MAX_VENCENDO}.`):"")
       +`</div>`;
   }
 
-  return`<div style="background:#fffaf5;border:1px solid #fed7aa;border-left:4px solid #ea580c;border-radius:12px;padding:14px 18px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(15,23,42,.04)">${html}</div>`;
+  return`<div style="background:#FDFAF3;border:1px solid #E8D4A8;border-left:4px solid #B8872B;border-radius:12px;padding:14px 18px 16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,21,26,.04)">${html}</div>`;
 }
 
 // Aviso da conferência diária — MANTIDO, mas fora do painel.
@@ -610,13 +610,13 @@ function avisoConferenciaHTML(){
   }
   const sobra=(conferencia.divergencias||0)+(conferencia.quedas||0)-itens.length;
 
-  return`<div style="background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:10px;padding:14px 18px;margin-bottom:16px">
-    <div style="font-weight:700;font-size:13.5px;color:#9a3412;margin-bottom:6px">
+  return`<div style="background:#FBF7EE;border:1px solid #DFC489;border-left:4px solid #B8872B;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:13.5px;color:#6B4D18;margin-bottom:6px">
       Conferência de ${fmtDate(conferencia.data)}: números mudaram depois de fechados
     </div>
     <ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;color:#7c2d12;line-height:1.7">${itens.join("")}</ul>
-    ${sobra>0?`<div style="font-size:11.5px;color:#9a3412">…e mais ${sobra} ocorrência(s).</div>`:""}
-    <div style="font-size:11.5px;color:#9a3412;margin-top:6px">
+    ${sobra>0?`<div style="font-size:11.5px;color:#6B4D18">…e mais ${sobra} ocorrência(s).</div>`:""}
+    <div style="font-size:11.5px;color:#6B4D18;margin-top:6px">
       Causa habitual: pedido cancelado ou devolvido depois da venda. Confira antes de fechar a cobrança dessas lojas.
     </div>
   </div>`;
@@ -634,13 +634,13 @@ function avisoSemResponsavelHTML(){
   if(!orfas.length)return "";
   const paradas=tsks.filter(t=>t.auto&&t.status!=="done"&&!t.emp).length;
   const nomes=orfas.slice(0,AVISO_MAX_NOMES).map(c=>esc(c.name)).join(" · ");
-  return`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #64748b;border-radius:12px;padding:13px 18px;margin-bottom:16px">
+  return`<div style="background:#FBFAF7;border:1px solid #E7E4DD;border-left:4px solid #6B6A66;border-radius:12px;padding:13px 18px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-      <span style="font-size:13px;font-weight:700;color:#334155">🙋 ${orfas.length===1?"1 loja está":`${orfas.length} lojas estão`} sem responsável</span>
+      <span style="font-size:13px;font-weight:700;color:#4A463D">🙋 ${orfas.length===1?"1 loja está":`${orfas.length} lojas estão`} sem responsável</span>
       ${paradas>0?`<span style="background:#dc2626;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${paradas} tarefa(s) sem dono</span>`:""}
     </div>
-    <div style="font-size:12px;color:#475569;line-height:1.7">${nomes}${orfas.length>AVISO_MAX_NOMES?` <span style="color:#94a3b8">…e mais ${orfas.length-AVISO_MAX_NOMES}</span>`:""}</div>
-    <div style="font-size:11.5px;color:#64748b;margin-top:6px">Defina em <strong>Clientes / Contas</strong> — a coluna Responsável salva na hora.</div>
+    <div style="font-size:12px;color:#5C584F;line-height:1.7">${nomes}${orfas.length>AVISO_MAX_NOMES?` <span style="color:#8E8B84">…e mais ${orfas.length-AVISO_MAX_NOMES}</span>`:""}</div>
+    <div style="font-size:11.5px;color:#6B6A66;margin-top:6px">Defina em <strong>Clientes / Contas</strong> — a coluna Responsável salva na hora.</div>
   </div>`;
 }
 
@@ -669,7 +669,7 @@ function rDash(){
     }
     return`<div class="chart-col">
       <div style="display:flex;align-items:flex-end;gap:2px;height:90px">
-        ${bar(a,maxV,"#fca5a5",90)}${bar(b,maxV,"#ea580c",90)}${bar(c,maxV,"#4ade80",90)}
+        ${bar(a,maxV,"#fca5a5",90)}${bar(b,maxV,"#B8872B",90)}${bar(c,maxV,"#4ade80",90)}
       </div>
       <div class="chart-lbl">${e.name.split(" ")[0]}</div>
       ${metaTag}
@@ -686,15 +686,15 @@ function rDash(){
     return a.date.localeCompare(b.date);
   });
   const rows=ts.length===0
-    ?`<p style="text-align:center;color:#94a3b8;padding:28px 0;font-size:13px">Nenhuma tarefa no período selecionado.</p>`
+    ?`<p style="text-align:center;color:#8E8B84;padding:28px 0;font-size:13px">Nenhuma tarefa no período selecionado.</p>`
     :sorted.map(t=>{
       const e=getEmp(t.emp),c=getCliV(t);
       const di=deadlineInfo(t);
-      return`<div style="display:flex;align-items:center;gap:12px;padding:9px 18px;border-bottom:1px solid #f8fafc${di.overdue?";background:#fff5f5":""}">
+      return`<div style="display:flex;align-items:center;gap:12px;padding:9px 18px;border-bottom:1px solid #FBFAF7${di.overdue?";background:#fff5f5":""}">
         ${avHTML(e,26)}
         <div style="flex:1;min-width:0">
           <div style="font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div>
-          <div style="font-size:10.5px;color:#94a3b8">${c?esc(c.name):"—"} · ${e?esc(e.name):"—"} · ${fmtDate(t.date)}</div>
+          <div style="font-size:10.5px;color:#8E8B84">${c?esc(c.name):"—"} · ${e?esc(e.name):"—"} · ${fmtDate(t.date)}</div>
         </div>
         <span class="deadline" style="background:${di.bg};color:${di.color}">${di.label}</span>
         ${autoBadgeHTML(t)}${priB(t.pri)}${stB(t.status)}
@@ -706,19 +706,19 @@ function rDash(){
     ${avisoFerramentasHTML()}
     ${rangeBarHTML()}
     <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
-      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" style="color:#0f172a">${tot}</div></div>
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" style="color:#14151A">${tot}</div></div>
       <div class="stat-card"><div class="stat-label">A fazer</div><div class="stat-value" style="color:#dc2626">${td}</div></div>
-      <div class="stat-card"><div class="stat-label">Em andamento</div><div class="stat-value" style="color:#ea580c">${dg}</div></div>
+      <div class="stat-card"><div class="stat-label">Em andamento</div><div class="stat-value" style="color:#B8872B">${dg}</div></div>
       <div class="stat-card"><div class="stat-label">Concluídas</div><div class="stat-value" style="color:#16a34a">${dn}</div></div>
-      <div class="stat-card" style="background:${overdue>0?"#fef2f2":"white"};border-color:${overdue>0?"#fecaca":"#e2e8f0"}"><div class="stat-label" style="color:${overdue>0?"#dc2626":"#64748b"}">⚠ Atrasadas</div><div class="stat-value" style="color:#dc2626">${overdue}</div></div>
+      <div class="stat-card" style="background:${overdue>0?"#fef2f2":"white"};border-color:${overdue>0?"#fecaca":"#E7E4DD"}"><div class="stat-label" style="color:${overdue>0?"#dc2626":"#6B6A66"}">⚠ Atrasadas</div><div class="stat-value" style="color:#dc2626">${overdue}</div></div>
     </div>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px">
       <div class="card">
-        <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline">Tarefas por funcionário · ${rangeLabel()}${_metaApd>0?'<span style="font-size:10.5px;font-weight:600;color:#94a3b8">% = meta de anúncios/dia</span>':'<span style="font-size:10.5px;font-weight:600;color:#cbd5e1">defina metas em Relatórios</span>'}</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:baseline">Tarefas por funcionário · ${rangeLabel()}${_metaApd>0?'<span style="font-size:10.5px;font-weight:600;color:#8E8B84">% = meta de anúncios/dia</span>':'<span style="font-size:10.5px;font-weight:600;color:#C9C4B8">defina metas em Relatórios</span>'}</div>
         <div class="chart-group" style="height:100px">${bars}</div>
         <div class="legend">
           <span><span class="ldot" style="background:#fca5a5"></span>A fazer</span>
-          <span><span class="ldot" style="background:#ea580c"></span>Em andamento</span>
+          <span><span class="ldot" style="background:#B8872B"></span>Em andamento</span>
           <span><span class="ldot" style="background:#4ade80"></span>Concluído</span>
         </div>
       </div>
@@ -734,9 +734,9 @@ function rDash(){
       </div>
     </div>
     <div class="card-table">
-      <div style="padding:12px 18px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+      <div style="padding:12px 18px;border-bottom:1px solid #E7E4DD;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
         <span>Tarefas · ${rangeLabel()}</span>
-        <span style="font-size:11px;color:#64748b;font-weight:400">Ordenadas: atrasadas primeiro</span>
+        <span style="font-size:11px;color:#6B6A66;font-weight:400">Ordenadas: atrasadas primeiro</span>
       </div>
       ${rows}
     </div>`;
@@ -797,8 +797,8 @@ function kbTempo(t){
   if(t.status==="done")return{cor:"#16a34a",barra:"#22c55e",txt:"feita",peq:true};
   const d=tvAtraso(t);
   if(d>=3)return{cor:"#dc2626",barra:"#dc2626",txt:d+"d"};
-  if(d>=1)return{cor:"#b45309",barra:"#f59e0b",txt:d+"d"};
-  if(d===0)return{cor:"#b45309",barra:"#f59e0b",txt:"hoje",peq:true};
+  if(d>=1)return{cor:"#8A6420",barra:"#f59e0b",txt:d+"d"};
+  if(d===0)return{cor:"#8A6420",barra:"#f59e0b",txt:"hoje",peq:true};
   if(d===-1)return{cor:"#15803d",barra:"#22c55e",txt:"amanhã",peq:true};
   // "em 3d" e não "3d": sem o "em", uma tarefa que vence daqui a três dias
   // se lê exatamente como uma que está três dias atrasada.
@@ -951,7 +951,7 @@ function rKanban(){
       <select id="k-emp"><option value="all">Todos os funcionários</option>${empOpts}</select>
       <select id="k-cli" data-search data-placeholder="🔍 Buscar loja..."><option value="all">Todas as lojas</option>${cliOpts}</select>
       ${custs.length>0?`<select id="k-cust" data-search data-placeholder="🔍 Buscar cliente..."><option value="all">Todos os clientes</option>${custs.map(cu=>`<option value="${cu.id}"${fCust===cu.id?" selected":""}>${esc(cu.name)}</option>`).join("")}</select>`:""}
-      ${currentUser?`<button class="btn-sm" id="k-myonly" style="${myOnly?"background:#ea580c;color:white;font-weight:700":""}">${myOnly?"👤 Minhas":"👥 Todas"}</button>`:""}
+      ${currentUser?`<button class="btn-sm" id="k-myonly" style="${myOnly?"background:#8A6420;color:white;font-weight:700":""}">${myOnly?"👤 Minhas":"👥 Todas"}</button>`:""}
       <span class="kb-rot" style="margin-left:6px">↕ Ordenar</span>
       <select id="k-sort">
         <option value="prazo"${fSort==="prazo"?" selected":""}>Mais antiga primeiro</option>
@@ -962,8 +962,8 @@ function rKanban(){
       <span class="kb-conta">${filtered.filter(t=>t.status!=="done").length} de ${abertas.length} abertas</span>
     </div>
     <div class="kb-grade${verConcluidas?" kb-grade-3":""}">
-      ${coluna("todo","A fazer","#64748b","#e2e8f0")}
-      ${coluna("doing","Em andamento","#ea580c","#ffedd5")}
+      ${coluna("todo","A fazer","#6B6A66","#E7E4DD")}
+      ${coluna("doing","Em andamento","#B8872B","#F5EBD6")}
       ${verConcluidas?coluna("done","Concluídas hoje","#16a34a","#dcfce7"):""}
     </div>
     <div class="kb-rodape">
@@ -992,7 +992,7 @@ const KB_ICONE_OK=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 // que é exatamente como o painel ficou fora do padrão da oferta relâmpago.
 function telaRelatorio(aba,titulo){
   return`<iframe src="relatorio-cliente.html?embed=1&aba=${aba}" title="${esc(titulo)}"
-     style="width:100%;height:calc(100vh - 132px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;
+     style="width:100%;height:calc(100vh - 132px);border:1px solid #E7E4DD;border-radius:12px;background:#fff"></iframe>`;
 }
 // ─── PRODUTOS DO CLIENTE ──────────────────────────────────────────────
 // A MESMA página que o cliente vê (cliente.html), embutida aqui. Não é uma
@@ -1026,10 +1026,10 @@ function rProdutos(){
     </div>
     <div>${abertos.map(p=>`
       <div style="display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid #fef3c7;flex-wrap:wrap">
-        <button data-verpedido="${esc(p.custId)}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#0f172a;text-decoration:underline">${esc(p.custNome||p.custId)}</button>
-        <span style="font-size:13px;color:#475569">${esc(p.produtoNome||"todos os produtos")}</span>
+        <button data-verpedido="${esc(p.custId)}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#14151A;text-decoration:underline">${esc(p.custNome||p.custId)}</button>
+        <span style="font-size:13px;color:#5C584F">${esc(p.produtoNome||"todos os produtos")}</span>
         ${mktBadge(p.mkt)}
-        <span style="color:#94a3b8;font-size:11.5px">${esc(quando(p.criadoEm||p.atualizadoEm))}</span>
+        <span style="color:#8E8B84;font-size:11.5px">${esc(quando(p.criadoEm||p.atualizadoEm))}</span>
         <button data-atender="${esc(p.id)}" class="btn-sm" style="margin-left:auto">Marcar como atendido</button>
       </div>`).join("")}</div>
   </div>`:"";
@@ -1038,17 +1038,17 @@ function rProdutos(){
   ${painelPedidos}
   <div id="prod-recentes"></div>
   <div class="filter-bar" style="margin-bottom:14px">
-    <span style="font-size:11px;color:#64748b;font-weight:600">👤 CLIENTE</span>
+    <span style="font-size:11px;color:#6B6A66;font-weight:600">👤 CLIENTE</span>
     <select id="prod-cliente" data-search data-placeholder="Buscar cliente...">
       ${donos.map(d=>`<option value="${esc(d.id)}"${d.id===prodCliente?" selected":""}>${esc(d.name)}</option>`).join("")}
     </select>
-    <span style="font-size:12px;color:#94a3b8">${lojas.length} loja${lojas.length!==1?"s":""}${lojas.length?" · "+lojas.map(l=>esc(l.name)).join(", "):""}</span>
+    <span style="font-size:12px;color:#8E8B84">${lojas.length} loja${lojas.length!==1?"s":""}${lojas.length?" · "+lojas.map(l=>esc(l.name)).join(", "):""}</span>
     <button id="prod-vinculos" class="btn-sm">Identificar anúncios</button>
     <button id="prod-conferir" class="btn-sm">Conferir margens</button>
     <button id="prod-especialistas" class="btn-sm" style="margin-left:auto">🤝 Especialistas</button>
   </div>
   <iframe id="prod-frame" src="${url}" title="Produtos de ${esc(dono?dono.name:"")}"
-    style="width:100%;height:calc(100vh - 178px);border:1px solid #e2e8f0;border-radius:12px;background:#fff"></iframe>`;
+    style="width:100%;height:calc(100vh - 178px);border:1px solid #E7E4DD;border-radius:12px;background:#fff"></iframe>`;
 }
 
 function rRelCliente(){ return telaRelatorio("cliente","Relatório de Cliente"); }
@@ -1080,23 +1080,23 @@ function rIntegracoes(){
     const dono=c.custId&&getCust(c.custId)?getCust(c.custId).name:"";
     const badge=st
       ?`<span style="background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">● Conectada</span>`
-      :`<span style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">○ Não conectada</span>`;
+      :`<span style="background:#F4F1EA;color:#6B6A66;border:1px solid #E7E4DD;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">○ Não conectada</span>`;
     // Andamento da recuperação do histórico (roda sozinha depois de conectar).
     let hist="";
     if(st&&st.historicoCompleto===false&&st.historicoProximo){
-      hist=`<span style="color:#b45309"> · recuperando histórico… já em ${esc(String(st.historicoProximo).split("-").reverse().join("/"))}</span>`;
+      hist=`<span style="color:#8A6420"> · recuperando histórico… já em ${esc(String(st.historicoProximo).split("-").reverse().join("/"))}</span>`;
     }else if(st&&st.historicoCompleto===true){
       hist=`<span style="color:#16a34a"> · histórico completo</span>`;
     }
-    const info=st?`<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">Shop ID ${esc(String(st.shopId||"—"))}${hist}</div>`:"";
+    const info=st?`<div style="font-size:11.5px;color:#8E8B84;margin-top:4px">Shop ID ${esc(String(st.shopId||"—"))}${hist}</div>`:"";
     const acao=st
       ?`<button class="btn-ghost" data-reconn="${c.id}" style="font-size:12px">Reconectar</button>
          <button class="btn-ghost" data-desconn="${c.id}" style="font-size:12px;color:#dc2626">Desconectar</button>`
       :`<button class="btn-primary" data-conn="${c.id}" style="font-size:12.5px;padding:7px 16px">Conectar</button>`;
-    return`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;background:#fff">
+    return`<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid #E7E4DD;border-radius:12px;background:#fff">
       <div style="min-width:0">
-        <div style="font-weight:700;font-size:14px;color:#0f172a">${esc(c.name||"—")}</div>
-        <div style="font-size:11.5px;color:#94a3b8;margin-top:2px">${esc(dono)}</div>
+        <div style="font-weight:700;font-size:14px;color:#14151A">${esc(c.name||"—")}</div>
+        <div style="font-size:11.5px;color:#8E8B84;margin-top:2px">${esc(dono)}</div>
         ${info}
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">${badge}${acao}</div>
@@ -1113,7 +1113,7 @@ function rIntegracoes(){
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-    <div style="font-size:13px;color:#475569"><strong>${conectadas}</strong> de <strong>${total}</strong> lojas Shopee conectadas</div>
+    <div style="font-size:13px;color:#5C584F"><strong>${conectadas}</strong> de <strong>${total}</strong> lojas Shopee conectadas</div>
     <button class="btn-ghost" id="sync-agora" style="font-size:12.5px">↻ Sincronizar agora</button>
     <div style="flex:1"></div>
     <input id="integ-busca" class="finput" placeholder="Buscar loja…" value="${esc(fIntegBusca)}" style="max-width:220px">
@@ -1124,7 +1124,7 @@ function rIntegracoes(){
     </select>
   </div>
   <div style="display:grid;gap:10px">
-    ${cards||'<p style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Nenhuma loja encontrada.</p>'}
+    ${cards||'<p style="text-align:center;color:#8E8B84;padding:30px;font-size:13px">Nenhuma loja encontrada.</p>'}
   </div>`;
 }
 function conectarLoja(cliId){
@@ -1196,11 +1196,11 @@ function respCelulaHTML(c,optsFn){
     // lojas dele, e das outras só dá para dizer que TÊM dono — escrever "—"
     // ali diria que estão órfãs, que é justamente o contrário.
     if(r)return`<span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px">${avHTML(r,20)}${esc(r.name)}</span>`;
-    if(c.respId)return`<span style="font-size:12px;color:#64748b">Outro responsável</span>`;
-    return`<span style="font-size:12px;color:#94a3b8">— sem responsável —</span>`;
+    if(c.respId)return`<span style="font-size:12px;color:#6B6A66">Outro responsável</span>`;
+    return`<span style="font-size:12px;color:#8E8B84">— sem responsável —</span>`;
   }
   return`<div style="display:flex;align-items:center;gap:6px">
-    ${r?avHTML(r,20):`<span title="Sem responsável" style="width:20px;height:20px;border-radius:50%;background:#f1f5f9;border:1px dashed #cbd5e1;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8">?</span>`}
+    ${r?avHTML(r,20):`<span title="Sem responsável" style="width:20px;height:20px;border-radius:50%;background:#F4F1EA;border:1px dashed #C9C4B8;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#8E8B84">?</span>`}
     <select data-setresp="${c.id}" class="finput" style="height:30px;padding:2px 6px;font-size:12px;min-width:132px;${r?"":"border-color:#fca5a5;background:#fff7f7"}">
       <option value=""${c.respId?"":" selected"}>— Sem responsável —</option>${optsFn(c)}
     </select>
@@ -1284,7 +1284,7 @@ function rClientes(){
 
   // Filter bar
   const filterBar=`<div class="filter-bar" style="margin-bottom:14px">
-    <span style="font-size:11px;color:#64748b;font-weight:600">🔍 FILTRAR</span>
+    <span style="font-size:11px;color:#6B6A66;font-weight:600">🔍 FILTRAR</span>
     ${custs.length>0?`<select id="cli-cust-filter" data-search data-placeholder="🔍 Buscar cliente..."><option value="all">Todos os clientes (${clis.length} lojas)</option>${cuOpts}</select>`:""}
     ${usedErps.length>0?`<select id="cli-erp-filter"><option value="all">Todos os ERPs</option>${erpOpts}</select>`:""}
     <select id="cli-mkt-filter"><option value="all">Todos os marketplaces (${clis.length})</option>${mktOpts}</select>
@@ -1328,7 +1328,7 @@ function rClientes(){
     <div class="card-table">
       <table><thead><tr><th>Loja</th><th style="text-align:center">Marketplace</th><th>Responsável</th><th>Em aberto</th><th>Ações</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      ${filtered.length===0?`<p style="text-align:center;color:#94a3b8;padding:28px 0;font-size:13px">${clis.length===0?"Nenhuma loja cadastrada.":"Nenhuma loja para o cliente selecionado."}</p>`:""}
+      ${filtered.length===0?`<p style="text-align:center;color:#8E8B84;padding:28px 0;font-size:13px">${clis.length===0?"Nenhuma loja cadastrada.":"Nenhuma loja para o cliente selecionado."}</p>`:""}
     </div>`;
 }
 
@@ -1356,8 +1356,8 @@ function rEquipeLista(){
     // existir. Não aparece enquanto for zero: número zerado ocupando espaço
     // ensina a não olhar para ele.
     const reab=et.reduce((a,t)=>a+Number(t.reaberturas||0),0);
-    const roleBadge=e.role==="admin"?'<span style="font-size:9px;background:#ea580c;color:white;padding:1px 6px;border-radius:4px;font-weight:700;letter-spacing:.3px">ADMIN</span>':"";
-    const hasLogin=e.email?'<span style="font-size:10px;color:#16a34a">📧 '+esc(e.email)+'</span>':'<span style="font-size:10px;color:#94a3b8">Sem e-mail</span>';
+    const roleBadge=e.role==="admin"?'<span style="font-size:9px;background:#8A6420;color:white;padding:1px 6px;border-radius:4px;font-weight:700;letter-spacing:.3px">ADMIN</span>':"";
+    const hasLogin=e.email?'<span style="font-size:10px;color:#16a34a">📧 '+esc(e.email)+'</span>':'<span style="font-size:10px;color:#8E8B84">Sem e-mail</span>';
     return`<div class="team-card">
       ${avHTML(e,46)}
       <div style="flex:1">
@@ -1371,12 +1371,12 @@ function rEquipeLista(){
             ${urg>0?`<span class="badge" style="background:#fee2e2;color:#dc2626">${urg} urgente${urg>1?"s":""}</span>`:""}
           </span>
         </div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">${et.length} tarefas · ${dn} concluídas · ${hasLogin}</div>
+        <div style="font-size:11px;color:#8E8B84;margin-bottom:6px">${et.length} tarefas · ${dn} concluídas · ${hasLogin}</div>
         <div class="prog-track"><div class="prog-bar" style="background:${e.color};width:${p}%"></div></div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:3px">${p}% concluído</div>
+        <div style="font-size:10px;color:#8E8B84;margin-top:3px">${p}% concluído</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
-        <button data-eemp="${e.id}" style="background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer">✎</button>
+        <button data-eemp="${e.id}" style="background:none;border:none;color:#8E8B84;font-size:14px;cursor:pointer">✎</button>
         <button data-demp="${e.id}" style="background:none;border:none;color:#fca5a5;font-size:14px;cursor:pointer">✕</button>
       </div>
     </div>`;
@@ -1386,7 +1386,7 @@ function rEquipeLista(){
       <button class="btn-primary" id="new-emp-btn">+ Novo funcionário</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      ${emps.length===0?'<p style="color:#94a3b8;font-size:13px;grid-column:span 2;text-align:center;margin-top:40px">Nenhum funcionário cadastrado.</p>':cards}
+      ${emps.length===0?'<p style="color:#8E8B84;font-size:13px;grid-column:span 2;text-align:center;margin-top:40px">Nenhum funcionário cadastrado.</p>':cards}
     </div>`;
 }
 
@@ -1428,7 +1428,7 @@ function repRangeLabel(){
 }
 function repAdsDayCell(apd){
   const meta=plNum(repGoals.adsPerDay);
-  const col=meta<=0?"#ea580c":apd>=meta?"#16a34a":apd>=meta*0.7?"#d69304":"#e03b3b";
+  const col=meta<=0?"#B8872B":apd>=meta?"#16a34a":apd>=meta*0.7?"#d69304":"#e03b3b";
   const check=(meta>0&&apd>=meta)?" ✓":"";
   return '<span style="color:'+col+'">'+apd.toFixed(1)+'/dia'+check+'</span>';
 }
@@ -1436,8 +1436,8 @@ function repGoalBar(atual,meta,unidade,fmt){
   fmt=fmt||(v=>v);
   const ok=meta>0&&atual>=meta;
   const pctv=meta>0?Math.min(100,Math.round(atual/meta*100)):0;
-  const col=meta<=0?"#94a3b8":ok?"#16a34a":pctv>=70?"#d69304":"#e03b3b";
-  const bg=meta<=0?"#f1f5f9":ok?"#e2f5ea":pctv>=70?"#fbf2d6":"#fce7e7";
+  const col=meta<=0?"#8E8B84":ok?"#16a34a":pctv>=70?"#d69304":"#e03b3b";
+  const bg=meta<=0?"#F4F1EA":ok?"#e2f5ea":pctv>=70?"#fbf2d6":"#fce7e7";
   return `<div class="goal-prog">
     <div class="goal-prog-head"><b style="color:${col}">${fmt(atual)}</b><span>meta ${meta>0?fmt(meta):"—"}${unidade?" "+unidade:""}</span></div>
     <div class="goal-prog-track"><div class="goal-prog-fill" style="width:${pctv}%;background:${col}"></div></div>
@@ -1494,20 +1494,20 @@ function rRelatorios(){
       <span class="pb-nome">${avHTML(e,22)}${esc(e.name.split(" ")[0])}</span>
       <span class="pb-trilho">
         ${c?`<span class="pb-fatia" style="width:${pct(c)}%;background:#22c55e" title="${c} concluída(s)"></span>`:""}
-        ${b?`<span class="pb-fatia" style="width:${pct(b)}%;background:#ea580c" title="${b} em andamento"></span>`:""}
-        ${a?`<span class="pb-fatia" style="width:${pct(a)}%;background:#cbd5e1" title="${a} a fazer"></span>`:""}
+        ${b?`<span class="pb-fatia" style="width:${pct(b)}%;background:#B8872B" title="${b} em andamento"></span>`:""}
+        ${a?`<span class="pb-fatia" style="width:${pct(a)}%;background:#C9C4B8" title="${a} a fazer"></span>`:""}
       </span>
       <span class="pb-total">${total}</span>
     </div>`;
   }).join("");
   const bars=linhas;
   const stData=[
-    {lbl:"A fazer",v:vts.filter(t=>t.status==="todo").length,col:"#94a3b8"},
-    {lbl:"Em andamento",v:vts.filter(t=>t.status==="doing").length,col:"#ea580c"},
+    {lbl:"A fazer",v:vts.filter(t=>t.status==="todo").length,col:"#8E8B84"},
+    {lbl:"Em andamento",v:vts.filter(t=>t.status==="doing").length,col:"#B8872B"},
     {lbl:"Concluído",v:vts.filter(t=>t.status==="done").length,col:"#16a34a"},
   ];
   const svgPie=makePieSVG(stData);
-  const pieLegend=stData.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-top:7px"><div style="width:8px;height:8px;border-radius:2px;background:${s.col}"></div><span style="font-size:11px;color:#64748b">${s.lbl}: <strong>${s.v}</strong></span></div>`).join("");
+  const pieLegend=stData.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-top:7px"><div style="width:8px;height:8px;border-radius:2px;background:${s.col}"></div><span style="font-size:11px;color:#6B6A66">${s.lbl}: <strong>${s.v}</strong></span></div>`).join("");
   const tRows=visEmps.filter(e=>e.role!=="admin").map(e=>{
     const et=vts.filter(t=>t.emp===e.id);
     const a=et.filter(t=>t.status==="todo").length;
@@ -1518,11 +1518,11 @@ function rRelatorios(){
     return`<tr>
       <td><div style="display:flex;align-items:center;gap:7px">${avHTML(e,22)}<span style="font-weight:500">${esc(e.name)}</span></div></td>
       <td style="color:#dc2626;font-weight:600">${a}</td>
-      <td style="color:#ea580c;font-weight:600">${b}</td>
+      <td style="color:#B8872B;font-weight:600">${b}</td>
       <td style="color:#16a34a;font-weight:600">${c}</td>
       <td style="font-weight:800">${et.length}</td>
-      <td style="color:${ov>0?"#dc2626":"#94a3b8"};font-weight:700">${ov}</td>
-      <td><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:5px;background:#f1f5f9;border-radius:3px"><div style="height:5px;background:${e.color};border-radius:3px;width:${p}%"></div></div><span style="font-size:11px;font-weight:700;color:${e.color};min-width:30px">${p}%</span></div></td>
+      <td style="color:${ov>0?"#dc2626":"#8E8B84"};font-weight:700">${ov}</td>
+      <td><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:5px;background:#F4F1EA;border-radius:3px"><div style="height:5px;background:${e.color};border-radius:3px;width:${p}%"></div></div><span style="font-size:11px;font-weight:700;color:${e.color};min-width:30px">${p}%</span></div></td>
     </tr>`;
   }).join("");
   // Ads metrics: tasks containing "anúncio" or "anuncio" (case-insensitive)
@@ -1552,60 +1552,60 @@ function rRelatorios(){
 
   return`
     <div class="range-bar" style="margin-bottom:14px;flex-wrap:wrap">
-      <span style="font-size:11px;color:#64748b;margin-right:4px;font-weight:600">📅 PERÍODO DO RELATÓRIO</span>
+      <span style="font-size:11px;color:#6B6A66;margin-right:4px;font-weight:600">📅 PERÍODO DO RELATÓRIO</span>
       ${rangeOpts.map(([k,l])=>`<button class="range-pill${repRange===k?" active":""}" data-reprange="${k}">${l}</button>`).join("")}
       <span class="range-cal${repRange==="custom"?" active":""}" title="Filtrar por data">
         <input type="date" id="rep-from" value="${repFrom}" max="${todayISO()}">
-        <span style="color:#94a3b8;font-size:12px">→</span>
+        <span style="color:#8E8B84;font-size:12px">→</span>
         <input type="date" id="rep-to" value="${repTo}" max="${todayISO()}">
       </span>
       <div style="margin-left:auto"><button class="btn-outline" id="export-csv">⬇ Exportar CSV</button></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-      <div class="stat-card"><div class="stat-label">Total de tarefas</div><div class="stat-value" style="color:#0f172a">${tot}</div></div>
+      <div class="stat-card"><div class="stat-label">Total de tarefas</div><div class="stat-value" style="color:#14151A">${tot}</div></div>
       <div class="stat-card"><div class="stat-label">Taxa de conclusão</div><div class="stat-value" style="color:#16a34a">${pct(dn,tot)}%</div></div>
       <div class="stat-card"><div class="stat-label">Urgentes em aberto</div><div class="stat-value" style="color:#dc2626">${alta}</div></div>
-      <div class="stat-card" style="background:${overdue>0?"#fef2f2":"white"};border-color:${overdue>0?"#fecaca":"#e2e8f0"}"><div class="stat-label" style="color:${overdue>0?"#dc2626":"#64748b"}">⚠ Atrasadas</div><div class="stat-value" style="color:#dc2626">${overdue}</div></div>
+      <div class="stat-card" style="background:${overdue>0?"#fef2f2":"white"};border-color:${overdue>0?"#fecaca":"#E7E4DD"}"><div class="stat-label" style="color:${overdue>0?"#dc2626":"#6B6A66"}">⚠ Atrasadas</div><div class="stat-value" style="color:#dc2626">${overdue}</div></div>
     </div>
     ${isAdmin()?repGoalsPanel(pct(dn,tot),adsByEmp,rangeDays):""}
     <div class="card-table" style="margin-bottom:14px">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <div style="font-size:14px;font-weight:800;color:#0f172a;letter-spacing:-.01em">📢 Métricas de anúncios</div>
-          <div style="font-size:11.5px;color:#64748b;margin-top:2px">Tarefas com "anúncio" no título · ${repRangeLabel()} · <strong style="color:#475569">${rangeDays} dias úteis</strong> (seg–sex)${rangeFeriados>0?` · ${rangeFeriados} feriado${rangeFeriados>1?"s":""} excluído${rangeFeriados>1?"s":""}`:""}</div>
+          <div style="font-size:14px;font-weight:800;color:#14151A;letter-spacing:-.01em">📢 Métricas de anúncios</div>
+          <div style="font-size:11.5px;color:#6B6A66;margin-top:2px">Tarefas com "anúncio" no título · ${repRangeLabel()} · <strong style="color:#5C584F">${rangeDays} dias úteis</strong> (seg–sex)${rangeFeriados>0?` · ${rangeFeriados} feriado${rangeFeriados>1?"s":""} excluído${rangeFeriados>1?"s":""}`:""}</div>
         </div>
         <div style="display:flex;gap:18px;flex-wrap:wrap">
-          <div style="text-align:right"><div style="font-size:11px;color:#64748b;font-weight:600">TAREFAS</div><div style="font-size:20px;font-weight:800;color:#0f172a">${totalAdsDone}<span style="font-size:12px;color:#94a3b8;font-weight:600">/${totalAds}</span></div></div>
+          <div style="text-align:right"><div style="font-size:11px;color:#6B6A66;font-weight:600">TAREFAS</div><div style="font-size:20px;font-weight:800;color:#14151A">${totalAdsDone}<span style="font-size:12px;color:#8E8B84;font-weight:600">/${totalAds}</span></div></div>
           <div style="text-align:right;padding-left:18px;border-left:1px solid var(--border)"><div style="font-size:11px;color:#16a34a;font-weight:700">ANÚNCIOS FEITOS</div><div style="font-size:22px;font-weight:800;color:#16a34a">${totalAdsQtyDone}<span style="font-size:12px;color:#86efac;font-weight:600">/${totalAdsQty}</span></div></div>
-          ${rangeDays>1?`<div style="text-align:right"><div style="font-size:11px;color:#ea580c;font-weight:600">ANÚNCIOS/DIA</div><div style="font-size:20px;font-weight:800;color:#ea580c">${(totalAdsQtyDone/rangeDays).toFixed(1)}</div></div>`:""}
+          ${rangeDays>1?`<div style="text-align:right"><div style="font-size:11px;color:#B8872B;font-weight:600">ANÚNCIOS/DIA</div><div style="font-size:20px;font-weight:800;color:#B8872B">${(totalAdsQtyDone/rangeDays).toFixed(1)}</div></div>`:""}
         </div>
       </div>
       <table>
         <thead><tr><th>Funcionário</th><th>Tarefas concl.</th><th>Em and.</th><th>📢 Anúncios feitos</th><th>Anún. em and.</th><th>Anúncios/dia</th></tr></thead>
         <tbody>
-        ${adsByEmp.length===0?'<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;font-size:12.5px">Nenhum funcionário</td></tr>':adsByEmp.map(a=>`
+        ${adsByEmp.length===0?'<tr><td colspan="6" style="text-align:center;color:#8E8B84;padding:20px;font-size:12.5px">Nenhum funcionário</td></tr>':adsByEmp.map(a=>`
           <tr>
             <td><div style="display:flex;align-items:center;gap:7px">${avHTML(a.emp,22)}<span style="font-weight:500">${esc(a.emp.name)}</span></div></td>
-            <td style="color:#16a34a;font-weight:600">${a.done}<span style="font-size:11px;color:#94a3b8;font-weight:500">/${a.total}</span></td>
-            <td style="color:#ea580c;font-weight:600">${a.inProgress}</td>
+            <td style="color:#16a34a;font-weight:600">${a.done}<span style="font-size:11px;color:#8E8B84;font-weight:500">/${a.total}</span></td>
+            <td style="color:#B8872B;font-weight:600">${a.inProgress}</td>
             <td style="color:#16a34a;font-weight:800;font-size:15px">${a.adsDone}</td>
-            <td style="color:#ea580c;font-weight:600">${a.adsProgress}</td>
+            <td style="color:#B8872B;font-weight:600">${a.adsProgress}</td>
             <td style="font-weight:800">${repAdsDayCell(a.adsDone/rangeDays)}</td>
           </tr>`).join("")}
         </tbody>
       </table>
-      <div style="padding:10px 18px;background:#fff7ed;border-top:1px solid var(--border);font-size:11px;color:#9a3412">
+      <div style="padding:10px 18px;background:#FBF7EE;border-top:1px solid var(--border);font-size:11px;color:#6B4D18">
         💡 Tarefas com "anúncio" no título entram aqui; a coluna soma a "Qtd. de anúncios" de cada tarefa (sem quantidade, conta 1).
       </div>
     </div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">
       <div class="card">
         <div style="font-size:13px;font-weight:700;margin-bottom:14px">Produtividade por funcionário · ${repRangeLabel()}</div>
-        <div class="pb">${bars||`<div style="color:#cbd5e1;font-size:12.5px;padding:18px 0;text-align:center">Nenhuma tarefa no período.</div>`}</div>
+        <div class="pb">${bars||`<div style="color:#C9C4B8;font-size:12.5px;padding:18px 0;text-align:center">Nenhuma tarefa no período.</div>`}</div>
         <div class="legend" style="margin-top:12px">
           <span><span class="ldot" style="background:#22c55e"></span>Concluído</span>
-          <span><span class="ldot" style="background:#ea580c"></span>Em andamento</span>
-          <span><span class="ldot" style="background:#cbd5e1"></span>A fazer</span>
+          <span><span class="ldot" style="background:#B8872B"></span>Em andamento</span>
+          <span><span class="ldot" style="background:#C9C4B8"></span>A fazer</span>
         </div>
       </div>
       <div class="card">
@@ -1614,7 +1614,7 @@ function rRelatorios(){
       </div>
     </div>
     <div class="card-table">
-      <div style="padding:12px 18px;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:700">Detalhe por funcionário</div>
+      <div style="padding:12px 18px;border-bottom:1px solid #E7E4DD;font-size:13px;font-weight:700">Detalhe por funcionário</div>
       <table><thead><tr><th>Funcionário</th><th>A fazer</th><th>Em and.</th><th>Concluído</th><th>Total</th><th>Atrasadas</th><th>% Concluído</th></tr></thead>
       <tbody>${tRows}</tbody></table>
     </div>`;
@@ -1625,12 +1625,12 @@ const PROMO_TYPES=["Promoção de Desconto","Leve Mais por Menos"];
 
 function promoUrgency(p){
   if(p.status==="renewed")return{cls:"",lbl:"Renovada",col:"#16a34a",bg:"#dcfce7"};
-  if(p.status==="expired")return{cls:"expired",lbl:"Expirada",col:"#64748b",bg:"#f1f5f9"};
+  if(p.status==="expired")return{cls:"expired",lbl:"Expirada",col:"#6B6A66",bg:"#F4F1EA"};
   const d=daysUntil(p.end);
   if(d<0)return{cls:"urg-red",lbl:`Vencida ${Math.abs(d)}d`,col:"#dc2626",bg:"#fee2e2"};
   if(d===0)return{cls:"urg-red",lbl:"Hoje!",col:"#dc2626",bg:"#fee2e2"};
   if(d===1)return{cls:"urg-red",lbl:"Amanhã",col:"#dc2626",bg:"#fee2e2"};
-  if(d<=3)return{cls:"urg-orange",lbl:`Em ${d}d`,col:"#ea580c",bg:"#ffedd5"};
+  if(d<=3)return{cls:"urg-orange",lbl:`Em ${d}d`,col:"#B8872B",bg:"#F5EBD6"};
   if(d<=7)return{cls:"urg-amber",lbl:`Em ${d}d`,col:"#d97706",bg:"#fef3c7"};
   return{cls:"urg-green",lbl:`Em ${d}d`,col:"#16a34a",bg:"#dcfce7"};
 }
@@ -1649,7 +1649,7 @@ function rPromos(){
     return a.end.localeCompare(b.end);
   });
   const cards=sorted.length===0
-    ?`<div style="background:white;border-radius:12px;padding:40px;text-align:center;color:#94a3b8;font-size:13px">Nenhuma promoção cadastrada.</div>`
+    ?`<div style="background:white;border-radius:12px;padding:40px;text-align:center;color:#8E8B84;font-size:13px">Nenhuma promoção cadastrada.</div>`
     :sorted.map(p=>{
       const e=getEmp(p.emp),c=getCli(p.cli);
       const u=promoUrgency(p);
@@ -1662,35 +1662,35 @@ function rPromos(){
         </div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:14px;font-weight:700;color:#0f172a">${esc(p.name)}</span>
+            <span style="font-size:14px;font-weight:700;color:#14151A">${esc(p.name)}</span>
             <span class="badge" style="background:${u.bg};color:${u.col}">${u.lbl}</span>
           </div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:5px">
+          <div style="font-size:12px;color:#6B6A66;margin-bottom:5px">
             🏪 <strong>${c?esc(c.name):"—"}</strong> · ${esc(p.type)} · expira ${fmtDate(p.end)}
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             ${avHTML(e,18)}
-            <span style="font-size:11px;color:#94a3b8">${e?esc(e.name):"—"}</span>
+            <span style="font-size:11px;color:#8E8B84">${e?esc(e.name):"—"}</span>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${showRenew?`<button class="btn-renew" data-renew="${p.id}">✓ Renovar/Duplicada</button>`:""}
           <div style="display:flex;gap:4px;justify-content:flex-end">
-            <button data-eprm="${p.id}" style="background:none;border:none;color:#94a3b8;font-size:14px;padding:2px 5px">✎</button>
+            <button data-eprm="${p.id}" style="background:none;border:none;color:#8E8B84;font-size:14px;padding:2px 5px">✎</button>
             <button data-dprm="${p.id}" style="background:none;border:none;color:#fca5a5;font-size:14px;padding:2px 5px">✕</button>
           </div>
         </div>
       </div>`;
     }).join("");
   return`
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#9a3412;line-height:1.5">
+    <div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#6B4D18;line-height:1.5">
       💡 <strong>Como funciona:</strong> Cadastre cada promoção/ferramenta ativa nas suas lojas Shopee com a data de expiração. Quando faltarem poucos dias para vencer, a promo aparece em <strong>destaque</strong> aqui com o botão de renovar. Clique em <strong>"Renovar/Duplicada"</strong> após renovar para registrar.
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-      <div class="stat-card"><div class="stat-label">Ativas</div><div class="stat-value" style="color:#0f172a">${active}</div></div>
-      <div class="stat-card" style="background:${urgent>0?"#fef2f2":"white"};border-color:${urgent>0?"#fecaca":"#e2e8f0"}"><div class="stat-label" style="color:${urgent>0?"#dc2626":"#64748b"}">🔴 Urgentes (≤2d)</div><div class="stat-value" style="color:#dc2626">${urgent}</div></div>
-      <div class="stat-card"><div class="stat-label">Esta semana</div><div class="stat-value" style="color:#ea580c">${weekly}</div></div>
-      <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-value" style="color:#94a3b8">${expired}</div></div>
+      <div class="stat-card"><div class="stat-label">Ativas</div><div class="stat-value" style="color:#14151A">${active}</div></div>
+      <div class="stat-card" style="background:${urgent>0?"#fef2f2":"white"};border-color:${urgent>0?"#fecaca":"#E7E4DD"}"><div class="stat-label" style="color:${urgent>0?"#dc2626":"#6B6A66"}">🔴 Urgentes (≤2d)</div><div class="stat-value" style="color:#dc2626">${urgent}</div></div>
+      <div class="stat-card"><div class="stat-label">Esta semana</div><div class="stat-value" style="color:#B8872B">${weekly}</div></div>
+      <div class="stat-card"><div class="stat-label">Vencidas</div><div class="stat-value" style="color:#8E8B84">${expired}</div></div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
       <button class="btn-primary" id="new-promo-btn">+ Nova Promoção</button>
@@ -1706,7 +1706,7 @@ function openPromoForm(promId){
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-size:14px;font-weight:700">${p?"Editar promoção":"Nova promoção"}</span>
-      <button id="pf-close" style="background:none;border:none;color:#94a3b8;font-size:18px">✕</button>
+      <button id="pf-close" style="background:none;border:none;color:#8E8B84;font-size:18px">✕</button>
     </div>
     <input id="pf-name" class="finput" placeholder="Nome da promoção (ex: Cupom 10% OFF)" value="${p?esc(p.name):""}" style="margin-bottom:10px;font-size:14px;font-weight:500"/>
     <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
@@ -1771,12 +1771,12 @@ function showRenewModal(p){
   const formHTML=`<div class="form-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-size:14px;font-weight:700">🎯 Confirmar duplicação</span>
-      <button id="rn-close" style="background:none;border:none;color:#94a3b8;font-size:18px">✕</button>
+      <button id="rn-close" style="background:none;border:none;color:#8E8B84;font-size:18px">✕</button>
     </div>
-    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#9a3412;line-height:1.5">
+    <div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#6B4D18;line-height:1.5">
       <strong>${esc(p.name)}</strong> · ${esc(p.type)}<br/>
       Loja: ${cli?esc(cli.name):"—"} · expira ${fmtDate(p.end)}<br/>
-      <span style="font-size:11.5px;color:#c2410c">A promo atual será marcada como renovada e uma nova será criada com a duração que você escolher abaixo.</span>
+      <span style="font-size:11.5px;color:#8A6420">A promo atual será marcada como renovada e uma nova será criada com a duração que você escolher abaixo.</span>
     </div>
     <div class="form-group" style="margin-bottom:12px">
       <label style="margin-bottom:8px;display:block">⏱️ Quanto tempo a nova promoção vai durar?</label>
@@ -1855,12 +1855,12 @@ async function carregarFichasRecentes(){
     const quando=(iso)=>iso?fmtDate(String(iso).slice(0,10)):"";
     const linha=(p)=>{
       const f=falta(p);
-      return`<div style="display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid #e2e8f0;flex-wrap:wrap">
-        <button data-verpedido="${esc(p.custId||"")}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#0f172a;text-decoration:underline">${esc(p.custNome||p.custId||"sem dono")}</button>
-        <span style="font-size:13px;color:#475569">${esc(p.nome||"sem nome")}</span>
-        ${p.sku?`<span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#64748b">${esc(p.sku)}</span>`:""}
-        ${f.length?`<span style="font-size:11.5px;color:#b45309" title="${esc(f.join(", "))}">⚠ falta${f.length===1?"":"m"} ${f.length}</span>`:`<span style="font-size:11.5px;color:#3b6d11">✓ completa</span>`}
-        <span style="color:#94a3b8;font-size:11.5px;margin-left:auto">${esc(quando(p.atualizadoEm||p.criadoEm))}</span>
+      return`<div style="display:flex;align-items:center;gap:12px;padding:10px 15px;border-bottom:1px solid #E7E4DD;flex-wrap:wrap">
+        <button data-verpedido="${esc(p.custId||"")}" class="btn-ghost" style="font-weight:700;font-size:13px;padding:0;color:#14151A;text-decoration:underline">${esc(p.custNome||p.custId||"sem dono")}</button>
+        <span style="font-size:13px;color:#5C584F">${esc(p.nome||"sem nome")}</span>
+        ${p.sku?`<span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#6B6A66">${esc(p.sku)}</span>`:""}
+        ${f.length?`<span style="font-size:11.5px;color:#8A6420" title="${esc(f.join(", "))}">⚠ falta${f.length===1?"":"m"} ${f.length}</span>`:`<span style="font-size:11.5px;color:#3b6d11">✓ completa</span>`}
+        <span style="color:#8E8B84;font-size:11.5px;margin-left:auto">${esc(quando(p.atualizadoEm||p.criadoEm))}</span>
       </div>`;
     };
     // Resumo por CLIENTE, não uma lista de oito linhas.
