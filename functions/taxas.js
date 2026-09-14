@@ -76,7 +76,34 @@ export const TAXAS = {
     ],
     completa: true,
   },
+  // Números lidos por mim nas páginas oficiais do TikTok Shop Brasil em
+  // 14/09/2026, não de blog:
+  //
+  //   Tarifa de Comissão da Plataforma (artigo de 12/06/2026) — vigente desde
+  //   15/07/2026: item abaixo de R$50 paga 10% + R$4 por item; de R$50 para
+  //   cima paga 6% + R$6. A base é o preço APÓS o desconto do vendedor.
+  //
+  //   Programa de Taxas de Envio (artigo de 31/08/2026): quem está no programa
+  //   paga mais 6% do preço de venda de todo pedido entregue, limitado a R$50
+  //   por produto. O vendedor entra automaticamente; sair custa o subsídio de
+  //   frete ao comprador e o tráfego extra de anúncios.
+  //
+  // Por isso o frete aqui é PERCENTUAL, e não uma tabela por peso como a da
+  // Shein: no TikTok o que o lojista paga não depende do peso.
+  tiktok: {
+    nome: "TikTok Shop",
+    comissao: [
+      { abaixoDe: 50, percentual: 10, fixo: 4, subsidioPix: 0 },
+      { abaixoDe: null, percentual: 6, fixo: 6, subsidioPix: 0 },
+    ],
+    frete: null,
+    fretePercentual: { percentual: 6, tetoPorProduto: 50 },
+    completa: true,
+  },
 };
+// "TikTok" e "TikTok Shop" são a mesma loja; a segunda forma aparece no
+// cadastro de algumas lojas.
+TAXAS.tiktokshop = TAXAS.tiktok;
 
 // Padrões do sistema quando nem a loja nem o cliente dizem nada. Os mesmos do
 // fechamento mensal em relatorio-cliente.html — se divergissem, a margem da
@@ -271,6 +298,12 @@ export function calcularMargem({ preco, custo, peso, mkt, pctOtde = null, pctImp
   // Frete só é exigido de quem tem tabela de frete. Marketplace sem tabela
   // não trava o cálculo — ele só não desconta frete, e diz isso.
   let frete = 0;
+  // Frete cobrado como PERCENTUAL do preço, com teto por produto — é a forma
+  // do TikTok. Não depende do peso, então não trava o cálculo pedindo peso.
+  if (taxas && taxas.fretePercentual && p !== null) {
+    const fp = taxas.fretePercentual;
+    frete = arredondar(Math.min(p * fp.percentual / 100, fp.tetoPorProduto));
+  }
   if (taxas && Array.isArray(taxas.frete)) {
     const kg = pesoEmKg(peso);
     if (kg === null) {
@@ -290,6 +323,12 @@ export function calcularMargem({ preco, custo, peso, mkt, pctOtde = null, pctImp
   const comissao = arredondar(p * faixa.percentual / 100 + faixa.fixo);
   descontos.push({ rotulo: `Comissão ${taxas.nome} (${faixa.percentual}% + R$ ${faixa.fixo})`, valor: comissao });
   if (Array.isArray(taxas.frete)) descontos.push({ rotulo: "Intermediação de frete", valor: frete });
+  if (taxas.fretePercentual) {
+    descontos.push({
+      rotulo: `Programa de taxas de envio (${taxas.fretePercentual.percentual}%)`,
+      valor: frete,
+    });
+  }
 
   // Comissão da OTDE e imposto, do cadastro do cliente. Ausentes, a conta é a
   // do marketplace e se declara incompleta — nunca se chuta um percentual que

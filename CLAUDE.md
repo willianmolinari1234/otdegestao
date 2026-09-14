@@ -168,6 +168,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Claim em vez de `get()` na regra | Cada `get()` é leitura cobrada e latência por item |
 | Ids determinísticos | Reimportar atualiza em vez de duplicar |
 | Margem e lucro vêm da planilha | **Nunca recalcular.** Preço menos custo dá 52% onde o real é 7,5%, porque a planilha já desconta comissão, frete e imposto |
+| TikTok Shop: 10%+R$4 abaixo de R$50, 6%+R$6 daí para cima, mais 6% do Programa de Taxas de Envio (teto R$50/produto) | Lido nas páginas oficiais em 14/09/2026. O vendedor entra no programa de envio automaticamente; sair custa subsídio de frete e tráfego de anúncios |
+| Mercado Livre NÃO tem tabela única | A comissão vai de 10% a 19% conforme CATEGORIA e tipo de anúncio (clássico/premium), mais custo fixo por faixa de preço abaixo de R$79. Sem as categorias do Willian não dá para tabelar |
 | Taxa de marketplace em `js/taxas.js`, não no Firestore | Comissão de marketplace é pública; em arquivo, não mexe em regra e o git guarda quando cada taxa mudou |
 | Comissão da OTDE e imposto vêm do CADASTRO | `customers.fee` e `customers.imposto`, com exceção por loja em `clients`. Não são tabela; chegam ao cálculo como parâmetro |
 | A conta só se declara `completa` com os dois percentuais | Sem eles sai a conta do MARKETPLACE, que é tudo que o especialista pode ver. Quanto a OTDE cobra de cada cliente não circula por ele |

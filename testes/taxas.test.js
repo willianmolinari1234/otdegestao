@@ -442,3 +442,65 @@ test("a tabela batendo com a realidade dá diferença perto de zero", () => {
   assert.equal(r.real, 164);
   assert.equal(r.diferenca, 0);
 });
+
+// ─── TikTok Shop ──────────────────────────────────────────────────────
+//
+// Números lidos nas páginas oficiais do TikTok Shop Brasil em 14/09/2026:
+// "Tarifa de Comissão da Plataforma" (12/06/2026) e "Programa de Taxas de
+// Envio" (31/08/2026). Não vieram de blog.
+
+test("TikTok: item abaixo de R$50 paga 10% + R$4", () => {
+  const r = calcularMargem({ preco: 39.90, custo: 18, mkt: "TikTok",
+    pctOtde: 0, pctImposto: 0 });
+  const com = r.descontos.find((d) => d.rotulo.startsWith("Comissão TikTok"));
+  assert.equal(com.valor, 7.99, "39,90 × 10% + 4");
+});
+
+test("TikTok: de R$50 para cima paga 6% + R$6", () => {
+  const r = calcularMargem({ preco: 50, custo: 22, mkt: "TikTok",
+    pctOtde: 0, pctImposto: 0 });
+  const com = r.descontos.find((d) => d.rotulo.startsWith("Comissão TikTok"));
+  assert.equal(com.valor, 9, "50 × 6% + 6 — o valor exato de R$50 já é a faixa de cima");
+});
+
+test("TikTok: o programa de taxas de envio cobra 6% do preço", () => {
+  // O vendedor entra nele automaticamente; sair custa o subsídio de frete ao
+  // comprador e o tráfego extra de anúncios.
+  const r = calcularMargem({ preco: 100, custo: 40, mkt: "TikTok",
+    pctOtde: 0, pctImposto: 0 });
+  const env = r.descontos.find((d) => d.rotulo.includes("taxas de envio"));
+  assert.equal(env.valor, 6);
+});
+
+test("TikTok: a taxa de envio tem teto de R$50 por produto", () => {
+  const r = calcularMargem({ preco: 2000, custo: 900, mkt: "TikTok",
+    pctOtde: 0, pctImposto: 0 });
+  const env = r.descontos.find((d) => d.rotulo.includes("taxas de envio"));
+  assert.equal(env.valor, 50, "6% de 2000 seria 120; o teto segura em 50");
+});
+
+test("TikTok não pede peso: a taxa dele não depende disso", () => {
+  // Diferente da Shein, onde sem peso não há frete e o cálculo trava.
+  const r = calcularMargem({ preco: 80, custo: 30, mkt: "TikTok",
+    pctOtde: 0, pctImposto: 0 });
+  assert.deepEqual(r.falta, []);
+  assert.equal(r.margem !== null, true);
+});
+
+test("'TikTok' e 'TikTok Shop' caem na mesma tabela", () => {
+  // As duas formas aparecem no cadastro das lojas.
+  const a = calcularMargem({ preco: 100, custo: 40, mkt: "TikTok", pctOtde: 0, pctImposto: 0 });
+  const b = calcularMargem({ preco: 100, custo: 40, mkt: "TikTok Shop", pctOtde: 0, pctImposto: 0 });
+  assert.equal(a.margem, b.margem);
+  assert.equal(b.margem !== null, true);
+});
+
+test("Mercado Livre continua sem tabela, e o sistema diz isso", () => {
+  // A comissão do ML varia de 10% a 19% POR CATEGORIA e por tipo de anúncio.
+  // Chutar um número no meio da faixa seria inventar margem — e margem
+  // inventada é o erro que este arquivo inteiro existe para evitar.
+  const r = calcularMargem({ preco: 100, custo: 40, mkt: "Mercado Livre" });
+  assert.equal(r.margem, null);
+  assert.ok(r.falta.some((f) => f.includes("Mercado Livre")),
+    "a tela precisa dizer QUAL marketplace falta");
+});
