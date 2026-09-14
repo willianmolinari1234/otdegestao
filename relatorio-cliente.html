@@ -145,11 +145,11 @@
   .cmp-up{background:var(--green-bg);} .cmp-up .lbl,.cmp-up .val,.cmp-up .cap{color:var(--green-tint);}
 
   .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
-  .kpi{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--brand-200);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow-sm);}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--rep-claro,var(--brand-200));border-radius:10px;padding:12px 14px;box-shadow:var(--shadow-sm);}
   .kpi .lbl{font-size:12px;color:var(--text-muted);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .kpi .val{font-size:22px;font-weight:600;letter-spacing:-.01em;}
   .kpi .val.good{color:var(--green-tint);}
-  .kpi.hl{border-top-color:var(--brand);background:var(--brand-50);}
+  .kpi.hl{border-top-color:var(--rep-acento,var(--brand));background:var(--brand-50);}
 
   .charts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;}
   .chart-title{font-size:13px;font-weight:500;margin-bottom:10px;}
@@ -1046,17 +1046,31 @@ const TEMA_MKT = {
   // A faixa do relatório usa a cor DO MARKETPLACE, não a da OTDE. Este laranja
   // sobreviveu ao rebranding por um triz: ele era o mesmo hex da nossa marca
   // antiga e foi trocado por engano. Não é cor nossa e não acompanha a marca.
-  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c" },
-  "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af" },
-  "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
-  "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
-  "tiktok":        { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111" },
-  "tiktok shop":   { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111" },
+  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c", acento: "#ea580c", claro: "#fdba74" },
+  "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af", acento: "#1d4ed8", claro: "#93b4f7" },
+  "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
+  "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
+  "tiktok":        { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
+  "tiktok shop":   { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
 };
+
+// O acento do relatório aberto. Os gráficos são desenhados em JS e leem daqui
+// em vez de carregar cor fixa — senão a barra sai dourada num relatório que o
+// resto da página pinta de laranja.
+let temaAtual = TEMA_MKT["shopee"];
 
 function aplicarTemaMkt(mkt) {
   // Marketplace desconhecido ou loja sem marketplace cai no padrão OTDE.
   const t = TEMA_MKT[String(mkt || "").toLowerCase().trim()] || TEMA_MKT["shopee"];
+  temaAtual = t;
+  // O RELATÓRIO INTEIRO segue a cor do marketplace, não a da agência: é o
+  // documento que o lojista recebe, e ele vê a cor da plataforma onde vende.
+  // A casca em volta — barra do topo, abas, botões — continua sendo da OTDE.
+  const rep = document.getElementById("reportContent");
+  if (rep) {
+    rep.style.setProperty("--rep-acento", t.acento || t.bg);
+    rep.style.setProperty("--rep-claro", t.claro || t.bg);
+  }
   const h = document.querySelector("#reportContent .rep-header");
   if (!h) return;
   h.style.setProperty("--hdr-bg", t.bg);
@@ -1157,7 +1171,7 @@ function drawCharts(custo, fat, va, vb) {
   if (chVar) chVar.destroy();
   chInvest = new Chart($("chInvest"), {
     type: "bar",
-    data: { labels: ["Custo Ads", "Faturamento"], datasets: [{ data: [custo, fat], backgroundColor: ["#DFC489", "#B8872B"], borderRadius: 4, barThickness: 44 }] },
+    data: { labels: ["Custo Ads", "Faturamento"], datasets: [{ data: [custo, fat], backgroundColor: [temaAtual.claro, temaAtual.acento], borderRadius: 4, barThickness: 44 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.y) } } }, scales: { x: { grid: { display: false }, ticks: { color: muted } }, y: { grid: { color: "#E7E4DD" }, ticks: { color: muted, callback: (v) => "R$ " + (v / 1000) + "k" } } } }
   });
   chVar = new Chart($("chVar"), {
@@ -1646,7 +1660,7 @@ async function loadDash() {
   $("dashChartWrap").style.height = Math.max(160, ordered.length * 34 + 60) + "px";
   chDash = new Chart($("chDash"), {
     type: "bar",
-    data: { labels: ordered.map((r) => nameOf(r.cliente)), datasets: [{ data: ordered.map((r) => num(r.faturamento)), backgroundColor: "#B8872B", borderRadius: 4, barThickness: 20 }] },
+    data: { labels: ordered.map((r) => nameOf(r.cliente)), datasets: [{ data: ordered.map((r) => num(r.faturamento)), backgroundColor: temaAtual.acento, borderRadius: 4, barThickness: 20 }] },
     options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => brl(c.parsed.x) } } }, scales: { x: { grid: { color: "#E7E4DD" }, ticks: { color: "#6B6A66", callback: (v) => "R$ " + (v / 1000) + "k" } }, y: { grid: { display: false }, ticks: { color: "#6B6A66" } } } }
   });
 }

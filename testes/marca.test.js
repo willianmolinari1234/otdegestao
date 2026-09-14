@@ -60,6 +60,27 @@ test("cada marketplace mantém a cor DELE, e ela não segue a nossa marca", () =
   assert.match(ler("js/01-estado-e-dados.js"), /"shopee":\s*\{bg:"#fff1e9", ?fg:"#ee4d2d"/);
 });
 
+test("o relatório INTEIRO segue a cor do marketplace, não a da agência", () => {
+  // É o documento que o lojista recebe: ele vê a cor da plataforma onde vende.
+  // A casca em volta — barra do topo, abas, botões — continua sendo da OTDE.
+  const rel = ler("relatorio-cliente.html");
+  assert.match(rel, /acento: "#ea580c", claro: "#fdba74"/, "Shopee");
+  assert.match(rel, /acento: "#b78a00", claro: "#ffe9a8"/, "Mercado Livre");
+  assert.match(rel, /acento: "#111111", claro: "#9a9a9a"/, "TikTok");
+  assert.match(rel, /rep\.style\.setProperty\("--rep-acento", t\.acento \|\| t\.bg\)/);
+  assert.match(rel, /border-top:3px solid var\(--rep-claro,var\(--brand-200\)\)/);
+});
+
+test("os gráficos do relatório leem o acento, e não carregam cor fixa", () => {
+  // Cor fixa no gráfico fazia a barra sair dourada num relatório que o resto
+  // da página pintava de laranja.
+  const rel = ler("relatorio-cliente.html");
+  assert.match(rel, /backgroundColor: \[temaAtual\.claro, temaAtual\.acento\]/);
+  assert.match(rel, /backgroundColor: temaAtual\.acento/);
+  assert.doesNotMatch(rel, /backgroundColor: \["#DFC489", "#B8872B"\]/,
+    "a cor dourada fixa voltou ao gráfico");
+});
+
 test("faturamento que subiu continua verde, e o que caiu vermelho", () => {
   // É o sinal que o cliente lê primeiro no relatório do mês.
   const rel = ler("relatorio-cliente.html");
