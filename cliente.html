@@ -235,6 +235,22 @@ const cor = (m) => COR[String(m || "").toLowerCase().trim()] || { bg: "#F4F1EA",
 const FEMININO = new Set(["shopee", "shein", "amazon", "americanas", "netshoes"]);
 const naNo = (m) => (FEMININO.has(String(m || "").toLowerCase().trim()) ? "na " : "no ") + m;
 
+// Cliente com UMA loja lendo "Minhas lojas" percebe na hora que a tela foi
+// escrita para outra pessoa. É o tipo de detalhe que faz um sistema parecer
+// alugado — e a maioria dos lojistas da OTDE tem uma loja só.
+const rotuloLojas = (n) => (n === 1 ? "Minha loja" : "Minhas lojas");
+
+/** Quantas lojas distintas aparecem nos anúncios deste cliente. */
+const quantasLojas = () =>
+  new Set(estado.anuncios.map((a) => a.storeNome || a.mkt || a.storeMkt).filter(Boolean)).size;
+
+/** Escreve o nome certo na aba. Roda depois de carregar e a cada desenho. */
+function ajustarAbaLojas() {
+  if (estado.modo === "especialista") return;   // lá a aba se chama "Clientes"
+  const b = document.querySelector("[data-aba=lojas]");
+  if (b) b.textContent = rotuloLojas(quantasLojas());
+}
+
 let estado = { custId: "", nome: "", produtos: [], anuncios: [], mkts: [],
   busca: "", faltaEm: "", ordem: "falta", aberto: null, souEquipe: false,
   soIncompletos: false,
@@ -419,6 +435,7 @@ const mktsDe = (p) => [...new Set(anunciosDe(p).map((a) => a.mkt || a.storeMkt).
 
 // ─── telas ────────────────────────────────────────────────────────────
 function desenhar() {
+  ajustarAbaLojas();
   $("voltar").style.display = estado.aberto ? "" : "none";
   if (estado.aberto) return telaProduto();
   if (estado.aba === "lojas") return telaLojas();
@@ -830,26 +847,168 @@ function telaProduto() {
   if (estado.modo === "especialista") ligarRegistro(p, meus);
 }
 
-function telaLojas() {
-  $("titulo").textContent = "Minhas lojas";
-  $("resumo").textContent = "";
+// ─── MINHAS LOJAS ─────────────────────────────────────────────────────
+//
+// Era a aba mais magra do sistema: nome da loja, marketplace e uma contagem.
+// O lojista abre esperando desempenho e encontra um crachá.
+//
+// Venda ele NÃO pode ver aqui — a coleção `sales` é fechada a papel externo,
+// e relaxar isso para enfeitar uma tela é exatamente o erro que a regra de
+// ouro proíbe. Então a aba passa a responder o que dá para responder com o
+// que ele já lê: onde o catálogo dele está, onde não está, e por quanto.
+
+/** Nome da loja de um anúncio, com os mesmos apoios do resto da tela. */
+const lojaDe = (a) => a.storeNome || a.mkt || a.storeMkt || "—";
+
+/** Uma linha por loja: cobertura, faixa de preço e o que falta subir. */
+function resumoDasLojas() {
   const porLoja = new Map();
   for (const a of estado.anuncios) {
-    const k = a.storeNome || a.mkt || "—";
-    const v = porLoja.get(k) || { nome: k, mkt: a.mkt || a.storeMkt || "", anuncios: 0, produtos: new Set() };
-    v.anuncios++; if (a.produtoId) v.produtos.add(a.produtoId);
+    const k = lojaDe(a);
+    const v = porLoja.get(k) || { nome: k, mkt: a.mkt || a.storeMkt || "",
+                                  anuncios: 0, produtos: new Set(), precos: [] };
+    v.anuncios++;
+    const pr = Number(a.preco); if (pr > 0) v.precos.push(pr);
     porLoja.set(k, v);
   }
-  const lojas = [...porLoja.values()];
-  $("corpo").innerHTML = lojas.length ? `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
-      ${lojas.map((l) => { const c = cor(l.mkt); return `
-        <div class="card" style="padding:16px 18px;border-top:3px solid ${c.bd}">
-          <div style="font-weight:700;font-size:14px;margin-bottom:3px">${esc(l.nome)}</div>
-          <span class="selo" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd}">${esc(l.mkt || "—")}</span>
-          <div style="margin-top:12px;font-size:13px;color:var(--ink-2)">${l.produtos.size || l.anuncios} produto(s) · ${l.anuncios} anúncio(s)</div>
-        </div>`; }).join("")}
-    </div>` : `<div class="card" style="padding:20px;color:var(--muted);font-size:13px">Ainda não há lojas registradas.</div>`;
+  // Cobertura pelo mesmo casamento que o resto da tela usa, e não por
+  // produtoId cru: anúncio vindo de planilha nem sempre traz o id.
+  for (const prod of estado.produtos) {
+    for (const a of anunciosDe(prod)) {
+      const v = porLoja.get(lojaDe(a)); if (v) v.produtos.add(prod.id);
+    }
+  }
+  return [...porLoja.values()].sort((a, b) => b.produtos.size - a.produtos.size);
+}
+
+/** O mesmo SKU anunciado por preços diferentes em lojas diferentes. */
+function precosQueDivergem() {
+  const fora = [];
+  for (const p of estado.produtos) {
+    const meus = anunciosDe(p).filter((a) => Number(a.preco) > 0);
+    if (meus.length < 2) continue;
+    const precos = meus.map((a) => Number(a.preco));
+    const menor = Math.min(...precos), maior = Math.max(...precos);
+    if (maior - menor < 0.01) continue;
+    fora.push({ produto: p, menor, maior,
+                dif: Math.round(((maior - menor) / menor) * 100),
+                onde: meus.map((a) => ({ loja: lojaDe(a), mkt: a.mkt || a.storeMkt || "", preco: Number(a.preco) }))
+                          .sort((a, b) => a.preco - b.preco) });
+  }
+  return fora.sort((a, b) => b.dif - a.dif);
+}
+
+function telaLojas() {
+  const lojas = resumoDasLojas();
+  const total = estado.produtos.length;
+  $("titulo").textContent = rotuloLojas(lojas.length);
+  $("resumo").textContent = "";
+
+  if (!lojas.length) {
+    $("corpo").innerHTML = `
+      <div class="card" style="padding:26px 24px;text-align:center">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px">Nenhuma loja ainda</div>
+        <div style="font-size:13.5px;color:var(--ink-2);line-height:1.6;max-width:46ch;margin:0 auto">
+          Assim que a OTDE subir o primeiro anúncio seu, a loja aparece aqui com
+          quantos dos seus ${total ? total + " produtos" : "produtos"} já estão nela.
+        </div>
+      </div>`;
+    return;
+  }
+
+  const anunciosTotal = lojas.reduce((a, l) => a + l.anuncios, 0);
+  const foraDeTudo = estado.produtos.filter((p) => anunciosDe(p).length === 0).length;
+
+  const tira = `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;display:flex;gap:26px;flex-wrap:wrap">
+      <div><b style="font-size:19px">${lojas.length}</b>
+        <span style="font-size:12px;color:var(--muted);margin-left:5px">${lojas.length === 1 ? "loja" : "lojas"}</span></div>
+      <div><b style="font-size:19px">${anunciosTotal}</b>
+        <span style="font-size:12px;color:var(--muted);margin-left:5px">${anunciosTotal === 1 ? "anúncio" : "anúncios"}</span></div>
+      ${foraDeTudo ? `<div><b style="font-size:19px;color:#B33A3A">${foraDeTudo}</b>
+        <span style="font-size:12px;color:var(--muted);margin-left:5px">${foraDeTudo === 1 ? "produto fora de todas" : "produtos fora de todas"}</span></div>` : ""}
+    </div>`;
+
+  const brl = (v) => "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const cartoes = lojas.map((l) => {
+    const c = cor(l.mkt);
+    const tem = l.produtos.size, falta = Math.max(0, total - tem);
+    const pct = total ? Math.round((tem / total) * 100) : 0;
+    const faixa = l.precos.length
+      ? (Math.min(...l.precos) === Math.max(...l.precos)
+          ? brl(l.precos[0])
+          : brl(Math.min(...l.precos)) + " a " + brl(Math.max(...l.precos)))
+      : "—";
+    return `
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:13px 18px;background:${c.bg};border-bottom:1px solid ${c.bd};
+             display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <b style="font-size:14px;color:${c.fg}">${esc(l.nome)}</b>
+          <span class="selo" style="background:#fff;color:${c.fg};border:1px solid ${c.bd}">${esc(l.mkt || "—")}</span>
+        </div>
+        <div style="padding:15px 18px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <span style="font-size:13px;color:var(--ink-2)">Seu catálogo nesta loja</span>
+            <b style="font-size:13.5px">${tem} de ${total}</b>
+          </div>
+          <div style="height:7px;background:#F0EEE9;border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;border-radius:99px;
+                 background:${pct >= 80 ? "#2E7D52" : pct >= 50 ? "#C08A2E" : "#B33A3A"}"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px">
+            <div style="font-size:12.5px;color:var(--muted)">
+              ${l.anuncios} ${l.anuncios === 1 ? "anúncio" : "anúncios"} · ${faixa}
+            </div>
+            ${falta && l.mkt ? `<button class="btnsm" data-faltaqui="${esc(l.mkt)}"
+              style="white-space:nowrap">${falta === 1 ? "Ver o que falta" : "Ver os " + falta + " que faltam"}</button>` : ""}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // Preço diferente para o mesmo produto em lojas diferentes. É o único
+  // achado desta tela que pede uma decisão do lojista — por isso ele vem
+  // depois das lojas, e não some quando está tudo certo: some quando não há.
+  const diverge = precosQueDivergem();
+  const blocoPreco = diverge.length ? `
+    <div class="card" style="padding:16px 18px;margin-top:16px;border-left:3px solid #C08A2E">
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px">
+        ${diverge.length} ${diverge.length === 1 ? "produto está" : "produtos estão"} com preço diferente entre suas lojas
+      </div>
+      <div style="font-size:12.5px;color:var(--ink-2);margin-bottom:12px">
+        Não é necessariamente erro — cada marketplace cobra uma comissão. Mas vale conferir.
+      </div>
+      ${diverge.slice(0, 5).map((d) => `
+        <div style="padding:9px 0;border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+            <b style="font-size:13px">${esc(d.produto.nome || d.produto.sku || "—")}</b>
+            <span style="font-size:12px;color:#9A6F1E;font-weight:700;white-space:nowrap">+${d.dif}%</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">
+            ${d.onde.map((o) => esc(o.loja) + " " + brl(o.preco)).join(" · ")}
+          </div>
+        </div>`).join("")}
+      ${diverge.length > 5 ? `<div style="font-size:12px;color:var(--muted);padding-top:9px">
+        …e mais ${diverge.length - 5}.</div>` : ""}
+    </div>` : "";
+
+  $("corpo").innerHTML = tira + `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      ${cartoes}
+    </div>` + blocoPreco;
+
+  // "Ver os N que faltam" leva para a lista já filtrada — o mesmo filtro que
+  // a aba de produtos oferece, só que chegando com a resposta pronta.
+  $("corpo").querySelectorAll("[data-faltaqui]").forEach((b) => {
+    b.onclick = () => {
+      estado.faltaEm = b.dataset.faltaqui;
+      estado.aba = "produtos"; estado.aberto = null;
+      document.querySelectorAll("[data-aba]").forEach((x) =>
+        x.classList.toggle("on", x.dataset.aba === "produtos"));
+      desenhar();
+    };
+  });
 }
 
 // ─── pop-up do "quero anunciar" ───────────────────────────────────────

@@ -179,6 +179,7 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Os neutros são QUENTES, não azulados | Ouro sobre cinza azulado fica esverdeado. Trocar só o acento deixaria o sistema com cara de sujo |
 | A barra de progresso mostra o NÚMERO, não a pessoa | Pintada com a cor do funcionário, 94% e 96% saíam em cores diferentes. Agora é verde/âmbar/vermelho pela própria porcentagem |
 | Crachá de quem foi cadastrado antes é traduzido, não migrado | `corDoFuncionario()` reparte a paleta nova sem repetir. Mexer no banco de 6 pessoas seria mais risco que valor |
+| A área do cliente NUNCA lê `sales` | A aba "Minha loja" responde com produto e anúncio, que ele já lê. Abrir venda a papel externo para enfeitar tela é o erro que a regra de ouro proíbe |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho
 do Firestore**. O gatilho existia e foi removido: dependia do Eventarc, quebrava o deploy
