@@ -49,17 +49,47 @@ três peças de R$ 40 num pedido de R$ 120 caem na primeira faixa da tabela, nã
 É isso que diz se a tabela está certa, sem depender da planilha de ninguém. E o mesmo
 método serve para Mercado Livre e TikTok assim que houver venda sincronizada de lá.
 
-## Item 1 — a tabela de taxas dos dois, antes de qualquer API
+## Item 1 — as taxas dos dois ✅ TikTok em 14/09/2026 · ML virou item 2b
 
-**Este item não depende do portão 1** e entrega valor sozinho.
+**TikTok Shop: feito, e não depende do portão 1.** Números lidos nas páginas oficiais
+(Tarifa de Comissão da Plataforma, 12/06/2026; Programa de Taxas de Envio, 31/08/2026) e
+gravados em `js/taxas.js`:
 
-O especialista de Mercado Livre já registra anúncios à mão desde a fase 5. Hoje ele digita
-o preço e o sistema diz "não tenho as taxas de Mercado Livre". Com a tabela de comissão
-preenchida em `js/taxas.js`, a margem passa a funcionar lá **sem integração nenhuma** —
-do mesmo jeito que já funciona para Shopee e Shein.
+- item **abaixo de R$50**: 10% + R$4 por item
+- item **de R$50 para cima**: 6% + R$6 por item
+- mais **6% do preço** do Programa de Taxas de Envio, teto de R$50 por produto — o
+  vendedor entra nele automaticamente
 
-Precisa do Willian: a comissão do Mercado Livre (que varia por categoria e por tipo de
-anúncio, clássico ou premium) e a do TikTok Shop. Frete, se houver.
+A base é o preço **após o desconto do vendedor**. O frete do TikTok é percentual e não
+depende de peso, por isso a tabela dele não pede peso do produto.
+
+**Mercado Livre NÃO vira tabela.** Foi a decisão do Willian em 14/09/2026, e ela está
+certa: a comissão do ML varia de 10% a 14% (Clássico) e 15% a 19% (Premium) **por
+categoria**, mais custo fixo por faixa abaixo de R$79, mais um frete que desde a regra
+Flat Fee depende de peso, região e reputação. Qualquer número escolhido no meio da faixa
+seria margem inventada.
+
+O certo é **puxar a categoria do próprio anúncio e perguntar a taxa à API**:
+
+```
+GET /items/{MLB…}                    → category_id, listing_type_id
+GET /sites/MLB/listing_prices        → sale_fee_amount por preço+categoria+tipo
+    ?price=&category_id=&listing_type_id=
+```
+
+Assim a taxa nunca fica velha e ninguém mantém tabela.
+
+**Mas isso passou a depender do portão 1.** Conferido em 14/09/2026: a API do Mercado
+Livre fechou o acesso público — `/items`, `/sites/MLB/listing_types` e
+`/sites/MLB/listing_prices` devolvem **403 sem token**. Antes davam para consultar sem
+credencial.
+
+Consequência prática: **a margem do Mercado Livre é hoje o maior motivo para pedir as
+credenciais**, e não a sincronização de vendas. O especialista de ML já registra anúncios
+à mão desde a fase 5 e continua sem margem até o aplicativo ser aprovado.
+
+Até lá o sistema diz "não tenho as taxas de Mercado Livre" — que é a resposta honesta, e
+tem teste garantindo que continue assim em vez de estimar.
 
 ## Item 2 — conectar a conta (depende do portão 1)
 
