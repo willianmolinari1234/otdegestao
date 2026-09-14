@@ -177,10 +177,26 @@ test("a tela do cliente não fala mais em '?cliente='", () => {
 
 // ─── A ferramenta parceira ────────────────────────────────────────────
 
-test("a JoomPulse abre fora do sistema, em aba nova e sem carona", () => {
+test("a JoomPulse vive na área do CLIENTE, não na da equipe", () => {
+  // É ferramenta para o lojista escolher o que vender, ao lado do botão de
+  // cadastrar produto. Na barra da equipe ela não tinha o que fazer.
+  assert.match(html, /href="https:\/\/joompulse\.com\/"/);
+  assert.match(html, /Pesquisa de mercado e de novos produtos/);
   const app = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
-  assert.match(app, /href="https:\/\/joompulse\.com\/"/);
-  assert.match(app, /target="_blank" rel="noopener noreferrer"/,
+  assert.doesNotMatch(app, /joompulse/i, "ainda está na área da equipe");
+});
+
+test("a JoomPulse abre fora do sistema, em aba nova e sem carona", () => {
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/,
     "link externo sem noopener deixa a outra aba mexer nesta");
-  assert.match(app, /class="parceira-fora"/, "a seta avisa que troca de site");
+  assert.match(html, /class="parceira-fora"/, "a seta avisa que troca de site");
+});
+
+test("o logo da entrada do cliente é a marca, não uma letra num quadradinho", () => {
+  // Era `<div class="logo">O</div>` — um substituto que ficou no ar depois
+  // que a logo de verdade já existia.
+  assert.doesNotMatch(html, /<div class="logo">O<\/div>/);
+  assert.match(html, /<img class="logo" src="data:image\/png;base64,/);
+  assert.doesNotMatch(html, /\.logo\{[^}]*border-radius:12px/,
+    "a moldura do quadradinho voltou");
 });

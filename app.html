@@ -430,24 +430,7 @@ nav{display:flex;flex-direction:column;gap:2px}
 .nav-btn{background:transparent;color:#8E8B84;border:none;border-radius:9px;padding:10px 12px;text-align:left;font-size:13px;display:flex;align-items:center;gap:9px;font-weight:500;transition:all .15s cubic-bezier(.4,0,.2,1);width:100%;position:relative;letter-spacing:-.005em}
 .nav-btn:hover{background:rgba(255,255,255,.04);color:#E7E4DD}
 .nav-btn.active{background:linear-gradient(90deg,rgba(184,135,43,.20) 0%,rgba(28,26,20,.55) 100%);color:white;font-weight:700;box-shadow:inset 3px 0 0 var(--brand)}
-/* Ferramenta de fora, dentro da barra: fica em ouro discreto para não
-   competir com as quatro entradas do menu, que são o trabalho. */
-.parceira{margin-top:auto;display:flex;align-items:center;gap:9px;text-decoration:none;
-  padding:9px 10px;border-radius:9px;border:1px solid #241F14;background:#121013;
-  transition:all .15s cubic-bezier(.4,0,.2,1)}
-.parceira:hover{background:#171319;border-color:#3A3020}
-.parceira-ic{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;
-  align-items:center;justify-content:center;background:rgba(184,135,43,.14);color:var(--brand)}
-.parceira-ic svg{width:15px;height:15px}
-.parceira-txt{min-width:0;flex:1}
-.parceira-txt b{display:block;color:#E8E4DA;font-size:12px;font-weight:700;line-height:1.25}
-.parceira-txt small{display:block;color:#6B6459;font-size:9.5px;line-height:1.3;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.parceira-fora{color:#4A463D;font-size:11px;flex-shrink:0}
-.parceira:hover .parceira-fora{color:var(--brand)}
-/* A barra já empurrava o rodapé para baixo; com a parceira ocupando esse
-   papel, o rodapé passa a ser só um respiro em cima dela. */
-.sidebar-footer{margin-top:12px;padding:12px 6px 0;border-top:1px solid #1E1B14;text-align:center;color:#4A463D;font-size:9.5px}
+.sidebar-footer{margin-top:auto;padding:12px 6px 0;border-top:1px solid #1E1B14;text-align:center;color:#4A463D;font-size:9.5px}
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 #topbar{background:white;border-bottom:1px solid var(--border);padding:14px 26px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 1px 0 rgba(20,21,26,.02)}
 #topbar h1{font-size:16px;font-weight:800;color:#14151A}
@@ -890,23 +873,6 @@ tr:last-child td{border-bottom:none}
     <button class="nav-btn" data-view="clientes">🏪&nbsp; Clientes</button>
     <button class="nav-btn" data-view="equipe" data-admin>◉&nbsp; Equipe</button>
   </nav>
-  <!-- Ferramenta parceira. Abre fora do sistema, em aba nova, e diz isso pela
-       seta — link que troca de site sem avisar é armadilha. O ícone é um
-       desenho nosso; se a JoomPulse mandar a marca oficial, é só trocar. -->
-  <a class="parceira" href="https://joompulse.com/" target="_blank" rel="noopener noreferrer"
-     title="JoomPulse — análise de mercado e de produtos para Shopee e Mercado Livre. Abre em outra aba.">
-    <span class="parceira-ic" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 12h3.5l2.2-6 3.4 12 2.6-8 1.8 4H22"/>
-      </svg>
-    </span>
-    <span class="parceira-txt">
-      <b>JoomPulse</b>
-      <small>Análise de mercado</small>
-    </span>
-    <span class="parceira-fora" aria-hidden="true">↗</span>
-  </a>
   <div class="sidebar-footer">OTDE Performance v1.0</div>
 </aside>
 <div id="main">
