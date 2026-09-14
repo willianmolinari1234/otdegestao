@@ -90,10 +90,23 @@ test("a barra lateral e o botão de ação usam o token do preto", () => {
 
 // ─── O símbolo ────────────────────────────────────────────────────────
 
-test("o logo é vetor, não a foto antiga", () => {
+test("o logo é a imagem original do Willian, embutida e sem moldura", () => {
+  // Era um redesenho vetorial meu. O dono mandou o arquivo: o que vai no ar é
+  // a marca dele, recortada da arte original e com o fundo preto removido —
+  // por isso PNG com transparência, e não JPEG nem SVG.
   const app = ler("app.html");
-  assert.match(app, /class="logo-img" src="data:image\/svg\+xml;base64,/);
-  assert.doesNotMatch(app, /class="logo-img" src="data:image\/jpeg/);
+  assert.match(app, /class="logo-img" src="data:image\/png;base64,/);
+  assert.doesNotMatch(app, /class="logo-img" src="data:image\/jpeg/,
+    "voltou a foto antiga, com fundo");
+  assert.doesNotMatch(app, /\.logo-img\{[^}]*border-radius:50%/,
+    "o círculo cortava as barras do E");
+});
+
+test("o ícone da aba é a marca sozinha, sem quadrado nem círculo", () => {
+  const app = ler("app.html");
+  assert.match(app, /rel="icon" type="image\/png" sizes="32x32" href="data:image\/png;base64,/);
+  assert.match(ler("cliente.html"), /rel="icon" type="image\/png" sizes="32x32"/,
+    "a área do cliente ficou sem ícone");
 });
 
 test("a tela de entrada copia o logo da barra lateral — o laço continua de pé", () => {
