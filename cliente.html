@@ -91,9 +91,12 @@ tbody tr:hover{background:#fcfcfd}
 .midia.midia-erro b{color:var(--brand-tint);font-weight:700}
 
 /* ── pop-up ── */
-#mask{position:fixed;inset:0;background:rgba(20,21,26,.55);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+#mask{position:fixed;inset:0;background:rgba(20,21,26,.55);display:none;
+  align-items:flex-start;justify-content:center;padding:24px;z-index:50;
+  overflow-y:auto;-webkit-overflow-scrolling:touch}
 #mask.ver{display:flex}
-.pop{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(20,21,26,.35);width:100%;max-width:470px;padding:34px 36px 26px;text-align:center}
+.pop{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(20,21,26,.35);
+  width:100%;max-width:470px;padding:34px 36px 26px;text-align:center;margin:auto}
 @media (max-width:720px){
   aside{display:none}
   .corpo,.topo{padding-left:16px;padding-right:16px}

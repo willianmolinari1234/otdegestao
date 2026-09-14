@@ -174,7 +174,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Herança de percentual: loja → cliente → padrão (2% e 0%) | A mesma do fechamento mensal. Se divergissem, a tela brigaria com o relatório que o cliente recebe todo mês |
 | Autoria dupla em toda gravação | `criadoPor` (quem digitou) e `emNomeDe` (por quem) |
 | A ficha do produto é gravada pelo backend | O cliente não pode escrever `mkts`; gravar pelo navegador faria o produto nascer invisível para o especialista |
-| Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, foto, observações | Mais o nome. Custo fica de fora: a ficha é para anunciar, não para precificar |
+| Obrigatórios da ficha: SKU, peso, medidas do produto, medidas da embalagem, **fotos, vídeo** e observações | Mais o nome — oito ao todo. Vídeo entrou em 13/09/2026: é a mesma prova visual que a foto. Custo fica de fora: a ficha é para anunciar, não para precificar |
+| Produto novo do cliente vira tarefa do responsável pela loja | `tasks/ficha__<produtoId>`, com `auto:false` — tarefa com `auto:true` pertence ao varredor de `tarefas-automaticas.js`, que fecharia esta calada por não achar a regra dela |
 | Marca: **OTDE Performance**, ouro sobre preto | Desde 13/09/2026. Antes era OTDE Gestão de Contas, laranja sobre slate |
 | Os neutros são QUENTES, não azulados | Ouro sobre cinza azulado fica esverdeado. Trocar só o acento deixaria o sistema com cara de sujo |
 | A barra de progresso mostra o NÚMERO, não a pessoa | Pintada com a cor do funcionário, 94% e 96% saíam em cores diferentes. Agora é verde/âmbar/vermelho pela própria porcentagem |

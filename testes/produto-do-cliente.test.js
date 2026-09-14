@@ -17,6 +17,7 @@ const completa = () => ({
   nome: "Body Manga Longa", sku: "BML-42", peso: "180g",
   medidasProduto: "50x30cm", medidas: "22x16x6cm",
   fotos: "https://drive.google.com/drive/folders/abc123",
+  video: "https://drive.google.com/file/d/vid1/view",
   obs: "Tecido suplex, não amassa.",
 });
 
@@ -28,9 +29,16 @@ const montar = (extra = {}, resto = {}) => montarProdutoDoCliente({
 });
 
 // ─── obrigatórios ─────────────────────────────────────────────────────
-test("os sete obrigatórios são os combinados com o Willian", () => {
+test("os oito obrigatórios, com o vídeo ao lado da foto", () => {
+  // Vídeo entrou em 13/09/2026: é a mesma prova visual que a foto, e
+  // pedir uma sem a outra deixava o especialista anunciando sem vídeo.
   const nomes = CAMPOS_DA_FICHA.filter((c) => c.obrigatorio).map((c) => c.campo);
-  assert.deepEqual(nomes, ["nome", "sku", "peso", "medidasProduto", "medidas", "fotos", "obs"]);
+  assert.deepEqual(nomes,
+    ["nome", "sku", "peso", "medidasProduto", "medidas", "fotos", "video", "obs"]);
+});
+
+test("vídeo em branco barra o salvamento, como a foto", () => {
+  assert.throws(() => montar({ video: "" }), /Falta preencher: Vídeo\./);
 });
 
 test("custo NÃO é obrigatório: a ficha é para anunciar, não para precificar", () => {
@@ -42,7 +50,7 @@ test("custo NÃO é obrigatório: a ficha é para anunciar, não para precificar
 test("faltandoNaFicha devolve os rótulos em português, não os campos", () => {
   assert.deepEqual(faltandoNaFicha({}), [
     "Nome do produto", "SKU", "Peso", "Medidas do produto",
-    "Medidas da embalagem", "Foto", "Observações",
+    "Medidas da embalagem", "Fotos", "Vídeo", "Observações",
   ]);
   assert.deepEqual(faltandoNaFicha(completa()), []);
 });
@@ -66,8 +74,8 @@ test("um obrigatório faltando barra o salvamento, dizendo qual", () => {
 });
 
 test("vários faltando saem na mesma frase, na ordem da tela", () => {
-  assert.throws(() => montar({ peso: "", fotos: "" }),
-    /Faltam preencher: Peso, Foto\./);
+  assert.throws(() => montar({ peso: "", fotos: "", video: "" }),
+    /Faltam preencher: Peso, Fotos, Vídeo\./);
 });
 
 // ─── o que o cliente não escreve ──────────────────────────────────────
@@ -197,5 +205,54 @@ test("lista que chega como array é preservada", () => {
 });
 
 test("foto só com espaços continua contando como faltando", () => {
-  assert.throws(() => montar({ fotos: "  \n  " }), /Falta preencher: Foto\./);
+  assert.throws(() => montar({ fotos: "  \n  " }), /Falta preencher: Fotos\./);
+});
+
+// ─── Produto novo do cliente vira tarefa ──────────────────────────────
+//
+// O cliente cadastra porque quer que aquilo seja anunciado. Sem a tarefa, a
+// ficha ficava esperando alguém reparar que ela existe.
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const raizP = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const backend = fs.readFileSync(path.join(raizP, "functions/index.js"), "utf8");
+const corpoTarefa = (() => {
+  const i = backend.indexOf("async function tarefaDeProdutoNovo");
+  assert.ok(i > 0, "a função tarefaDeProdutoNovo sumiu");
+  return backend.slice(i, i + 2000);
+})();
+
+test("a tarefa NÃO é automática: o varredor a fecharia calado", () => {
+  // tarefas-automaticas.js fecha toda tarefa com auto:true cuja regra parou de
+  // valer — e esta não tem regra lá. Marcada como automática, ela sumiria no
+  // ciclo seguinte sem ninguém entender por quê.
+  assert.match(corpoTarefa, /auto: false/);
+});
+
+test("o id é determinístico: salvar a ficha duas vezes não vira duas tarefas", () => {
+  assert.match(corpoTarefa, /doc\(`ficha__\$\{produtoId\}`\)/);
+  assert.match(corpoTarefa, /if \(\(await ref\.get\(\)\)\.exists\) return;/);
+});
+
+test("a tarefa cai com o responsável da loja daquele cliente", () => {
+  assert.match(corpoTarefa, /collection\("clients"\)\.where\("custId", "==", custId\)/);
+  assert.match(corpoTarefa, /find\(\(d\) => d\.data\(\)\.respId\)/,
+    "tem que preferir uma loja QUE TENHA responsável");
+  assert.match(corpoTarefa, /emp: comDono \? \(comDono\.data\(\)\.respId \|\| ""\) : ""/);
+});
+
+test("cliente sem responsável definido ainda gera tarefa, só que sem dono", () => {
+  // Melhor uma tarefa sem dono no quadro do que nenhuma tarefa.
+  assert.match(corpoTarefa, /ordenadas\[0\] \|\| null/);
+});
+
+test("a tarefa nasce só quando o produto é NOVO, e nunca derruba o salvamento", () => {
+  const i = backend.indexOf("export const salvarProdutoDoCliente");
+  const endpoint = backend.slice(i, i + 3000);
+  assert.match(endpoint, /if \(criando\) \{\s*\n\s*try \{ await tarefaDeProdutoNovo/,
+    "editar a ficha não pode criar tarefa de novo");
+  assert.match(endpoint, /catch \(e\) \{ logger\.error\("tarefaDeProdutoNovo", e\); \}/,
+    "falhar ao criar a tarefa não pode impedir o cliente de salvar");
 });

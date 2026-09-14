@@ -223,7 +223,8 @@ async function appComProdutos(produtos) {
 const fichaCheia = (extra = {}) => ({
   id: "c1__abc", custId: "c1", custNome: "Poliane", nome: "Body Manga Longa", sku: "BML-42",
   peso: "180g", medidasProduto: "50x30cm", medidas: "22x16x6cm",
-  fotos: "https://drive.google.com/x", obs: "sem observação",
+  fotos: "https://drive.google.com/x", video: "https://drive.google.com/v",
+  obs: "sem observação",
   atualizadoEm: "2026-09-11T10:00:00.000Z", ...extra,
 });
 

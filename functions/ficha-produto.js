@@ -20,12 +20,12 @@ export const CAMPOS_DA_FICHA = [
   { campo: "peso",           rotulo: "Peso",                 obrigatorio: true,  dica: "Com a embalagem. Ex.: 180g" },
   { campo: "medidasProduto", rotulo: "Medidas do produto",   obrigatorio: true,  dica: "Ex.: 50x30cm" },
   { campo: "medidas",        rotulo: "Medidas da embalagem", obrigatorio: true,  dica: "Ex.: 22x16x6cm" },
-  { campo: "fotos",          rotulo: "Foto",                 obrigatorio: true,  dica: "Link do Google Drive, como 'qualquer pessoa com o link'. Um por linha.", longo: true, linhas: 2 },
+  { campo: "fotos",          rotulo: "Fotos",                obrigatorio: true,  dica: "Link do Google Drive, como 'qualquer pessoa com o link'. Um por linha.", longo: true, linhas: 2 },
+  { campo: "video",          rotulo: "Vídeo",                obrigatorio: true,  dica: "Link do Google Drive. Um por linha.", longo: true, linhas: 2 },
   { campo: "obs",            rotulo: "Observações",          obrigatorio: true,  dica: "O que quem for anunciar precisa saber", longo: true },
   { campo: "tamanhos",       rotulo: "Tamanhos",             obrigatorio: false, dica: "" },
   { campo: "cores",          rotulo: "Cores",                obrigatorio: false, dica: "" },
   { campo: "material",       rotulo: "Material",             obrigatorio: false, dica: "" },
-  { campo: "video",          rotulo: "Vídeo",                obrigatorio: false, dica: "Link do Google Drive. Um por linha.", longo: true, linhas: 2 },
 ];
 
 export const texto = (v) => (v === null || v === undefined) ? "" : String(v).trim();

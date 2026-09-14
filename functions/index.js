@@ -1993,6 +1993,44 @@ async function mktsDoProprietario(custId) {
   return { mkts: [...new Set(daslojas)], custNome: (dados && dados.name) || "" };
 }
 
+// ─── PRODUTO NOVO DO CLIENTE VIRA TAREFA ──────────────────────────────
+//
+// `auto: false` de propósito. As tarefas com `auto: true` pertencem ao
+// varredor de tarefas-automaticas.js: ele FECHA toda tarefa automática cuja
+// regra parou de valer, e esta não tem regra lá — seria fechada no ciclo
+// seguinte, calada. Esta é uma tarefa comum, que o especialista encerra
+// quando o produto estiver anunciado.
+//
+// O id é determinístico (`ficha__<produtoId>`): o cliente salvando a mesma
+// ficha duas vezes não gera duas tarefas.
+async function tarefaDeProdutoNovo({ produtoId, doc, custId, custNome }) {
+  const ref = db.collection("tasks").doc(`ficha__${produtoId}`);
+  if ((await ref.get()).exists) return;          // já existe: não duplica
+
+  // A loja com responsável definido. Havendo mais de uma, a primeira por id —
+  // determinístico, e a tarefa aparece no quadro de alguém em vez de sumir.
+  const lojas = await db.collection("clients").where("custId", "==", custId).get();
+  const ordenadas = lojas.docs.slice().sort((a, b) => a.id.localeCompare(b.id));
+  const comDono = ordenadas.find((d) => d.data().respId) || ordenadas[0] || null;
+
+  const prazo = new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const nome = String(doc.nome || "").trim() || String(doc.sku || "") || "produto sem nome";
+  await ref.set({
+    id: ref.id,
+    auto: false,
+    title: `Anunciar: ${nome}`,
+    desc: `${custNome || "O cliente"} cadastrou este produto na área dele.`
+        + (doc.sku ? ` SKU ${doc.sku}.` : ""),
+    emp: comDono ? (comDono.data().respId || "") : "",
+    cli: comDono ? comDono.id : "",
+    status: "todo",
+    pri: "media",
+    date: prazo,
+    origem: "ficha-do-cliente",
+    criadaEm: FieldValue.serverTimestamp(),
+  });
+}
+
 export const salvarProdutoDoCliente = onRequest({
   cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
 }, async (req, res) => {
@@ -2025,6 +2063,15 @@ export const salvarProdutoDoCliente = onRequest({
     // anúncios antigos) continuam onde estão. A decisão travada do projeto é
     // que margem vinda de planilha nunca é recalculada nem apagada.
     await db.collection("products").doc(id).set(doc, { merge: true });
+
+    // Produto NOVO do cliente vira tarefa para quem cuida da loja dele. Sem
+    // isso a ficha ficava esperando alguém reparar que ela existe — e o
+    // cliente cadastra justamente porque quer que aquilo seja anunciado.
+    if (criando) {
+      try { await tarefaDeProdutoNovo({ produtoId: id, doc, custId: autor.custId, custNome }); }
+      catch (e) { logger.error("tarefaDeProdutoNovo", e); }  // nunca derruba o salvamento
+    }
+
     res.json({ ok: true, id, criado: criando, produto: doc });
   } catch (e) {
     if (e instanceof ErroProduto) { res.status(e.status).json({ erro: e.message }); return; }
