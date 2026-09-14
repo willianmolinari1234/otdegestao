@@ -180,7 +180,9 @@ test("a tela do cliente não fala mais em '?cliente='", () => {
 test("a JoomPulse vive na área do CLIENTE, não na da equipe", () => {
   // É ferramenta para o lojista escolher o que vender, ao lado do botão de
   // cadastrar produto. Na barra da equipe ela não tinha o que fazer.
-  assert.match(html, /href="https:\/\/joompulse\.com\/"/);
+  // O link de parceria da OTDE, com o código de promoção. Perder o
+  // promocode devolve o lojista ao site normal, sem o benefício.
+  assert.match(html, /href="https:\/\/joompulse\.com\/fast-track\?utm_source=influence&amp;promocode=OTDE30"/);
   assert.match(html, /Pesquisa de mercado e de novos produtos/);
   const app = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
   assert.doesNotMatch(app, /joompulse/i, "ainda está na área da equipe");
