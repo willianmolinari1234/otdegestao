@@ -1372,7 +1372,7 @@ function rEquipeLista(){
           </span>
         </div>
         <div style="font-size:11px;color:#8E8B84;margin-bottom:6px">${et.length} tarefas · ${dn} concluídas · ${hasLogin}</div>
-        <div class="prog-track"><div class="prog-bar" style="background:${e.color};width:${p}%"></div></div>
+        <div class="prog-track"><div class="prog-bar" style="background:${corDoProgresso(p)};width:${p}%"></div></div>
         <div style="font-size:10px;color:#8E8B84;margin-top:3px">${p}% concluído</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
@@ -1522,7 +1522,7 @@ function rRelatorios(){
       <td style="color:#16a34a;font-weight:600">${c}</td>
       <td style="font-weight:800">${et.length}</td>
       <td style="color:${ov>0?"#dc2626":"#8E8B84"};font-weight:700">${ov}</td>
-      <td><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:5px;background:#F4F1EA;border-radius:3px"><div style="height:5px;background:${e.color};border-radius:3px;width:${p}%"></div></div><span style="font-size:11px;font-weight:700;color:${e.color};min-width:30px">${p}%</span></div></td>
+      <td><div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:5px;background:#F4F1EA;border-radius:3px"><div style="height:5px;background:${corDoProgresso(p)};border-radius:3px;width:${p}%"></div></div><span style="font-size:11px;font-weight:700;color:${corDoProgresso(p)};min-width:30px">${p}%</span></div></td>
     </tr>`;
   }).join("");
   // Ads metrics: tasks containing "anúncio" or "anuncio" (case-insensitive)

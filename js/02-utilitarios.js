@@ -173,9 +173,39 @@ function ownerBadgeHTML(cli,size){
   if(!isAdmin())return`<div class="owner-badge">👤 ${esc(cu.name)}</div>`;
   return`<div class="owner-badge" data-syscust="${esc(cu.id)}" title="Acesso de ${esc(cu.name)} ao sistema" style="cursor:pointer">👤 ${esc(cu.name)} <span style="opacity:.5">›</span></div>`;
 }
+// Funcionário cadastrado antes do rebranding tem no banco uma cor da paleta
+// velha (#2563eb, #db2777…). Em vez de mexer no banco de 6 pessoas, a cor de
+// fora da paleta é traduzida — sempre para a mesma, para a mesma pessoa, ou
+// o crachá mudaria de cor a cada carregamento.
+function corDoFuncionario(e){
+  if(!e)return COLORS[0];
+  if(e.color&&COLORS.includes(e.color))return e.color;
+  // Sem cor válida, reparte as que sobraram — uma por pessoa, na ordem do id.
+  // A primeira versão sorteava por hash do id e três dos seis funcionários
+  // saíam da mesma cor, que é justamente o que o crachá existe para evitar.
+  const lista=(typeof emps!=="undefined"&&Array.isArray(emps)?emps:[])
+    .slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const tomadas=new Set(lista.filter(x=>x.color&&COLORS.includes(x.color)).map(x=>x.color));
+  for(const x of lista){
+    if(x.color&&COLORS.includes(x.color))continue;
+    const livre=COLORS.find(c=>!tomadas.has(c))||COLORS[tomadas.size%COLORS.length];
+    tomadas.add(livre);
+    if(String(x.id)===String(e.id))return livre;
+  }
+  return COLORS[0];
+}
+
+// A barra de progresso mostra % CONCLUÍDO. Pintá-la com a cor da pessoa
+// fazia 94% e 96% saírem em cores diferentes — enfeite, não informação.
+// Agora a cor é o próprio número, na mesma escala do resto do sistema.
+function corDoProgresso(p){
+  return p>=80?"#2E7D52":p>=50?"#C08A2E":"#B33A3A";
+}
+
 function avHTML(e,sz){
   if(!e)return"";
-  return`<div class="avatar" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.36)}px;background:${e.color}22;color:${e.color};border:1.5px solid ${e.color}55">${e.ini}</div>`;
+  const c=corDoFuncionario(e);
+  return`<div class="avatar" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.36)}px;background:${c}1f;color:${c};border:1.5px solid ${c}4d">${e.ini}</div>`;
 }
 function bdg(cls,lbl){return`<span class="badge ${cls}">${lbl}</span>`;}
 function priB(p){return`<span class="badge" style="background:${PBGCOL[p]};color:${PCOL[p]}">${PLBL[p]}</span>`;}

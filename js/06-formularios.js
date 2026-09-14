@@ -362,7 +362,7 @@ function openClientForm(clientId,custPre){
 let selColor=COLORS[0];
 function openEmployeeForm(empId){
   const e=empId?emps.find(x=>x.id===empId):null;
-  if(e)selColor=e.color;
+  if(e)selColor=corDoFuncionario(e);   // traduz a cor antiga, para o seletor não abrir sem nada marcado
   const colBtns=COLORS.map((c,i)=>`<button data-ci="${i}" data-cc="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${c===selColor?"3px solid #14151A":"2px solid transparent"};cursor:pointer"></button>`).join("");
   const helpText=e
     ?`<div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#6B4D18;line-height:1.5">ℹ️ <strong>E-mail e senha não podem ser alterados aqui.</strong> Para mudar a senha, o funcionário pode usar "Esqueci minha senha" na tela de login.</div>`

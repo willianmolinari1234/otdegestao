@@ -128,3 +128,38 @@ test("cor de estado continua sendo cor de estado", () => {
   assert.ok(app.includes("#dc2626") || app.includes("#b91c1c"), "o vermelho de 'atrasado' sumiu");
   assert.ok(app.includes("#92400e") || app.includes("#fef3c7"), "o âmbar de 'atenção' sumiu");
 });
+
+// ─── O padrão de cores da Equipe ──────────────────────────────────────
+//
+// A tela de Equipe era um arco-íris: crachá azul, rosa, ciano e verde ao lado
+// do dourado da marca. Pior, a BARRA DE PROGRESSO usava a cor da pessoa — 94%
+// e 96% saíam em cores diferentes, o que não informa nada.
+
+test("a paleta dos crachás não tem mais azul, rosa nem ciano", () => {
+  const estado = ler("js/01-estado-e-dados.js");
+  const linha = estado.split("\n").find((l) => l.startsWith("const COLORS="));
+  assert.ok(linha, "a declaração de COLORS sumiu");
+  for (const morta of ["#7c3aed", "#db2777", "#2563eb", "#0284c7", "#d97706"]) {
+    assert.ok(!linha.includes(morta), `${morta} ainda está na paleta dos crachás`);
+  }
+  assert.match(linha, /^const COLORS=\["#8A6420","#7A4B3A"/);
+  // E a prioridade "baixa" deixou de ser azul: era o último frio do sistema.
+  assert.match(estado, /baixa:"#5C584F"/);
+});
+
+test("o crachá passa pela tradução, não lê a cor crua do banco", () => {
+  // Funcionário cadastrado antes do rebranding tem cor antiga gravada. Ler
+  // `e.color` direto traria o azul de volta na tela.
+  const util = ler("js/02-utilitarios.js");
+  assert.match(util, /function corDoFuncionario\(e\)/);
+  assert.match(util, /const c=corDoFuncionario\(e\);/);
+  assert.doesNotMatch(util, /background:\$\{e\.color\}/);
+});
+
+test("as duas barras de progresso mostram o NÚMERO, não a pessoa", () => {
+  const telas = ler("js/04-telas.js");
+  assert.doesNotMatch(telas, /background:\$\{e\.color\}/,
+    "alguma barra voltou a usar a cor do funcionário");
+  assert.equal((telas.match(/corDoProgresso\(p\)/g) || []).length, 3,
+    "esperava as duas barras e o número ao lado usando a escala");
+});

@@ -1045,3 +1045,52 @@ test("redesenhar o bloco religa os botões dele", async () => {
   assert.ok(posto.atual, "o bloco foi redesenhado");
   assert.ok(religou, "antesRedesenhar() precisa chamar antesBind() no bloco novo");
 });
+
+// ─── As cores da Equipe ───────────────────────────────────────────────
+
+const SEIS = `
+  emps = [{id:"marcelo",name:"Marcelo",ini:"MA",color:"#2563eb",role:"user"},
+          {id:"murilo", name:"Murilo", ini:"M", color:"#16a34a",role:"user"},
+          {id:"pedro",  name:"Pedro",  ini:"P", color:"#2563eb",role:"user"},
+          {id:"joao",   name:"João",   ini:"J", color:"#db2777",role:"user"},
+          {id:"wesley", name:"Wesley", ini:"W", color:"#16a34a",role:"user"},
+          {id:"adm",    name:"Willian",ini:"WM",color:"#ea580c",role:"admin"}];
+  custs=[];clis=[];tools=[];tsks=[];prods=[];lists=[];
+  currentUser={id:"adm",name:"Willian",ini:"WM",role:"admin"};
+`;
+
+test("cada pessoa da equipe recebe uma cor diferente", () => {
+  // A primeira versão sorteava por hash do id: três dos seis funcionários
+  // caíam na mesma cor, que é o oposto do que um crachá serve para fazer.
+  return montarApp(SEIS).then((ctx) => {
+    const cores = eval_(ctx, `return emps.map(e=>corDoFuncionario(e));`);
+    assert.equal(new Set(cores).size, 6, `cores repetidas: ${cores.join(", ")}`);
+    const paleta = eval_(ctx, `return COLORS;`);
+    for (const c of cores) assert.ok(paleta.includes(c), `${c} está fora da paleta`);
+  });
+});
+
+test("a cor do crachá não muda entre um desenho e outro", () => {
+  // Cor instável faria o crachá piscar de cor a cada redesenho da tela.
+  return montarApp(SEIS).then((ctx) => {
+    const a = eval_(ctx, `return emps.map(e=>corDoFuncionario(e)).join("|");`);
+    const b = eval_(ctx, `return emps.map(e=>corDoFuncionario(e)).join("|");`);
+    assert.equal(a, b);
+  });
+});
+
+test("quem já escolheu uma cor da paleta nova continua com ela", () => {
+  return montarApp(SEIS + `emps[0].color="#6E4468";`).then((ctx) => {
+    assert.equal(eval_(ctx, `return corDoFuncionario(emps[0]);`), "#6E4468");
+  });
+});
+
+test("a barra de progresso é a escala do próprio número", () => {
+  return montarApp(SEIS).then((ctx) => {
+    const cor = (p) => eval_(ctx, `return corDoProgresso(${p});`);
+    assert.equal(cor(98), "#2E7D52", "98% em dia");
+    assert.equal(cor(80), "#2E7D52", "a fronteira de cima conta como em dia");
+    assert.equal(cor(65), "#C08A2E", "no meio, atenção");
+    assert.equal(cor(0),  "#B33A3A", "ninguém concluiu nada: vermelho");
+  });
+});

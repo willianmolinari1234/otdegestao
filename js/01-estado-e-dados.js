@@ -32,7 +32,10 @@ const ERP_PRESETS={
   upseller:{label:"Upseller", url:"https://app.upseller.com/pt/home",  hasId:false},
   outro:   {label:"Outro (personalizado)", url:"", hasId:false}
 };
-const COLORS=["#B8872B","#7c3aed","#db2777","#d97706","#2563eb","#dc2626","#16a34a","#0284c7"];
+// Paleta dos crachás. Tons quentes e escuros o bastante para a inicial
+// aparecer — e da mesma família do ouro. Antes era um arco-íris (azul,
+// rosa, ciano) que brigava com a marca em toda tela de Equipe.
+const COLORS=["#8A6420","#7A4B3A","#5F6B3C","#3F6156","#46546E","#6E4468","#8A5430","#55524C"];
 // Só as quatro telas do menu: o resto virou aba, e o nome de cada aba está
 // na própria barra de abas.
 const TITLES={dashboard:"Dashboard",kanban:"Tarefas do Dia",clientes:"Clientes",equipe:"Equipe"};
@@ -40,8 +43,11 @@ const PLBL={alta:"Alta",media:"Média",baixa:"Baixa"};
 const SLBL={todo:"A fazer",doing:"Em andamento",done:"Concluído"};
 const SCOL={todo:"#6B6A66",doing:"#B8872B",done:"#16a34a"};
 const SBGCOL={todo:"#F4F1EA",doing:"#F5EBD6",done:"#dcfce7"};
-const PCOL={alta:"#dc2626",media:"#d97706",baixa:"#2563eb"};
-const PBGCOL={alta:"#fee2e2",media:"#fef3c7",baixa:"#dbeafe"};
+// Prioridade. "Baixa" era azul — a última nota fria do sistema, e azul não
+// diz "menos urgente", diz "informação". Vira o neutro: quem é baixa não
+// precisa de cor, precisa de discrição.
+const PCOL={alta:"#dc2626",media:"#9A6F1E",baixa:"#5C584F"};
+const PBGCOL={alta:"#fee2e2",media:"#fef3c7",baixa:"#EFEDE7"};
 
 // Local storage helpers kept for filter state only (auth handled by Firebase)
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch{return fb;}}
