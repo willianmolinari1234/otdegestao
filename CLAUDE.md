@@ -240,6 +240,13 @@ lateral e reusa. Trocar aquele `<img>` por um `<svg>` em linha deixa a entrada s
 e sem erro nenhum. O símbolo é um SVG em data URI, quadrado e centrado — o `.logo-img` é um
 círculo com `object-fit:cover`.
 
+**O `relatorio-cliente.html` escreve corpo de função SEM RECUO.** Uma declaração na
+coluna 0 pode estar dentro de outra função, e o olho não denuncia. Foi assim que
+`let temaAtual` nasceu dentro do `renderReport()`: os gráficos são funções irmãs no topo
+do módulo, não enxergavam a variável, e o relatório quebrava ao salvar com "temaAtual is
+not defined" — com os gráficos em branco. Antes de declarar algo ali, conte as chaves;
+`marca.test.js` tem um teste que faz essa conta.
+
 **O macOS tem um Java falso.** `command -v java` retorna verdadeiro mesmo sem Java instalado.
 A checagem certa é `java -version >/dev/null 2>&1`, mais `/usr/libexec/java_home` e os
 caminhos keg-only do Homebrew. Sem Java o emulador do Firestore não sobe.

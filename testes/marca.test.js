@@ -228,3 +228,57 @@ test("as duas barras de progresso mostram o NÚMERO, não a pessoa", () => {
   assert.equal((telas.match(/corDoProgresso\(p\)/g) || []).length, 3,
     "esperava as duas barras e o número ao lado usando a escala");
 });
+
+// ─── O escopo do tema do relatório ────────────────────────────────────
+//
+// Bug de 14/09/2026: `let temaAtual` foi declarado DENTRO de renderReport().
+// Os gráficos (drawCharts, loadDash) são funções irmãs, no topo do módulo, e
+// não enxergavam a variável — o relatório quebrava ao salvar com "temaAtual
+// is not defined", e os gráficos saíam em branco.
+//
+// Esse arquivo escreve corpo de função SEM RECUO, então o olho não denuncia:
+// uma declaração na coluna 0 pode estar dentro de outra função. Só contando
+// chave se descobre.
+
+/** Nível de aninhamento de cada declaração dentro do módulo. */
+function niveis(fonte, alvos) {
+  const m = fonte.match(/<script type="module">([\s\S]*?)<\/script>/);
+  assert.ok(m, "o módulo do relatório sumiu");
+  const c = m[1], achados = {};
+  let prof = 0, i = 0, col = 0, ant = "";
+  while (i < c.length) {
+    const ch = c[i];
+    if (col === 0) for (const a of alvos) if (!(a in achados) && c.startsWith(a, i)) achados[a] = prof;
+    if (ch === "\n") { col = 0; i++; continue; }
+    col++;
+    if (c.startsWith("//", i)) { const j = c.indexOf("\n", i); i = j < 0 ? c.length : j; continue; }
+    if (c.startsWith("/*", i)) { const j = c.indexOf("*/", i); i = j < 0 ? c.length : j + 2; continue; }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < c.length) { if (c[j] === "\\") { j += 2; continue; } if (c[j] === ch) break; j++; }
+      i = j + 1; ant = "str"; continue;
+    }
+    if (ch === "/" && "(,=:[!&|?{};".includes(ant)) {      // literal de regex
+      let j = i + 1;
+      while (j < c.length && c[j] !== "\n" && c[j] !== "/") { if (c[j] === "\\") j += 2; else j++; }
+      if (c[j] === "/") { i = j + 1; ant = "re"; continue; }
+    }
+    if (ch === "{") prof++; else if (ch === "}") prof--;
+    if (!/\s/.test(ch)) ant = ch;
+    i++;
+  }
+  return { achados, fim: prof };
+}
+
+test("o tema do relatório é alcançável pelos gráficos", () => {
+  const alvos = ["const TEMA_MKT", "let temaAtual", "function aplicarTemaMkt",
+                 "function drawCharts", "async function loadDash"];
+  const { achados, fim } = niveis(ler("relatorio-cliente.html"), alvos);
+  assert.equal(fim, 0, "a contagem de chaves não fechou — o teste não é confiável assim");
+  for (const a of alvos) {
+    assert.ok(a in achados, `${a} sumiu do relatório`);
+    assert.equal(achados[a], 0,
+      `${a} está dentro de outra função. Os gráficos não vão enxergar, e o ` +
+      `relatório quebra ao salvar — foi exatamente isso em 14/09/2026.`);
+  }
+});

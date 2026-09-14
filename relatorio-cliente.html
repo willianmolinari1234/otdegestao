@@ -1012,6 +1012,51 @@ function showEmpty() {
   $("reportContent").style.display = "none";
 }
 
+// A tabela de cor por marketplace e o tema aberto vivem no MÓDULO, não
+// dentro do renderReport. Ficando lá dentro, drawCharts() e loadDash() —
+// que são funções irmãs — não enxergavam nem a tabela nem o tema, e era
+// por isso que os gráficos carregavam a cor escrita à mão.
+const TEMA_MKT = {
+// A faixa do relatório usa a cor DO MARKETPLACE, não a da OTDE. Este laranja
+// sobreviveu ao rebranding por um triz: ele era o mesmo hex da nossa marca
+// antiga e foi trocado por engano. Não é cor nossa e não acompanha a marca.
+"shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c", acento: "#ea580c", claro: "#fdba74" },
+"shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af", acento: "#1d4ed8", claro: "#93b4f7" },
+"mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
+"mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
+"tiktok":        { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
+"tiktok shop":   { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
+};
+
+// O acento do relatório aberto. Os gráficos são desenhados em JS e leem daqui
+// em vez de carregar cor fixa — senão a barra sai dourada num relatório que o
+// resto da página pinta de laranja.
+let temaAtual = TEMA_MKT["shopee"];
+
+function aplicarTemaMkt(mkt) {
+// Marketplace desconhecido ou loja sem marketplace cai no padrão OTDE.
+const t = TEMA_MKT[String(mkt || "").toLowerCase().trim()] || TEMA_MKT["shopee"];
+temaAtual = t;
+// O RELATÓRIO INTEIRO segue a cor do marketplace, não a da agência: é o
+// documento que o lojista recebe, e ele vê a cor da plataforma onde vende.
+// A casca em volta — barra do topo, abas, botões — continua sendo da OTDE.
+const rep = document.getElementById("reportContent");
+if (rep) {
+  rep.style.setProperty("--rep-acento", t.acento || t.bg);
+  rep.style.setProperty("--rep-claro", t.claro || t.bg);
+}
+const h = document.querySelector("#reportContent .rep-header");
+if (!h) return;
+h.style.setProperty("--hdr-bg", t.bg);
+h.style.setProperty("--hdr-fg", t.fg);
+h.style.setProperty("--hdr-sub", t.sub);
+h.style.setProperty("--hdr-btn-bg", t.btnBg);
+h.style.setProperty("--hdr-btn-fg", t.btnFg);
+// O quadradinho da inicial usa a cor do texto rebaixada, para funcionar
+// tanto sobre fundo escuro quanto sobre o amarelo do Mercado Livre.
+h.style.setProperty("--hdr-avatar", t.fg === "#ffffff" ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.12)");
+}
+
 function renderReport(d) {
   const cid = $("clientSel").value, mon = $("monthSel").value;
   if (!cid || !mon) { showEmpty(); return; }
@@ -1042,46 +1087,6 @@ function renderReport(d) {
 // Atenção: isto NÃO é o MKT_STYLE do sistema (js/01-estado-e-dados.js), que
 // pinta os selos da tela de Clientes e mantém a Shein preta. São duas coisas
 // por decisão: lá é selo, aqui é a identidade do relatório do cliente.
-const TEMA_MKT = {
-  // A faixa do relatório usa a cor DO MARKETPLACE, não a da OTDE. Este laranja
-  // sobreviveu ao rebranding por um triz: ele era o mesmo hex da nossa marca
-  // antiga e foi trocado por engano. Não é cor nossa e não acompanha a marca.
-  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c", acento: "#ea580c", claro: "#fdba74" },
-  "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af", acento: "#1d4ed8", claro: "#93b4f7" },
-  "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
-  "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600", acento: "#b78a00", claro: "#ffe9a8" },
-  "tiktok":        { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
-  "tiktok shop":   { bg: "#111111", fg: "#ffffff", sub: "#c9c9c9", btnBg: "#ffffff", btnFg: "#111111", acento: "#111111", claro: "#9a9a9a" },
-};
-
-// O acento do relatório aberto. Os gráficos são desenhados em JS e leem daqui
-// em vez de carregar cor fixa — senão a barra sai dourada num relatório que o
-// resto da página pinta de laranja.
-let temaAtual = TEMA_MKT["shopee"];
-
-function aplicarTemaMkt(mkt) {
-  // Marketplace desconhecido ou loja sem marketplace cai no padrão OTDE.
-  const t = TEMA_MKT[String(mkt || "").toLowerCase().trim()] || TEMA_MKT["shopee"];
-  temaAtual = t;
-  // O RELATÓRIO INTEIRO segue a cor do marketplace, não a da agência: é o
-  // documento que o lojista recebe, e ele vê a cor da plataforma onde vende.
-  // A casca em volta — barra do topo, abas, botões — continua sendo da OTDE.
-  const rep = document.getElementById("reportContent");
-  if (rep) {
-    rep.style.setProperty("--rep-acento", t.acento || t.bg);
-    rep.style.setProperty("--rep-claro", t.claro || t.bg);
-  }
-  const h = document.querySelector("#reportContent .rep-header");
-  if (!h) return;
-  h.style.setProperty("--hdr-bg", t.bg);
-  h.style.setProperty("--hdr-fg", t.fg);
-  h.style.setProperty("--hdr-sub", t.sub);
-  h.style.setProperty("--hdr-btn-bg", t.btnBg);
-  h.style.setProperty("--hdr-btn-fg", t.btnFg);
-  // O quadradinho da inicial usa a cor do texto rebaixada, para funcionar
-  // tanto sobre fundo escuro quanto sobre o amarelo do Mercado Livre.
-  h.style.setProperty("--hdr-avatar", t.fg === "#ffffff" ? "rgba(255,255,255,.2)" : "rgba(0,0,0,.12)");
-}
 
   $("emptyState").style.display = "none";
   $("reportContent").style.display = "block";
