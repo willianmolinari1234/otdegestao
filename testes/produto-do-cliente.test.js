@@ -256,3 +256,21 @@ test("a tarefa nasce só quando o produto é NOVO, e nunca derruba o salvamento"
   assert.match(endpoint, /catch \(e\) \{ logger\.error\("tarefaDeProdutoNovo", e\); \}/,
     "falhar ao criar a tarefa não pode impedir o cliente de salvar");
 });
+
+test("fotos e vídeo são declarados como par: saem lado a lado", () => {
+  // A ligação mora no CAMPO, não no desenho da tela — assim quem lê a lista
+  // já sabe que os dois andam juntos.
+  const midia = CAMPOS_DA_FICHA.filter((c) => c.par === "midia").map((c) => c.campo);
+  assert.deepEqual(midia, ["fotos", "video"]);
+  const i = CAMPOS_DA_FICHA.findIndex((c) => c.campo === "fotos");
+  assert.equal(CAMPOS_DA_FICHA[i + 1].campo, "video", "o par precisa ser vizinho para virar linha");
+});
+
+test("a tela agrupa o par numa linha de duas colunas", () => {
+  const cliente = fs.readFileSync(path.join(raizP, "cliente.html"), "utf8");
+  assert.match(cliente, /if \(c\.par && prox && prox\.par === c\.par\)/);
+  assert.match(cliente, /<div class="ficha-par">/);
+  assert.match(cliente, /\.ficha-par\{display:grid;grid-template-columns:1fr 1fr/);
+  assert.match(cliente, /@media\(max-width:540px\)\{\.ficha-par\{grid-template-columns:1fr/,
+    "no celular dois campos de link numa coluna viram caixinha ilegível");
+});

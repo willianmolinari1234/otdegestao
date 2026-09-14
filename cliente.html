@@ -39,16 +39,18 @@ input,select{font:inherit}
 /* A parceira fica ao lado do "+ Novo produto", em ouro discreto: é uma
    sugestão, não a ação principal da tela. `margin-left:auto` aqui empurra as
    duas para a direita — antes quem fazia isso era o próprio botão. */
+/* Fotos e vídeo lado a lado. No celular voltam a empilhar: dois campos de
+   link numa coluna de 320px não cabem sem virar caixinha ilegível. */
+.ficha-par{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.ficha-par > div{margin-bottom:11px}
+@media(max-width:540px){.ficha-par{grid-template-columns:1fr;gap:0}}
 .parceira{margin-left:auto;display:flex;align-items:center;gap:9px;text-decoration:none;
   padding:7px 12px 7px 9px;border-radius:9px;border:1px solid var(--brand-200);
   background:var(--brand-50);transition:all .15s cubic-bezier(.4,0,.2,1)}
 .parceira:hover{background:var(--brand-100);border-color:#D9C08A}
-.parceira-ic{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;
-  align-items:center;justify-content:center;background:#fff;color:var(--brand)}
-.parceira-ic svg{width:15px;height:15px}
-.parceira-txt{min-width:0}
-.parceira-txt b{display:block;color:var(--brand-tint);font-size:12.5px;font-weight:700;line-height:1.25}
-.parceira-txt small{display:block;color:#9A7B45;font-size:10.5px;line-height:1.3}
+/* A marca é DELES: entra como veio, sem recolorir e sem moldura. */
+.parceira-logo{width:64px;height:auto;flex-shrink:0;display:block}
+.parceira-txt{min-width:0;color:var(--brand-tint);font-size:12.5px;font-weight:700;line-height:1.3}
 .parceira-fora{color:var(--brand);font-size:11px;flex-shrink:0}
 @media(max-width:640px){.parceira{margin-left:0;flex:1}}
 .btn{background:var(--ink-preto);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;width:100%}
@@ -603,13 +605,8 @@ function telaLista() {
            isso — link que troca de site sem avisar é armadilha. -->
       <a class="parceira" href="https://joompulse.com/fast-track?utm_source=influence&amp;promocode=OTDE30" target="_blank" rel="noopener noreferrer"
          title="JoomPulse — pesquisa de mercado e de novos produtos para Shopee e Mercado Livre. Abre em outra aba.">
-        <span class="parceira-ic" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 12h3.5l2.2-6 3.4 12 2.6-8 1.8 4H22"/>
-          </svg>
-        </span>
-        <span class="parceira-txt"><b>JoomPulse</b><small>Pesquisa de mercado e de novos produtos</small></span>
+        <img class="parceira-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTUiIGhlaWdodD0iNTciIGZpbGw9Im5vbmUiPjxwYXRoIGZpbGw9IiM1MEI4NDgiIGQ9Ik02NS40NTY3IDE1LjcyNjNoMy45NDI5Yy40MDk3IDAgLjgwNC0uMDE1NCAxLjE5ODMtLjA0NjMgMS43MTYzLTEuMTk2OSAzLjI2MjUtMi44NzI2IDQuNjA3Ny00LjI3OCAyLjI4MDctMi4zOTM4IDQuMjU5OS00LjQ2MzMgNy4wMjc2LTQuNDYzMy40NjM5IDAgMS4wNDM3LjExNTggMS40Njg5LjIzMTcuMjg2MS0uMzU1My41NjQ0LS43MTgyLjg0MjctMS4wNjU3LjE5MzMtLjI0NzEuMzg2Ni0uNDk0Mi41Nzk4LS43MzM2LjAzODctLjA0NjMuMDY5Ni0uMDg1LjEwODMtLjEzMTMtLjg1MDQtLjM0NzQtMS45NDA1LS42MTc3LTIuOTk5Ny0uNjE3Ny0zLjczNDEgMC02LjIzOSAyLjYyNTUtOC42NjY2IDUuMTY2LTIuNTA0OCAyLjYyNTUtNS4wOTQ4IDUuNTUyMS05LjI1NDEgNS45MzgyaDEuMTQ0MloiLz48cGF0aCBmaWxsPSIjRkY5RDAwIiBkPSJNNzMuMjk2OSAxNy42MDk3Yy44MTE3LjQ0NzkgMS41NDYyLjk0OTggMi4yMzQzIDEuNDk4MSA2LjQ3MDkgMS40ODI2IDkuNzc5OCA0LjA5MjcgMTIuNDQ3MSA2LjIwMDguOTk3My43ODc2IDEuOTQwNSAxLjUyODkgMi45Mzc4IDIuMTIzNS41NDEyLS41MDk2IDEuMDk3OC0xLjA3MzMgMS42ODU0LTEuNjgzNC0xLjA0MzctLjUzMjgtMi4wNDExLTEuMzIwNC0zLjIwODUtMi4yMzkzLTIuOTA2OC0yLjI5MzUtNi41MDk1LTUuMTQyOS0xMy41OTktNi43MDI4YS4zNjI4LjM2MjggMCAwIDAtLjA3NzMuMDM4N2MtLjc2NTQuMzA4OC0xLjU2OTQuNTcxNC0yLjQxOTguNzcyMnYtLjAwNzhaTTExMS44NTggMTguMDQyOGgtLjc4MWMtLjE3IDAtLjMzMiAwLS40OTUtLjAxNTVoLS4xNTRjLS43MDQuMDQ2NC0xLjM3Ny4xMjM2LTIuMDI2LjIzOTQtLjI2My4wNDY0LS41MTguMDkyNy0uNzY1LjE0NjctMS42MDEgMS4xMDQzLTIuOTc3IDIuNDAxNi00LjI4MyAzLjYzNzEtMi41MTMgMi4zODYxLTQuNjkzMiA0LjQ0MDItNy43OTM0IDQuNDQwMi0uMTYyMyAwLS4zMjQ3IDAtLjQ3OTMtLjAxNTUtLjEwMDUuMTA4MS0uMjAxLjIxNjItLjMwOTMuMzE2Ni0uNTQ4OS41NzE1LTEuMDkgMS4xMjc0LTEuNjE1OCAxLjY1MjUuNzM0NS4yMTYyIDEuNTIzMS4zMzk4IDIuMzk2Ny4zMzk4IDQuMDA0NyAwIDYuNzI2MS0yLjU3OTIgOS4zNTUxLTUuMDY1NiAyLjI3Mi0yLjE1NDUgNC42MDctNC4zNTUzIDcuOTQ3LTUuMjc0MiAwIDAgLjY0Mi0uMjQ3MSAxLjU4NS0uMzg2MWgtMi41OWwuMDA4LS4wMTU0WiIvPjxwYXRoIGZpbGw9IiNGRjEwMTAiIGQ9Ik0xMTAuMzQ3IDE4LjAyNzNoLS4wNDdsLTIuMDcyLS4xMDA0Yy0uMjQ3LS4wMTU1LS40OTQtLjAzODYtLjczNC0uMDYxOC0uMDM5IDAtLjA3NyAwLS4xMTYtLjAwNzctLjI4Ni0uMDIzMi0uNTcyLS4wNDYzLS44NTgtLjA3NzItLjEwMS0uMDA3OC0uMjA5LS4wMjMyLS4zMDktLjAzMDktLjI1NS0uMDMwOS0uNTE4LS4wNTQxLS43NjYtLjA4NS0uMTU0LS4wMTU0LS4zMDktLjAzODYtLjQ2NC0uMDYxNy0uMTkzLS4wMjMyLS4zODYtLjA1NDEtLjU3OS0uMDc3Mi0uMzU2LS4wNTQxLS42OTYtLjEwODItMS4wMzYtLjE2MjItLjAxNiAwLS4wMzEgMC0uMDQ3LS4wMDc3LTQuNDYwNyAxLjg5MTktNy41Mzc2IDUuMDg4OC0xMC4xODk0IDcuODQ1NWwtLjUzMzUuNTU2Yy0uNTg3NS42MS0xLjE0NDIgMS4xNzM4LTEuNjg1MyAxLjY4MzQtMS41MzA4IDEuNDM2My0yLjkzMDEgMi4zOTM4LTQuNDQ1NCAyLjM5MzgtMi4wNzk3IDAtMy42MTgyLTIuMDc3Mi01LjU1ODctNC43MDI3LTEuNDc2Ni0yLTMuMTMxMS00LjIzMTYtNS4zODA4LTYuMDIzMS0uNjg4MS0uNTQ4My0xLjQyMjYtMS4wNTAyLTIuMjM0My0xLjQ5ODEgMCAwLS4wNTQxLjAxNTQtLjA3NzMuMDE1NC0xLjE4MjkuMjcwMy0yLjQ1MDguNDE3LTMuODE5Mi40MTdoLTIuNTQzNWM2LjM4NTkuNTcxNCA5LjQ3MDYgNC43MzM2IDEyLjIxNTEgOC40NDAyIDIuMTQxNSAyLjg5NTcgNC4xNjcxIDUuNjI5MyA3LjM5ODcgNS42MjkzIDIuNTQzNSAwIDQuNTc2OC0xLjU4MyA2LjY5NTEtMy42NzU3LjUzMzUtLjUyNTEgMS4wNjY5LTEuMDgxIDEuNjE1OC0xLjY1MjUuMTAwNS0uMTA4MS4yMDEtLjIwODUuMzA5My0uMzE2NiAzLjA0Ni0zLjE1ODMgNi43MjY0LTYuODI2MiAxMi41NDc0LTguMDYxN2ExOS40MzExIDE5LjQzMTEgMCAwIDEgMi43OTktLjM3ODRIMTEwLjM0N1oiLz48cGF0aCBmaWxsPSIjNTBCODQ4IiBkPSJNMTA0LjQyMiAxNy41MThjLjE5NC4wMzA5LjM4Ny4wNTQxLjU4LjA3NzIuMTU1LjAyMzIuMzA5LjAzODYuNDY0LjA2MTguMjU1LjAzMDkuNTEuMDYxOC43NjUuMDg1LjEwMS4wMDc3LjIwMi4wMjMxLjMxLjAzMDguMjc4LjAzMDkuNTY0LjA0NjQuODU4LjA3NzIgMS4yOTEuMTIzNiAyLjkyMi4xNjIyIDIuOTIyLjE2MjItLjI0Ny0uMDE1NC0uNDk1LS4wMzg2LS43MzQtLjA2MTgtLjA2MiAwLS4xMzItLjAxNTQtLjE5My0uMDIzMS0uMDU1IDAtLjEwOS0uMDE1NS0uMTYzLS4wMTU1LS4xOTMtLjAyMzEtLjM5NC0uMDU0LS41ODctLjA4NDloLS4wMDhjLS4zNDgtLjA2MTgtLjY4LS4xMzktMS4wMDUtLjIyNC0uMjU1LS4wNjk1LS41MDMtLjE0NjctLjc1LS4yMjM5LS4wNzctLjAyMzItLjE0Ny0uMDU0LS4yMjQtLjA3NzItLjE3OC0uMDYxOC0uMzQ4LS4xMzEzLS41MTgtLjE5MzFhMi41NTg0IDIuNTU4NCAwIDAgMC0uMjE3LS4wODQ5Yy0uMjMyLS4xMDA0LS40NTYtLjIwMDgtLjY3Mi0uMzE2Ni0uOTktLjUwMi0xLjg3OS0xLjExMi0yLjY4My0xLjgwNy0uMDctLjA1NC0uMTMxLS4xMjM1LS4xOTMtLjE3NzZDOTUuMzE1MiAxMy4yNCA5MS45NTk5IDEwLjIzNjEgODkuMjkyNiA3Ljg1Yy0uNjQ5NC0uNTc5MS0xLjI2NzktMS4xMjc0LTEuOTAxOC0xLjYyOTMtLjA4NTEuMTAwNC0uMTYyNC4yMDA4LS4yNDc0LjMwODktLjI2MjkuMzMyLS41MzM1LjY3MTgtLjgwNDEgMS4wMTkzLS4xMzkxLjE2OTktLjI3ODMuMzU1Mi0uNDE3NC41MzI4LjU4NzUuNDU1NiAxLjE5ODMuOTk2MiAxLjg5NDEgMS42MjE2IDIuODgzNyAyLjU4NjkgNi44NzI5IDYuMTQ2OCAxNS41MTYgNy42NTI2LjAxNiAwIC4wMzEtLjAwMDEuMDQ3LjAwNzcuMzQuMDYxNy42OC4xMTU4IDEuMDM2LjE2MjFsLjAwNy0uMDA3N1oiLz48cGF0aCBmaWxsPSIjMDA3NEZGIiBkPSJNMTExLjA4MyAxNS43MjYxYy02LjUzMiAwLTkuNTE3LTQuOTQyLTEyLjE0NTItOS4zMDVDOTcuMDA1MSAzLjIxNjUgOTUuMTgwNS4xODk1IDkyLjE1NzcuMTg5NWMtMi42OTgyIDAtNC43MTYgMi4yNTQ4LTYuOTE5NCA1LjA0MjQtLjAzODYuMDQ2NC0uMDY5Ni4wODUtLjEwODIuMTMxMy0uMTkzMy4yMzk0LS4zNzg4LjQ4NjUtLjU3OTguNzMzNi0uMjc4NC4zNTUyLS41NTY3LjcxMDQtLjg0MjcgMS4wNjU2LS4wMzEuMDM4Ni0uMDYxOS4wODUtLjEwMDUuMTIzNi0zLjEwOCAzLjg5OTYtNi43NjQ4IDcuODc2NC0xMi44ODc4IDguMzc4NGgtLjEyMzdhMTUuMDkyIDE1LjA5MiAwIDAgMS0xLjE5ODMuMDQ2M0g1OC44OTg0bDIuOTE0NyAyLjMwODloMy43ODgyYy4xNjI0IDAgLjMxNy4wMDc3LjQ3OTMuMDE1NGgzLjMxNjdjMS4zNjg0IDAgMi42MzYzLS4xNDY3IDMuODE5MS0uNDE3LjAyMzIgMCAuMDU0Mi0uMDE1NC4wNzc0LS4wMTU0Ljg1MDQtLjIwMDggMS42NTQ0LS40NjMzIDIuNDE5OC0uNzcyMmEuMzYyMi4zNjIyIDAgMCAwIC4wNzczLS4wMzg2YzQuNDUzMS0xLjg0NTYgNy40OTkyLTUuNDEzMSA5LjkxMTMtOC40NjMzLjA2OTYtLjA5MjcuMTM5Mi0uMTc3Ni4yMDg3LS4yNjI2bC40MTc1LS41MzI4Yy4yNzA2LS4zNDc1LjU0MTItLjY4NzMuODA0LTEuMDE5My4wODUxLS4xMDgxLjE2MjQtLjIwODUuMjQ3NC0uMzA4OSAxLjY4NTQtMi4wOTI3IDMuMjE2Mi0zLjcwNjYgNC43NzAxLTMuNzA2NiAxLjczOTUgMCAzLjE2OTggMi4zNzA3IDQuODMyIDUuMTE5NyAxLjM3NjEgMi4yODU3IDMuMDIzMSA0Ljk5NjIgNS4zODExIDcuMDg4OC4wNjkuMDYxOC4xMjMuMTIzNi4xOTMuMTc3Ni44MDQuNjg3MyAxLjY5MyAxLjMwNTEgMi42ODMgMS44MDcuMjE2LjEwODEuNDQ4LjIxNjIuNjcyLjMxNjYuMDcuMDMwOS4xNDcuMDYxOC4yMTcuMDg0OS4xNy4wNjk1LjM0LjEzMTMuNTE4LjE5MzEuMDc3LjAyMzEuMTQ3LjA1NC4yMjQuMDc3Mi4yNDcuMDg0OS40OTUuMTYyMi43NS4yMjM5LjMyNS4wODUuNjU3LjE2MjIgMS4wMDUuMjI0aC4wMDhjLjE5My4wMzA5LjM4Ni4wNjE3LjU4Ny4wODQ5LjA1NCAwIC4xMDguMDE1NS4xNjMuMDE1NS4wNjEuMDA3Ny4xMzEuMDE1NC4xOTMuMDIzMS4yNDcuMDMwOS40OTUuMDU0MS43NS4wNjE4aC4yNTVjLjE2MiAwIC4zMjUuMDE1NC40OTUuMDE1NGgzLjkyN3YtMi4zMTY2aC0zLjkyN2wuMDA3LjAzMDlaIi8+PHBhdGggZmlsbD0iIzAwMEExQSIgZD0iTTMzLjg2NzEgMzUuMTIzN2gzLjcyNjR2Mi4wMTU0YzEuMTk4My0xLjQ0NCAyLjk1MzMtMi4yOTM0IDUuMDcxNi0yLjI5MzQgNC4yOTA4IDAgNy41ODQyIDMuMzgyMiA3LjU4NDIgOC4zNjI5cy0zLjI5MzQgOC4zNjMtNy41ODQyIDguMzYzYy0yLjA5NTEgMC0zLjgyNjktLjgxODYtNS4wMjUyLTIuMjM5NHY2Ljg1NzFoLTMuNzgwNVYzNS4xMjM3aC4wMDc3Wm04LjA5NDUgMTIuOTE4OWMyLjU4MjIgMCA0LjQxNDQtMS45MTUgNC40MTQ0LTQuODI2MnMtMS44MzIyLTQuODI2My00LjQxNDQtNC44MjYzYy0yLjU4MjIgMC00LjQxNDUgMS45MzgyLTQuNDE0NSA0LjgyNjMgMCAyLjg4OCAxLjgzMjMgNC44MjYyIDQuNDE0NSA0LjgyNjJaTTY2LjI4NDYgNTEuMzA4NWgtMy43ODA1VjQ5LjIzOWMtLjM4NjYuOTcyOS0xLjg1NTUgMi4zMzk3LTQuMzYwNCAyLjMzOTctMy42MTA0IDAtNi4zODU5LTIuODQxNy02LjM4NTktNy4wNDI0di05LjQwNTRoMy44MDM3djkuMzM1OWMwIDIuMTkzIDEuMzkxNiAzLjY2MDIgMy40NjM2IDMuNjYwMiAyLjA3MTkgMCAzLjQ2MzUtMS40NjcyIDMuNDYzNS0zLjY2MDJ2LTkuMzM1OWgzLjgwMzd2MTYuMTc3NmgtLjAwNzdaTTY4LjAyMzQgMzAuNDY2OGgzLjgwMzd2MjAuODQxN2gtMy44MDM3VjMwLjQ2NjhaTTczLjIxODggNDUuNDU1MmgzLjc1NzNjMCAxLjU5MDcgMS4xNjc0IDIuNzEwNCAyLjg1MjggMi43MTA0IDEuMTIxIDAgMi40MTIxLS40OTQyIDIuNDEyMS0xLjYyMTYgMC0xLjMyMDUtMS41ODQ5LTEuNDY3Mi0zLjM2MzEtMi4wNjk1LTIuMjY1Mi0uNzQ5LTUuMTQxMi0xLjM2NjgtNS4xNDEyLTQuNzU2OCAwLTIuOTY1MiAyLjI2NTItNS4wMDM4IDUuNTU4Ny01LjAwMzhzNS45NDUyIDIuMTM5IDUuOTQ1MiA1LjE1MDZoLTMuNzI2NGMwLTEuMDE5My0uOTA0NS0xLjcxNDMtMi4wNzE5LTEuNzE0My0xLjA5NzggMC0xLjkwMTkuNTk0Ni0xLjkwMTkgMS40OTAzIDAgMS4xMTk3IDEuMzE0MyAxLjM0MzcgMy4wMjI5IDEuODkxOSAyLjQ1ODUuNzcyMiA1LjQxMTggMS40OTAzIDUuNDExOCA0Ljg4MDMgMCAzLjIxMjQtMi42NTk1IDUuMTUwNi02LjMzOTUgNS4xNTA2LTMuODczMyAwLTYuNDA5MS0yLjUxNzQtNi40MDkxLTYuMTIzNmwtLjAwNzcuMDE1NVpNODcuMDE1NiA0My4yNjk1YzAtNS4wMjcgMy40NjM2LTguNDE3IDguMjY0Ni04LjQxNyA1LjM4ODggMCA4LjgyODggNC4zMzIxIDguMjQxOCA5LjYyOTRIOTAuOTY2MmMuMjcwNiAyLjI2MjUgMi4xOTU3IDMuNjYwMiA0LjI2NzYgMy42NjAyIDEuNjg1NCAwIDMuMzE2Ny0uODk1NyA0LjAyMDItMi40NjMzaDMuOTk3Yy0xLjA3NSAzLjU4My0zLjk5NyA1Ljg5OTYtOC4wNzEzIDUuODk5Ni00LjgyNDIgMC04LjE2NDEtMy4zODIyLTguMTY0MS04LjMxNjZ2LjAwNzdabTEyLjQ1NDktMS43OTkyYy0uNjEwOC0xLjkzODItMi4xNzI1LTMuMTg5Mi00LjE0MzktMy4xODkyLTEuOTcxNSAwLTMuNjEwNSAxLjIyMDEtNC4xOTAzIDMuMjEyNGw4LjMzNDItLjAyMzJaTTIuODI5NiAzMi4xNzM4VjE2Ljk5MjRoMi4yNjUydjE1LjE4MTRjMCAyLjkxMTItMi4wOTUxIDQuOTQ5OS01LjA5NDggNC45ODA3VjM1LjA4NWMxLjY1NDUgMCAyLjgyOTYtMS4xOTY5IDIuODI5Ni0yLjkxMTJabTAtMTkuOTE1aDIuMjY1MnYyLjExNThIMi44Mjk2di0yLjExNThaTTYuNDkyIDI0LjA4MTdjMC00Ljk0OTggMy40MDk0LTguMzYyOSA4LjMxMDktOC4zNjI5czguMzEwOSAzLjQxMzEgOC4zMTA5IDguMzYyOS0zLjQwOTQgOC4zNjI5LTguMzEwOSA4LjM2MjktOC4zMTEtMy40MTMxLTguMzExLTguMzYyOVptOC4zMTA5IDYuMjcwM2MzLjUzMzEgMCA1Ljk5OTMtMi41NDA2IDUuOTk5My02LjI3MDNzLTIuNDU4NS02LjMwMTItNS45OTkzLTYuMzAxMmMtMy41NDA5IDAtNS45NzYyIDIuNTYzNy01Ljk3NjIgNi4zMDEyczIuNDU4NSA2LjI3MDMgNS45NzYyIDYuMjcwM1pNMjQuNDkyMiAyNC4wODE3YzAtNC45NDk4IDMuNDA5NC04LjM2MjkgOC4zMTA5LTguMzYyOSA0LjkwMTYgMCA4LjMxMSAzLjQxMzEgOC4zMTEgOC4zNjI5cy0zLjQwOTQgOC4zNjI5LTguMzExIDguMzYyOWMtNC45MDE1IDAtOC4zMTA5LTMuNDEzMS04LjMxMDktOC4zNjI5Wm04LjMxODcgNi4yNzAzYzMuNTMzMSAwIDUuOTk5My0yLjU0MDYgNS45OTkzLTYuMjcwM3MtMi40NTg1LTYuMzAxMi01Ljk5OTMtNi4zMDEyYy0zLjU0MDkgMC01Ljk3NjIgMi41NjM3LTUuOTc2MiA2LjMwMTJzMi40NTg1IDYuMjcwMyA1Ljk3NjIgNi4yNzAzWk00Mi40OTIyIDE1Ljk4ODloMi4yNjUydjIuMjYyNmMuNzM0NS0xLjU0NDQgMi40MTIxLTIuNTQwNiA0LjQxNDUtMi41NDA2IDIuMTk1NiAwIDMuOTUwNiAxLjExOTcgNC44NDc0IDIuOTY1My45MDQ1LTEuODQ1NiAyLjY4MjctMi45NjUzIDQuOTI0Ny0yLjk2NTMgMy4zODYyIDAgNS43NTE5IDIuNDg2NSA1Ljc1MTkgNi4wNzczdjEwLjM3ODNoLTIuMjY1MlYyMS43ODgyYzAtMi4zNjMtMS41ODQ5LTQuMDMwOS0zLjg1MDEtNC4wMzA5cy0zLjg1MDEgMS42Njc5LTMuODUwMSA0LjAzMDl2MTAuMzc4M2gtMi4yNjUyVjIxLjg1NzZjMC0yLjQxNjktMS41NjE3LTQuMTA4MS0zLjgwMzctNC4xMDgxcy0zLjkwNDIgMS42OTEyLTMuOTA0MiA0LjEwODF2MTAuMzA4OWgtMi4yNjUyVjE1Ljk4ODlaIi8+PC9zdmc+Cg==" alt="JoomPulse" width="115" height="57">
+        <span class="parceira-txt">Descubra novos produtos</span>
         <span class="parceira-fora" aria-hidden="true">↗</span>
       </a>
       <button id="novoProduto" class="btn" style="width:auto;padding:9px 16px">+ Novo produto</button>
@@ -1122,6 +1119,19 @@ function abrirFicha(p) {
   };
   const obrigatorios = CAMPOS_DA_FICHA.filter((c) => c.obrigatorio);
   const opcionais = CAMPOS_DA_FICHA.filter((c) => !c.obrigatorio);
+
+  // Campos vizinhos com o mesmo `par` viram uma linha de duas colunas.
+  const emLinhas = (lista) => {
+    const saida = [];
+    for (let i = 0; i < lista.length; i++) {
+      const c = lista[i], prox = lista[i + 1];
+      if (c.par && prox && prox.par === c.par) {
+        saida.push(`<div class="ficha-par">${campo(c)}${campo(prox)}</div>`);
+        i++;
+      } else saida.push(campo(c));
+    }
+    return saida.join("");
+  };
   const custoAtual = (produto.custo === null || produto.custo === undefined)
     ? "" : String(produto.custo).replace(".", ",");
 
@@ -1138,11 +1148,11 @@ function abrirFicha(p) {
 
     <div id="ed-erro" role="alert" style="display:none;background:#fef2f2;color:#b91c1c;border-radius:9px;padding:10px 13px;font-size:12.5px;margin-bottom:14px;line-height:1.5"></div>
 
-    ${obrigatorios.map(campo).join("")}
+    ${emLinhas(obrigatorios)}
 
     <details style="margin:14px 0 4px"${opcionais.some((c) => valorDe(c)) ? " open" : ""}>
       <summary style="cursor:pointer;font-size:12.5px;color:var(--ink-2);font-weight:600">Mais detalhes (opcional)</summary>
-      <div style="margin-top:12px">${opcionais.map(campo).join("")}</div>
+      <div style="margin-top:12px">${emLinhas(opcionais)}</div>
     </details>
 
     <div style="margin-bottom:4px">

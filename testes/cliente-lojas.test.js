@@ -183,7 +183,9 @@ test("a JoomPulse vive na área do CLIENTE, não na da equipe", () => {
   // O link de parceria da OTDE, com o código de promoção. Perder o
   // promocode devolve o lojista ao site normal, sem o benefício.
   assert.match(html, /href="https:\/\/joompulse\.com\/fast-track\?utm_source=influence&amp;promocode=OTDE30"/);
-  assert.match(html, /Pesquisa de mercado e de novos produtos/);
+  assert.match(html, /Descubra novos produtos/);
+  assert.match(html, /class="parceira-logo" src="data:image\/svg\+xml;base64,/,
+    "a marca é deles: entra como veio, não redesenhada");
   const app = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
   assert.doesNotMatch(app, /joompulse/i, "ainda está na área da equipe");
 });
