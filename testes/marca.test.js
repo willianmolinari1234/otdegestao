@@ -27,15 +27,46 @@ const ler = (rel) => fs.readFileSync(path.join(raiz, rel), "utf8");
 
 // ─── O laranja foi embora ─────────────────────────────────────────────
 
+/** Linha que declara a cor DE UM MARKETPLACE, não a nossa. Shopee é laranja,
+    Mercado Livre é amarelo, TikTok é preto — isso não acompanha a marca da
+    OTDE, e o laranja da Shopee por acaso era o mesmo hex do nosso antigo. */
+const ehCorDeMarketplace = (linha) =>
+  /"?(shopee|shein|mercado ?livre|tiktok( shop)?)"?\s*:/i.test(linha);
+
 test("nenhum arquivo ainda pinta com o laranja antigo", () => {
   const mortas = ["#ea580c", "#c2410c", "#9a3412", "#b45309", "#fed7aa",
                   "#ffedd5", "#fff7ed", "234,88,12"];
   const culpados = [];
   for (const f of arquivosComCor()) {
-    const txt = ler(f).toLowerCase();
-    for (const c of mortas) if (txt.includes(c)) culpados.push(`${f} → ${c}`);
+    ler(f).split("\n").forEach((linha, i) => {
+      if (ehCorDeMarketplace(linha)) return;     // a cor deles não é a nossa
+      const baixa = linha.toLowerCase();
+      for (const c of mortas) if (baixa.includes(c)) culpados.push(`${f}:${i + 1} → ${c}`);
+    });
   }
   assert.deepEqual(culpados, [], "cor da marca antiga ainda viva:\n  " + culpados.join("\n  "));
+});
+
+test("cada marketplace mantém a cor DELE, e ela não segue a nossa marca", () => {
+  // O rebranding trocou o laranja da Shopee no relatório de fechamento porque
+  // o hex dela era idêntico ao da nossa marca antiga. Shein, Mercado Livre e
+  // TikTok escaparam por sorte — os hexes deles eram outros.
+  const rel = ler("relatorio-cliente.html");
+  assert.match(rel, /"shopee":\s*\{ bg: "#ea580c"/, "a faixa da Shopee voltou a ser dourada");
+  assert.match(rel, /"mercado livre":\s*\{ bg: "#ffe600"/);
+  assert.match(rel, /"tiktok":\s*\{ bg: "#111111"/);
+  // E nas telas do sistema, o laranja real da Shopee
+  assert.match(ler("cliente.html"), /"shopee":\s*\{ bg: "#fff1e9", fg: "#ee4d2d"/);
+  assert.match(ler("js/01-estado-e-dados.js"), /"shopee":\s*\{bg:"#fff1e9", ?fg:"#ee4d2d"/);
+});
+
+test("faturamento que subiu continua verde, e o que caiu vermelho", () => {
+  // É o sinal que o cliente lê primeiro no relatório do mês.
+  const rel = ler("relatorio-cliente.html");
+  assert.match(rel, /--green:#16a34a; --green-bg:#eaf3de; --green-tint:#3b6d11;/);
+  assert.match(rel, /\.cmp-up\{background:var\(--green-bg\)\}?/);
+  assert.match(rel, /\.cmp-down\{background:var\(--red-bg\)\}?/);
+  assert.match(rel, /card\.className = "cmp-card " \+ \(up \? "cmp-up" : "cmp-down"\)/);
 });
 
 test("a rampa de cinza azulado também saiu", () => {

@@ -182,6 +182,7 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Crachá de quem foi cadastrado antes é traduzido, não migrado | `corDoFuncionario()` reparte a paleta nova sem repetir. Mexer no banco de 6 pessoas seria mais risco que valor |
 | A área do cliente NUNCA lê `sales` | O faturamento da aba "Minha loja" é somado pelo servidor (`faturamentoDoCliente`) e volta só com as lojas daquele proprietário. A regra do Firestore continua fechada |
 | Preço é conferência da EQUIPE, não do lojista | A aba do cliente mostra loja, anúncios e faturamento. Alerta de precificação ali pede uma decisão que não é dele |
+| Cor de MARKETPLACE não segue a marca da OTDE | Shopee é laranja, Mercado Livre é amarelo, TikTok é preto. A faixa do relatório de fechamento usa a cor deles. O laranja da Shopee foi trocado por engano no rebranding porque o hex era idêntico ao nosso antigo |
 | O logo não usa moldura | Sem círculo e sem quadrado: a marca é larga e cortá-la num redondo come as barras do E. Ícone da aba é a marca em fundo transparente |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho

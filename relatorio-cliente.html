@@ -1043,7 +1043,10 @@ function renderReport(d) {
 // pinta os selos da tela de Clientes e mantém a Shein preta. São duas coisas
 // por decisão: lá é selo, aqui é a identidade do relatório do cliente.
 const TEMA_MKT = {
-  "shopee":        { bg: "#B8872B", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#8A6420" },
+  // A faixa do relatório usa a cor DO MARKETPLACE, não a da OTDE. Este laranja
+  // sobreviveu ao rebranding por um triz: ele era o mesmo hex da nossa marca
+  // antiga e foi trocado por engano. Não é cor nossa e não acompanha a marca.
+  "shopee":        { bg: "#ea580c", fg: "#ffffff", sub: "#ffe6d5", btnBg: "#ffffff", btnFg: "#c2410c" },
   "shein":         { bg: "#1d4ed8", fg: "#ffffff", sub: "#dbeafe", btnBg: "#ffffff", btnFg: "#1e40af" },
   "mercado livre": { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
   "mercadolivre":  { bg: "#ffe600", fg: "#2d2d2d", sub: "#665c00", btnBg: "#2d2d2d", btnFg: "#ffe600" },
