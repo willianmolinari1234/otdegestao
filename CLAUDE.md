@@ -179,7 +179,9 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | Os neutros são QUENTES, não azulados | Ouro sobre cinza azulado fica esverdeado. Trocar só o acento deixaria o sistema com cara de sujo |
 | A barra de progresso mostra o NÚMERO, não a pessoa | Pintada com a cor do funcionário, 94% e 96% saíam em cores diferentes. Agora é verde/âmbar/vermelho pela própria porcentagem |
 | Crachá de quem foi cadastrado antes é traduzido, não migrado | `corDoFuncionario()` reparte a paleta nova sem repetir. Mexer no banco de 6 pessoas seria mais risco que valor |
-| A área do cliente NUNCA lê `sales` | A aba "Minha loja" responde com produto e anúncio, que ele já lê. Abrir venda a papel externo para enfeitar tela é o erro que a regra de ouro proíbe |
+| A área do cliente NUNCA lê `sales` | O faturamento da aba "Minha loja" é somado pelo servidor (`faturamentoDoCliente`) e volta só com as lojas daquele proprietário. A regra do Firestore continua fechada |
+| Preço é conferência da EQUIPE, não do lojista | A aba do cliente mostra loja, anúncios e faturamento. Alerta de precificação ali pede uma decisão que não é dele |
+| O logo não usa moldura | Sem círculo e sem quadrado: a marca é larga e cortá-la num redondo come as barras do E. Ícone da aba é a marca em fundo transparente |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho
 do Firestore**. O gatilho existia e foi removido: dependia do Eventarc, quebrava o deploy

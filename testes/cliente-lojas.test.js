@@ -1,15 +1,16 @@
-// A aba "Minhas lojas" da área do cliente.
+// A aba "Minha loja" da área do cliente.
 //
-// Era a tela mais magra do sistema: nome da loja, marketplace e uma contagem.
-// O lojista abre esperando desempenho e encontrava um crachá.
+// Ela mostra TRÊS coisas e nada além: quais são as lojas, quantos anúncios
+// tem cada uma, e quanto cada uma faturou. Conferir preço é trabalho da
+// equipe — um alerta de precificação aqui pediria ao lojista uma decisão que
+// não é dele.
 //
-// Venda ele NÃO pode ver: `sales` é fechada a papel externo no firestore.rules,
-// e relaxar isso para enfeitar uma tela é o erro que a regra de ouro proíbe.
-// Então a aba responde com o que ele já lê — onde o catálogo dele está, onde
-// não está, e por quanto.
+// O faturamento é o ponto sensível: `sales` é fechada a papel externo no
+// firestore.rules e CONTINUA fechada. Quem soma é o servidor, e devolve só as
+// lojas daquele proprietário. Os testes guardam as duas pontas.
 //
-// O código vive dentro do HTML, então aqui as funções são arrancadas do
-// arquivo e rodadas de verdade, em vez de conferidas por expressão regular.
+// O código vive dentro do HTML, então as funções são arrancadas do arquivo e
+// rodadas de verdade, em vez de conferidas por expressão regular.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,20 +21,22 @@ import { fileURLToPath } from "node:url";
 
 const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const html = fs.readFileSync(path.join(raiz, "cliente.html"), "utf8");
+const back = fs.readFileSync(path.join(raiz, "functions/index.js"), "utf8");
+const regras = fs.readFileSync(path.join(raiz, "firestore.rules"), "utf8");
 
 /** Arranca uma função do cliente.html pelo nome, com o corpo inteiro. */
 function funcao(nome) {
   const i = html.indexOf(`function ${nome}(`);
   assert.ok(i > 0, `função ${nome}() não existe mais em cliente.html`);
-  let n = 0, j = html.indexOf("{", i);
-  for (let k = j; k < html.length; k++) {
+  let n = 0;
+  for (let k = html.indexOf("{", i); k < html.length; k++) {
     if (html[k] === "{") n++;
     else if (html[k] === "}" && --n === 0) return html.slice(i, k + 1);
   }
   throw new Error(`não achei o fim de ${nome}()`);
 }
-/** O mesmo, para as const de uma linha — sem o `const`, porque declaração
-    léxica não vira propriedade do contexto e o teste não a enxergaria. */
+/** O mesmo para as const de uma linha, sem o `const`: declaração léxica não
+    vira propriedade do contexto e o teste não a enxergaria. */
 function constante(nome) {
   const l = html.split("\n").find((x) => x.trim().startsWith(`const ${nome} =`));
   assert.ok(l, `const ${nome} não existe mais`);
@@ -41,146 +44,143 @@ function constante(nome) {
 }
 
 /** Um mundo mínimo onde as funções do cliente rodam. */
-function mundo(produtos, anuncios) {
-  const ctx = {
-    estado: { produtos, anuncios },
-    // o mesmo casamento produto↔anúncio que o resto da tela usa
-    anunciosDe: (p) => anuncios.filter((a) => a.produtoId === p.id || (a.chave && a.chave === p.chave)),
-    Math, Number, Set, Array, JSON, String, Object,
-  };
+function mundo(anuncios, faturamento = null) {
+  const ctx = { estado: { anuncios, faturamento }, Math, Number, Set, Array, Object, String };
   vm.createContext(ctx);
   vm.runInContext([constante("lojaDe"), constante("rotuloLojas"),
-                   funcao("resumoDasLojas"), funcao("precosQueDivergem")].join("\n;\n"), ctx);
+                   funcao("resumoDasLojas")].join("\n;\n"), ctx);
   return ctx;
 }
-
-const PRODUTOS = [
-  { id: "p1", sku: "CX-P", nome: "Caixa P" },
-  { id: "p2", sku: "CX-M", nome: "Caixa M" },
-  { id: "p3", sku: "FT",   nome: "Fita" },
-  { id: "p4", sku: "PB",   nome: "Plástico bolha" },
-];
 
 // ─── O nome da aba ────────────────────────────────────────────────────
 
 test("uma loja só é 'Minha loja', não 'Minhas lojas'", () => {
-  // Cliente com uma loja lendo o plural percebe na hora que a tela foi escrita
-  // para outra pessoa — e a maioria dos lojistas da OTDE tem uma loja só.
-  const { rotuloLojas } = mundo(PRODUTOS, []);
+  // Quem tem uma loja lendo o plural percebe que a tela foi escrita para outra
+  // pessoa — e a maioria dos lojistas da OTDE tem uma loja só.
+  const { rotuloLojas } = mundo([]);
   assert.equal(rotuloLojas(1), "Minha loja");
   assert.equal(rotuloLojas(2), "Minhas lojas");
   assert.equal(rotuloLojas(0), "Minhas lojas", "sem loja, o genérico");
 });
 
 test("a aba é reescrita a cada desenho, e não só ao carregar", () => {
-  // A primeira loja do cliente pode aparecer depois da tela já estar aberta.
   assert.match(html, /function desenhar\(\) \{\s*\n\s*ajustarAbaLojas\(\);/);
   assert.match(html, /if \(estado\.modo === "especialista"\) return;/,
     "no modo especialista a aba se chama 'Clientes' e não pode ser renomeada");
 });
 
-// ─── Cobertura por loja ───────────────────────────────────────────────
+// ─── O agrupamento ────────────────────────────────────────────────────
 
-test("cada loja diz quanto do catálogo já está nela", () => {
-  const { resumoDasLojas } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 2.9 },
-    { id: "a2", produtoId: "p3", mkt: "Shopee", storeNome: "Bella", preco: 7.9 },
-    { id: "a3", produtoId: "p1", mkt: "Mercado Livre", storeNome: "Bella Oficial", preco: 3.49 },
+test("os anúncios viram uma linha por loja, com a contagem certa", () => {
+  const { resumoDasLojas } = mundo([
+    { id: "a1", storeId: "L1", storeNome: "Ninho de Anjo", mkt: "Shopee" },
+    { id: "a2", storeId: "L1", storeNome: "Ninho de Anjo", mkt: "Shopee" },
+    { id: "a3", storeId: "L2", storeNome: "Laços de Lã", mkt: "Shopee" },
   ]);
   const lojas = resumoDasLojas();
   assert.equal(lojas.length, 2);
-  assert.equal(lojas[0].nome, "Bella", "a loja mais completa vem primeiro");
-  assert.equal(lojas[0].produtos.size, 2, "2 dos 4 produtos estão na Bella");
-  assert.equal(lojas[1].produtos.size, 1);
+  assert.equal(lojas.find((l) => l.id === "L1").anuncios, 2);
+  assert.equal(lojas.find((l) => l.id === "L2").anuncios, 1);
 });
 
-test("a contagem é de PRODUTOS, não de anúncios", () => {
-  // Dois anúncios do mesmo produto na mesma loja não viram cobertura de dois.
-  const { resumoDasLojas } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 2.9 },
-    { id: "a2", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 3.1 },
+test("duas lojas de mesmo nome não se fundem numa só", () => {
+  // A chave é o id justamente por isso: nome de loja se repete no mundo real.
+  const { resumoDasLojas } = mundo([
+    { id: "a1", storeId: "L1", storeNome: "Bella", mkt: "Shopee" },
+    { id: "a2", storeId: "L2", storeNome: "Bella", mkt: "Mercado Livre" },
   ]);
-  const [loja] = resumoDasLojas();
-  assert.equal(loja.produtos.size, 1, "um produto");
-  assert.equal(loja.anuncios, 2, "dois anúncios");
+  assert.equal(resumoDasLojas().length, 2);
 });
 
-test("anúncio sem preço não estraga a faixa de preço", () => {
-  // Anúncio vindo de planilha antiga às vezes chega sem preço.
-  const { resumoDasLojas } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 2.9 },
-    { id: "a2", produtoId: "p2", mkt: "Shopee", storeNome: "Bella" },
-    { id: "a3", produtoId: "p3", mkt: "Shopee", storeNome: "Bella", preco: 0 },
-  ]);
-  const [loja] = resumoDasLojas();
-  assert.equal(loja.precos.join(","), "2.9", "só o preço que existe entra na faixa");
+test("anúncio sem id de loja ainda aparece, pelo nome", () => {
+  // Anúncio vindo de planilha antiga às vezes não tem storeId.
+  const { resumoDasLojas } = mundo([{ id: "a1", storeNome: "Bella", mkt: "Shopee" }]);
+  const [l] = resumoDasLojas();
+  assert.equal(l.nome, "Bella");
+  assert.equal(l.anuncios, 1);
 });
 
-test("loja sem nome cai no marketplace, em vez de virar uma loja chamada '—'", () => {
-  const { resumoDasLojas } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", preco: 2.9 },
-  ]);
-  assert.equal(resumoDasLojas()[0].nome, "Shopee");
+// ─── O faturamento ────────────────────────────────────────────────────
+
+test("o faturamento do servidor entra na loja certa, pelo id", () => {
+  const { resumoDasLojas } = mundo(
+    [{ id: "a1", storeId: "L1", storeNome: "Ninho", mkt: "Shopee" },
+     { id: "a2", storeId: "L2", storeNome: "Laços", mkt: "Shopee" }],
+    { dias: 30, porLoja: { L1: { nome: "Ninho de Anjo Baby", gmv: 12500.5, pedidos: 210 },
+                           L2: { nome: "Laços de Lã", gmv: 8300, pedidos: 140 } } });
+  const lojas = resumoDasLojas();
+  assert.equal(lojas[0].id, "L1", "a loja que mais faturou vem primeiro");
+  assert.equal(lojas[0].gmv, 12500.5);
+  assert.equal(lojas[0].pedidos, 210);
+  assert.equal(lojas[0].nome, "Ninho de Anjo Baby", "o nome do cadastro vence o do anúncio");
 });
 
-// ─── Preço diferente entre lojas ──────────────────────────────────────
-
-test("o mesmo produto por preços diferentes aparece, com a diferença em %", () => {
-  const { precosQueDivergem } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 2.90 },
-    { id: "a2", produtoId: "p1", mkt: "Mercado Livre", storeNome: "Oficial", preco: 3.49 },
-  ]);
-  const [d] = precosQueDivergem();
-  assert.equal(d.produto.id, "p1");
-  assert.equal(d.dif, 20, "3,49 sobre 2,90 dá 20%");
-  assert.equal(d.onde.map((o) => o.preco).join(" "), "2.9 3.49", "do mais barato ao mais caro");
+test("enquanto o servidor não responde, o faturamento é nulo — nunca zero", () => {
+  // R$ 0,00 numa loja que vendeu seria mentira. A tela mostra "—".
+  const { resumoDasLojas } = mundo([{ id: "a1", storeId: "L1", storeNome: "Bella", mkt: "Shopee" }]);
+  assert.equal(resumoDasLojas()[0].gmv, null);
+  assert.match(html, /estado\.faturamento === null/, "a tela precisa distinguir os dois casos");
+  assert.match(html, /esperando \|\| l\.gmv === null \? "—"/);
 });
 
-test("preço igual nas duas lojas não vira alerta", () => {
-  const { precosQueDivergem } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 7.90 },
-    { id: "a2", produtoId: "p1", mkt: "Mercado Livre", storeNome: "Oficial", preco: 7.90 },
-  ]);
-  assert.equal(precosQueDivergem().length, 0);
+test("loja sem venda no período fica em zero, e isso é diferente de nulo", () => {
+  const { resumoDasLojas } = mundo(
+    [{ id: "a1", storeId: "L1", storeNome: "Bella", mkt: "Shopee" }],
+    { dias: 30, porLoja: { L1: { nome: "Bella", gmv: 0, pedidos: 0 } } });
+  assert.equal(resumoDasLojas()[0].gmv, 0);
 });
 
-test("produto anunciado num lugar só nunca diverge de nada", () => {
-  const { precosQueDivergem } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "Bella", preco: 2.90 },
-  ]);
-  assert.equal(precosQueDivergem().length, 0);
-});
+// ─── A trava que não se negocia ───────────────────────────────────────
 
-test("a maior diferença vem primeiro: é a que pede decisão", () => {
-  const { precosQueDivergem } = mundo(PRODUTOS, [
-    { id: "a1", produtoId: "p1", mkt: "Shopee", storeNome: "B", preco: 10 },
-    { id: "a2", produtoId: "p1", mkt: "Mercado Livre", storeNome: "O", preco: 11 },
-    { id: "a3", produtoId: "p3", mkt: "Shopee", storeNome: "B", preco: 10 },
-    { id: "a4", produtoId: "p3", mkt: "Mercado Livre", storeNome: "O", preco: 20 },
-  ]);
-  const ds = precosQueDivergem();
-  assert.equal(ds.map((d) => d.produto.id).join(","), "p3,p1");
-  assert.equal(ds[0].dif, 100);
-});
-
-// ─── O que a tela NÃO pode fazer ──────────────────────────────────────
-
-test("a tela do cliente não lê vendas, e as regras continuam fechadas", () => {
-  // O pedido era "melhore esta área". A saída fácil seria mostrar faturamento
-  // — que exigiria abrir `sales` para papel externo. Não se faz.
+test("a área do cliente não lê vendas, e a regra continua só para funcionário", () => {
   assert.doesNotMatch(html, /collection\(db, "sales"\)/,
-    "a área do cliente passou a ler vendas");
-  const regras = fs.readFileSync(path.join(raiz, "firestore.rules"), "utf8");
+    "a área do cliente passou a ler vendas direto");
   assert.match(regras, /match \/sales\/\{id\}\s*\{\s*allow read: if ehFuncionario\(\);/,
     "sales deixou de ser exclusiva de funcionário");
 });
 
-test("o botão de 'o que falta' leva para a lista já filtrada", () => {
-  // Sem isso o cliente lê "faltam 6" e não tem o que fazer com a informação.
-  assert.match(html, /estado\.faltaEm = b\.dataset\.faltaqui;/);
-  assert.match(html, /estado\.aba = "produtos";/);
+test("o servidor só soma as lojas DO proprietário que pediu", () => {
+  // A consulta parte de clients filtrado pelo custId do autor. Uma loja de
+  // outro cliente nunca entra na busca — não é filtrada depois, não entra.
+  const i = back.indexOf("export const faturamentoDoCliente");
+  assert.ok(i > 0, "o endpoint sumiu");
+  const corpo = back.slice(i, i + 2400);
+  assert.match(corpo, /await exigirDonoDaFicha\(req,/, "sem autor verificado não há resposta");
+  assert.match(corpo, /if \(!autor\) \{ res\.status\(403\)/);
+  assert.match(corpo, /collection\("clients"\)\.where\("custId", "==", autor\.custId\)/);
+  assert.match(corpo, /collection\("sales"\)[\s\S]{0,40}\.where\("cliente", "==", d\.id\)/,
+    "a soma tem que partir das lojas daquele custId");
 });
 
-test("um produto faltando vira 'o que falta', não 'os 1 que faltam'", () => {
-  assert.match(html, /falta === 1 \? "Ver o que falta"/);
+test("o período do faturamento é limitado: ninguém pede o histórico inteiro", () => {
+  const i = back.indexOf("export const faturamentoDoCliente");
+  assert.match(back.slice(i, i + 2400),
+    /Math\.min\(90, Math\.max\(1, Number\(req\.query\.dias\) \|\| 30\)\)/);
+});
+
+// ─── O que saiu de propósito ──────────────────────────────────────────
+
+test("não há mais alerta de preço na tela do cliente", () => {
+  // Quem confere precificação é a equipe. Um alerta aqui pede ao lojista uma
+  // decisão que não é dele, com um número que ele não sabe interpretar.
+  assert.doesNotMatch(html, /precosQueDivergem/);
+  assert.doesNotMatch(html, /preço diferente entre suas lojas/);
+});
+
+test("a tela do cliente não fala mais em '?cliente='", () => {
+  // Funcionário que abriu /cliente direto entrou pela porta errada, não errou
+  // nada — e detalhe de endereço não é recado para ninguém.
+  assert.doesNotMatch(html, /Falta dizer de qual cliente/);
+  assert.match(html, /Entrar como cliente/, "no lugar, o caminho em português");
+  assert.match(html, /classList\.toggle\("recado", daEquipe\)/, "e sem o vermelho de alarme");
+});
+
+// ─── A ferramenta parceira ────────────────────────────────────────────
+
+test("a JoomPulse abre fora do sistema, em aba nova e sem carona", () => {
+  const app = fs.readFileSync(path.join(raiz, "app.html"), "utf8");
+  assert.match(app, /href="https:\/\/joompulse\.com\/"/);
+  assert.match(app, /target="_blank" rel="noopener noreferrer"/,
+    "link externo sem noopener deixa a outra aba mexer nesta");
+  assert.match(app, /class="parceira-fora"/, "a seta avisa que troca de site");
 });

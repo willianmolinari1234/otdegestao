@@ -131,8 +131,12 @@ test("o iframe nunca desloga: a sessão é a mesma do painel", () => {
   // do sistema inteiro, e bastava uma falha de rede lendo employees.
   const i = html.indexOf("if (!daEquipe || !pedido)");
   assert.ok(i > 0, "o bloco de recusa precisa existir");
-  const trecho = html.slice(i, i + 900);
-  assert.ok(trecho.indexOf("if (EMBUTIDO)") < trecho.indexOf("await signOut"),
+  // Sem janela fixa: um comentário a mais no bloco empurrava o signOut para
+  // fora dos 900 caracteres e o teste quebrava sem nada ter mudado de fato.
+  const embutido = html.indexOf("if (EMBUTIDO)", i);
+  const desloga = html.indexOf("await signOut", i);
+  assert.ok(embutido > 0 && desloga > 0, "o bloco perdeu uma das duas saídas");
+  assert.ok(embutido < desloga,
     "a saída sem deslogar tem que vir ANTES do signOut");
 });
 

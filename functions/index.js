@@ -2045,6 +2045,50 @@ export const salvarProdutoDoCliente = onRequest({
 // Então quem lê o cadastro é o servidor, e sai daqui só o que aquele lojista
 // já sabe do próprio contrato. O especialista não tem o que pedir aqui: para
 // precificar ele usa a conta do marketplace, que é pública.
+// ─── FATURAMENTO DAS LOJAS DO CLIENTE ─────────────────────────────────
+//
+// O lojista quer ver quanto cada loja dele faturou. O dado está em `sales`,
+// que é FECHADA a papel externo no firestore.rules — e continua fechada: o
+// caminho não é afrouxar a regra, é o servidor somar e devolver só o que é
+// dele. Mesmo desenho do percentuaisDoCliente logo abaixo.
+//
+// Em `sales`, o campo `cliente` é a LOJA (clients/{id}), não o proprietário.
+// Por isso a soma passa primeiro pelas lojas daquele custId: uma loja que não
+// é dele nunca entra na consulta, em vez de ser filtrada depois.
+export const faturamentoDoCliente = onRequest({
+  cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
+}, async (req, res) => {
+  let autor = null;
+  try {
+    autor = await exigirDonoDaFicha(req, (req.body || {}).custId || req.query.custId);
+  } catch { /* token inválido também nega */ }
+  if (!autor) { res.status(403).json({ erro: "Sua sessão expirou. Entre de novo." }); return; }
+
+  const dias = Math.min(90, Math.max(1, Number(req.query.dias) || 30));
+  try {
+    const lojas = await db.collection("clients").where("custId", "==", autor.custId).get();
+    if (lojas.empty) { res.json({ dias, porLoja: {} }); return; }
+
+    const desde = new Date(Date.now() - dias * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const porLoja = {};
+    await Promise.all(lojas.docs.map(async (d) => {
+      const vendas = await db.collection("sales")
+        .where("cliente", "==", d.id).where("data", ">=", desde).get();
+      let gmv = 0, pedidos = 0;
+      for (const v of vendas.docs) {
+        const x = v.data();
+        gmv += Number(x.gmv) || 0;
+        pedidos += Number(x.pedidos) || 0;
+      }
+      porLoja[d.id] = { nome: d.data().name || "", gmv, pedidos, dias: vendas.size };
+    }));
+    res.json({ dias, porLoja });
+  } catch (e) {
+    logger.error("faturamentoDoCliente", e);
+    res.status(500).json({ erro: "Não consegui ler o faturamento agora." });
+  }
+});
+
 export const percentuaisDoCliente = onRequest({
   cors: ["https://otdegestao.web.app", "https://otdegestao.firebaseapp.com"],
 }, async (req, res) => {
