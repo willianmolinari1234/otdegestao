@@ -209,6 +209,14 @@ varra a tela inteira de uma vez em vez de consertar um só.
 e modal vive fora do `#content`. Botão novo dentro de modal precisa ser registrado no
 `rebind()` daquele modal — senão o clique não acontece, sem erro no console.
 
+**Arrastar cartão é uma classe combinada entre dois arquivos.** O cartão do kanban é
+`.kb-card` (`js/04-telas.js`) e quem escuta o arraste procura por essa classe
+(`js/07-interacoes-e-boot.js`). O redesenho de 13/09/2026 trocou `.task-card` por
+`.kb-card` só no desenho: como o `draggable="true"` mora no HTML, o navegador continuava
+deixando PEGAR o cartão, mas nenhum handler rodava — sem prévia, sem gravação, sem erro no
+console; o cartão voltava para o lugar. `telas.test.js` agora lê a classe do cartão
+desenhado e exige que o arraste procure a mesma.
+
 **A classe de modal do projeto é `.form-panel`.** Não existe `form-modal-header`,
 `form-modal-body` nem `modal-close`. Antes de escrever CSS novo, procure a classe que já existe.
 

@@ -1,11 +1,17 @@
 // ─── EVENT BINDING ────────────────────────────────────────────────────
 // ─── KANBAN DRAG & DROP ───────────────────────────────────────────────
+// O cartão é `.kb-card` e a coluna é `.kanban-col`. O redesenho da tela de
+// tarefas trocou a classe do cartão (era `.task-card`) e estes seletores
+// ficaram para trás: o navegador deixava PEGAR o cartão, porque o
+// `draggable="true"` está no HTML, mas nenhum handler daqui rodava — sem
+// dragId, sem prévia, e o `drop` saía na primeira linha. Arrastava e nada
+// acontecia, sem um erro no console. Mexeu na classe do cartão, mexa aqui.
 let dragId=null;
 function setupKanbanDnD(C){
   const cols=C.querySelectorAll(".kanban-col");
   if(cols.length===0)return;
 
-  C.querySelectorAll(".task-card[draggable=true]").forEach(card=>{
+  C.querySelectorAll(".kb-card[draggable=true]").forEach(card=>{
     card.addEventListener("dragstart",e=>{
       dragId=card.dataset.card;
       card.classList.add("dragging");
@@ -21,7 +27,7 @@ function setupKanbanDnD(C){
 
   // Returns the card element we should insert before, based on cursor Y
   function cardAfter(col,y){
-    const els=[...col.querySelectorAll(".task-card:not(.dragging)")];
+    const els=[...col.querySelectorAll(".kb-card:not(.dragging)")];
     let closest=null,closestOffset=-Infinity;
     els.forEach(el=>{
       const box=el.getBoundingClientRect();
@@ -36,7 +42,7 @@ function setupKanbanDnD(C){
       e.preventDefault();
       e.dataTransfer.dropEffect="move";
       col.classList.add("drag-over");
-      const dragging=C.querySelector(".task-card.dragging");
+      const dragging=C.querySelector(".kb-card.dragging");
       if(!dragging)return;
       const after=cardAfter(col,e.clientY);
       if(after==null)col.appendChild(dragging);
@@ -52,7 +58,7 @@ function setupKanbanDnD(C){
       const id=dragId;if(!id)return;
       const newStatus=col.dataset.col;
       // Compute new ordered list of card ids in this column (DOM order)
-      const orderedIds=[...col.querySelectorAll(".task-card[data-card]")].map(el=>el.dataset.card);
+      const orderedIds=[...col.querySelectorAll(".kb-card[data-card]")].map(el=>el.dataset.card);
       // Switch to manual order so the new sequence sticks visually
       if(fSort!=="ordem")fSort="ordem";
       try{

@@ -629,6 +629,32 @@ test("nada que o kanban fazia se perdeu", async () => {
   assert.match(h, /class="kanban-col kb-lista" data-col="todo"/, "a coluna que recebe o arraste");
 });
 
+test("quem arrasta o cartão procura a classe que o cartão realmente tem", async () => {
+  // Isto já quebrou uma vez, em silêncio: o redesenho trocou `.task-card` por
+  // `.kb-card` e o arraste ficou procurando a classe antiga. Como o
+  // `draggable="true"` está no HTML, o navegador deixava PEGAR o cartão —
+  // só que nenhum handler rodava e o cartão voltava para o lugar. Sem erro
+  // no console, sem nada.
+  const ctx = await montarApp(PAINEL);
+  const h = eval_(ctx, `return rKanban();`);
+  const m = h.match(/<div class="([a-z-]+)[^"]*" draggable="true"/);
+  assert.ok(m, "nenhum cartão arrastável na tela de tarefas");
+  const classe = m[1];
+
+  const boot = fs.readFileSync(path.join(raiz, "js/07-interacoes-e-boot.js"), "utf8");
+  const seletores = [...boot.matchAll(/querySelector(?:All)?\("\.([a-z-]+)/g)].map((x) => x[1]);
+  const deCartao = seletores.filter((c) => c !== "kanban-col");
+  assert.ok(deCartao.length > 0, "o arraste deixou de procurar cartão");
+  for (const c of new Set(deCartao)) {
+    assert.equal(c, classe,
+      `o arraste procura .${c} e o cartão desenhado é .${classe}`);
+  }
+
+  // E a coluna que recebe o arraste continua sendo a mesma dos dois lados.
+  assert.match(h, /class="kanban-col/);
+  assert.match(boot, /querySelectorAll\(".kanban-col"\)/);
+});
+
 test("a tarefa automática não oferece excluir", async () => {
   // Ela volta no próximo sync. Excluir dá a impressão de resolver e não
   // resolve — o que resolve é a pendência sair do ar na Shopee.
