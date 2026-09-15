@@ -107,8 +107,16 @@ print("  ", d.get("oQueProcurar",""))
 PY
   echo
   echo "Agora é só me avisar: eu leio o arquivo direto da pasta."
+elif [ "$CODIGO" = "404" ]; then
+  echo "❌ Essa consulta ainda NÃO foi publicada."
+  echo
+  echo "   A lista de lojas acima funcionou porque ela já está no ar há tempos."
+  echo "   A consulta de cobertura é código novo: existe só nesta máquina até"
+  echo "   você rodar o PUBLICAR.command. Publique e rode este script de novo."
+  rm -f "$SAIDA"
 else
   echo "❌ A chamada falhou (HTTP $CODIGO). Resposta salva em $SAIDA"
+  [ "$CODIGO" = "403" ] && echo "   403 = token errado ou desatualizado no functions/.env."
 fi
 
 echo
