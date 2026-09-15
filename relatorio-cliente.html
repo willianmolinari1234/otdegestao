@@ -428,6 +428,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+// A regra de "está sem esta ferramenta" mora num arquivo só. O painel do admin
+// e esta aba precisam responder igual: duas cópias da mesma conta é como o
+// alerta da oferta relâmpago já ficou fora do padrão uma vez.
+import { semNenhumaDestas } from "./js/prazos.js?v=de2126c4";
 
 // Mesmo código, dois ambientes. O endereço decide qual banco será usado —
 // assim a versão de teste nunca escreve nos dados reais.
@@ -1084,7 +1088,7 @@ function renderReport(d) {
 // TEXTO: letra branca sobre amarelo não se lê. Por isso não basta guardar uma
 // cor por marketplace — o par fundo/texto anda junto.
 //
-// Atenção: isto NÃO é o MKT_STYLE do sistema (js/01-estado-e-dados.js), que
+// Atenção: isto NÃO é o MKT_STYLE do sistema (01-estado-e-dados.js), que
 // pinta os selos da tela de Clientes e mantém a Shein preta. São duas coisas
 // por decisão: lá é selo, aqui é a identidade do relatório do cliente.
 
@@ -1519,7 +1523,51 @@ function renderAlertasFerramentas(docs, nameOf) {
     return h > 0 ? `${h}h ${m}min` : `${m}min`;
   };
 
+  // ── Sem desconto E sem leve mais por menos ────────────────────────
+  // A pergunta da operação: quais lojas não têm NENHUMA das duas ferramentas
+  // que puxam o anúncio na busca? Uma loja pode estar coberta por uma e
+  // descoberta pela outra, então cruzar as duas listas é o que responde.
+  //
+  // Atenção ao que isto NÃO diz: a Shopee informa quais campanhas a loja tem
+  // no ar, não quais anúncios estão dentro delas. Loja com uma campanha
+  // cobrindo três anúncios de duzentos não aparece aqui.
+  const semNenhuma = semNenhumaDestas(docs, ["desconto", "leve_mais"], agora)
+    .map((x) => nameOf(x.cliente));
+  const cobre = (tipo) => new Set(docs
+    .filter((d) => (d.promocoes || []).some((p) => {
+      if (p.tipo !== tipo) return false;
+      const fim = Number(p.fim || 0), inicio = Number(p.inicio || 0);
+      if (fim && fim <= agora) return false;
+      if (inicio && inicio > agora) return false;
+      return true;
+    })).map((d) => d.id));
+  const comDesc = cobre("desconto"), comLeve = cobre("leve_mais");
+  const soSemLeve = docs.filter((d) => comDesc.has(d.id) && !comLeve.has(d.id)).map((d) => nameOf(d.id));
+  const soSemDesc = docs.filter((d) => comLeve.has(d.id) && !comDesc.has(d.id)).map((d) => nameOf(d.id));
+
   let html = "";
+  if (semNenhuma.length) {
+    html += `<div style="background:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:12px;padding:13px 16px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;color:#991b1b;margin-bottom:6px;">
+        ⛔ ${semNenhuma.length === 1 ? "1 loja está sem" : `${semNenhuma.length} lojas estão sem`} desconto e sem leve mais por menos
+      </div>
+      <div style="font-size:12.5px;color:#7f1d1d;line-height:1.7;">${semNenhuma.map(escapeHtml).sort().join(" · ")}</div>
+      <div style="font-size:11.5px;color:#b91c1c;margin-top:7px;line-height:1.6;">
+        Nenhuma das duas ferramentas no ar: o anúncio perde posição na busca e sai do “ofertas”.
+      </div>
+    </div>`;
+  }
+  if (soSemDesc.length || soSemLeve.length) {
+    const linha = (rot, nomes) => nomes.length ? `<div style="padding:5px 0;border-top:1px solid #f5e6d8;">
+        <div style="font-size:12px;font-weight:700;color:#6B4D18;">${rot} — ${nomes.length} ${nomes.length === 1 ? "loja" : "lojas"}</div>
+        <div style="font-size:12px;color:#5C584F;line-height:1.7;">${nomes.map(escapeHtml).sort().join(" · ")}</div>
+      </div>` : "";
+    html += `<div style="background:#FBF7EE;border:1px solid #E8D4A8;border-radius:12px;padding:11px 16px 12px;margin-bottom:12px;">
+      <div style="font-size:12.5px;font-weight:700;color:#6B4D18;">Falta só uma das duas</div>
+      ${linha("Sem desconto", soSemDesc)}
+      ${linha("Sem leve mais por menos", soSemLeve)}
+    </div>`;
+  }
   if (semRelampago.length) {
     html += `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:13px 16px;margin-bottom:12px;">
       <div style="font-size:13px;font-weight:700;color:#8A6420;margin-bottom:${semRelampago.length ? "6px" : "0"};">

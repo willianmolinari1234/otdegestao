@@ -1791,6 +1791,112 @@ export const amostraCupons = onRequest({ secrets, timeoutSeconds: 300 }, async (
   }
 });
 
+// ---------- Amostra de cobertura (quais anúncios ficam de fora) ----------
+// Existe para responder UMA pergunta: dá para saber, pela API, QUAIS anúncios
+// da loja estão fora de toda promoção?
+//
+// Hoje o sistema só sabe o que a loja tem NO AR (coleção tools): "tem desconto"
+// ou "não tem". Isso não diferencia a loja com uma campanha cobrindo 3 de 200
+// anúncios da loja com tudo coberto — e é justamente aí que o dinheiro fica.
+//
+// Para responder, faltam duas coisas que nunca pedimos à Shopee:
+//   · a lista de anúncios da loja        (product/get_item_list)
+//   · os itens DENTRO de cada campanha   (discount/get_discount,
+//                                         add_on_deal/get_add_on_deal_main_item)
+// Ambas dependem de escopo do app parceiro. Este endpoint tenta as três e
+// devolve o erro de cada uma: é a forma barata de descobrir se o caminho está
+// aberto antes de construir a tela em cima dele.
+//
+//   /amostraCobertura?token=<SYNC_TOKEN>&cliente=<id da loja>
+export const amostraCobertura = onRequest({ secrets, timeoutSeconds: 300 }, async (req, res) => {
+  const esperado = (process.env.SYNC_TOKEN || "").trim();
+  if (!esperado || req.query.token !== esperado) { res.status(403).json({ erro: "token inválido" }); return; }
+  const filtro = req.query.cliente || null;
+  const porLoja = [];
+  try {
+    await forEachShop(async ({ cliente, shopId, token }) => {
+      if (porLoja.length >= 1) return;   // uma loja basta para saber se dá
+      const erros = {};
+
+      // 1) Os anúncios da loja. Página única: a pergunta aqui é se o endpoint
+      // responde, não montar o catálogo inteiro.
+      let anuncios = [], totalAnuncios = null;
+      try {
+        const r = await shopCall(cfg(), {
+          path: "/api/v2/product/get_item_list", accessToken: token, shopId,
+          params: { offset: 0, page_size: 100, item_status: "NORMAL" },
+        });
+        anuncios = (r.response?.item || []).map((i) => String(i.item_id));
+        totalAnuncios = r.response?.total_count ?? anuncios.length;
+      } catch (e) { erros.get_item_list = e.message; }
+
+      // 2) Os itens dentro de cada campanha de desconto em andamento.
+      const cobertos = new Set();
+      const campanhas = [];
+      try {
+        const lista = await shopCall(cfg(), {
+          path: "/api/v2/discount/get_discount_list", accessToken: token, shopId,
+          params: { discount_status: "ongoing", page_no: 1, page_size: 100 },
+        });
+        for (const d of (lista.response?.discount_list || []).slice(0, 10)) {
+          try {
+            const det = await shopCall(cfg(), {
+              path: "/api/v2/discount/get_discount", accessToken: token, shopId,
+              params: { discount_id: d.discount_id, page_no: 1, page_size: 100 },
+            });
+            const itens = (det.response?.item_list || []).map((i) => String(i.item_id));
+            itens.forEach((i) => cobertos.add(i));
+            campanhas.push({ tipo: "desconto", id: d.discount_id, nome: d.discount_name, itens: itens.length });
+          } catch (e) { erros.get_discount = e.message; }
+        }
+      } catch (e) { erros.get_discount_list = e.message; }
+
+      // 3) O mesmo para o "leve mais por menos".
+      try {
+        const lista = await shopCall(cfg(), {
+          path: "/api/v2/add_on_deal/get_add_on_deal_list", accessToken: token, shopId,
+          params: { promotion_status: "ongoing", page_no: 1, page_size: 100 },
+        });
+        for (const d of (lista.response?.add_on_deal_list || []).slice(0, 10)) {
+          try {
+            const det = await shopCall(cfg(), {
+              path: "/api/v2/add_on_deal/get_add_on_deal_main_item", accessToken: token, shopId,
+              params: { add_on_deal_id: d.add_on_deal_id },
+            });
+            const itens = (det.response?.main_item_list || []).map((i) => String(i.item_id));
+            itens.forEach((i) => cobertos.add(i));
+            campanhas.push({ tipo: "leve_mais", id: d.add_on_deal_id, nome: d.add_on_deal_name, itens: itens.length });
+          } catch (e) { erros.get_add_on_deal_main_item = e.message; }
+        }
+      } catch (e) { erros.get_add_on_deal_list = e.message; }
+
+      const foraDeTudo = anuncios.filter((i) => !cobertos.has(i));
+      porLoja.push({
+        cliente, shopId,
+        totalAnuncios,
+        anunciosLidos: anuncios.length,
+        campanhas,
+        cobertos: cobertos.size,
+        foraDeTudo: foraDeTudo.length,
+        exemploForaDeTudo: foraDeTudo.slice(0, 10),
+        erros,
+      });
+    }, { cliente: filtro });
+
+    const l = porLoja[0] || {};
+    res.json({
+      ok: true,
+      oQueProcurar: Object.keys(l.erros || {}).length
+        ? "algum endpoint recusou: o escopo do app parceiro não cobre esse caminho, e a cobertura por anúncio depende de liberá-lo"
+        : "se anunciosLidos e cobertos vierem com número, dá para dizer QUAIS anúncios estão fora de toda promoção",
+      porLoja,
+    });
+  } catch (e) {
+    logger.error("amostraCobertura", e);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // ---------- Diagnóstico das lojas conectadas ----------
 export const lojasConectadas = onRequest({ secrets }, async (req, res) => {
   const esperado = (process.env.SYNC_TOKEN || "").trim();

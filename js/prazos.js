@@ -104,6 +104,47 @@ export function semFerramenta(lojas, tipo, agoraSeg) {
 }
 
 /**
+ * Lojas sem NENHUMA promoção ativa de nenhum dos tipos pedidos.
+ *
+ * Nasceu de uma pergunta da operação: quais lojas estão sem desconto E sem
+ * "leve mais por menos"? Perguntar tipo a tipo e cruzar as duas listas na mão
+ * dá a mesma resposta, mas dá errado sozinho — basta alguém cruzar com "ou"
+ * em vez de "e" para a lista virar metade da base.
+ *
+ * O "ativa" é o mesmo de semFerramenta(): já começou e ainda não terminou.
+ *
+ * O que ela responde é sobre a LOJA, não sobre o anúncio. Uma loja com uma
+ * campanha de desconto cobrindo três anúncios de duzentos não aparece aqui —
+ * para saber quais anúncios estão de fora é preciso pedir à Shopee a lista de
+ * itens DENTRO de cada campanha, que o sistema ainda não busca.
+ *
+ * @param {Array} lojas  [{cliente, promocoes:[{tipo,inicio,fim}]}]
+ * @param {Array<string>} tipos  ex.: ["desconto", "leve_mais"]
+ */
+export function semNenhumaDestas(lojas, tipos, agoraSeg) {
+  const agora = Number(agoraSeg || 0);
+  const procurados = new Set((tipos || []).map((t) => String(t)));
+  if (!procurados.size) return [];
+  const out = [];
+  for (const loja of lojas || []) {
+    if (!loja) continue;
+    const proms = Array.isArray(loja.promocoes) ? loja.promocoes : [];
+    const cobertos = new Set();
+    for (const p of proms) {
+      const tipo = String(p?.tipo || "");
+      if (!procurados.has(tipo)) continue;
+      const fim = Number(p?.fim || 0);
+      const inicio = Number(p?.inicio || 0);
+      if (fim && fim <= agora) continue;      // já acabou
+      if (inicio && inicio > agora) continue; // ainda não começou
+      cobertos.add(tipo);
+    }
+    if (cobertos.size === 0) out.push({ cliente: loja.cliente || loja.id, total: proms.length });
+  }
+  return out;
+}
+
+/**
  * Lojas sem nenhuma promoção de um tipo RODANDO NEM AGENDADA.
  *
  * Feita para a oferta relâmpago. Como ela se renova sozinha, a pergunta útil

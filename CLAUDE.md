@@ -185,6 +185,8 @@ comentário dentro do `firestore.rules` — mantenha o comentário.
 | A área do cliente NUNCA lê `sales` | O faturamento da aba "Minha loja" é somado pelo servidor (`faturamentoDoCliente`) e volta só com as lojas daquele proprietário. A regra do Firestore continua fechada |
 | Preço é conferência da EQUIPE, não do lojista | A aba do cliente mostra loja, anúncios e faturamento. Alerta de precificação ali pede uma decisão que não é dele |
 | Cor de MARKETPLACE não segue a marca da OTDE | Shopee é laranja, Mercado Livre é amarelo, TikTok é preto. A faixa do relatório de fechamento usa a cor deles. O laranja da Shopee foi trocado por engano no rebranding porque o hex era idêntico ao nosso antigo |
+| O sistema sabe a promoção da LOJA, não a do ANÚNCIO | A Shopee informa quais campanhas estão no ar (`tools`), não quais itens estão dentro delas. Loja com uma campanha cobrindo 3 de 200 anúncios conta como "tem desconto". Ver quais anúncios ficam de fora exige `product/get_item_list`, `discount/get_discount` e `add_on_deal/get_add_on_deal_main_item` — nunca chamados, escopo do app parceiro não confirmado. O `COBERTURA-DIAGNOSTICO.command` responde se o caminho está aberto |
+| "Sem desconto E sem leve mais por menos" é uma regra só | `semNenhumaDestas()` em `prazos.js`. Cruzar duas listas na mão erra sozinho: basta usar "ou" no lugar de "e" e a resposta vira metade da base |
 | O logo não usa moldura | Sem círculo e sem quadrado: a marca é larga e cortá-la num redondo come as barras do E. Ícone da aba é a marca em fundo transparente |
 
 As claims são aplicadas por `aplicarClaims()`, chamada por quem grava — **não por gatilho
@@ -263,8 +265,11 @@ caminhos keg-only do Homebrew. Sem Java o emulador do Firestore não sobe.
 
 **Citar `js/algo.js` em comentário barra a publicação.** O `carimbar-versao.js` varre o
 arquivo inteiro e trata qualquer ocorrência de `js/*.js` sem `?v=` como referência sem
-carimbo — inclusive dentro de comentário. Em `app.html` e `cliente.html`, escreva o nome
-do arquivo sem a pasta.
+carimbo — inclusive dentro de comentário. Em `app.html`, `cliente.html` e
+`relatorio-cliente.html` (que entrou na lista ao importar `prazos.js`), escreva o nome do
+arquivo sem a pasta. Passou a importar um `js/`? Ponha o arquivo em `ARQUIVOS` do
+carimbador no mesmo commit — import sem carimbo, com cache de 7 dias, é código velho na
+máquina de quem já visitou o site.
 
 **Mensagem de commit quebra o shell.** Aspas e crases dentro de `git commit -m` viram
 execução de comando. Use sempre `git commit -F arquivo`.
@@ -289,6 +294,7 @@ Tem guarda para não acusar loja que ainda não sincronizou.
 | `TESTAR-REGRAS.command` | 37 casos de isolamento no emulador. Precisa de Java, só roda no Mac |
 | `PUBLICAR.command` | Testes → sintaxe → carimbo de versão → homolog → confirmação → produção |
 | `CUPONS-DIAGNOSTICO.command` | Amostra de cupons de uma loja escolhida em lista |
+| `COBERTURA-DIAGNOSTICO.command` | Pergunta à Shopee quais anúncios de uma loja estão fora de toda promoção |
 | `REVERTER-se-quebrar.command` | Volta a publicação anterior |
 
 **Três arquivos de `js/` são espelhados para `functions/`**: `prazos.js` (regras de alerta),

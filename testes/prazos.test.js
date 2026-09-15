@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vencendo, comoFalta, diaLocal, semFerramenta } from "../js/prazos.js";
+import { vencendo, comoFalta, diaLocal, semFerramenta, semNenhumaDestas } from "../js/prazos.js";
 
 const AGORA = 1786000000;              // referência fixa
 const h = (n) => AGORA + n * 3600;     // daqui a N horas
@@ -132,4 +132,77 @@ test("converte para o dia de São Paulo, não UTC", () => {
   // 2026-08-14 01:00 UTC = 2026-08-13 22:00 em Brasília.
   const seg = Math.floor(Date.parse("2026-08-14T01:00:00Z") / 1000);
   assert.equal(diaLocal(seg), "2026-08-13");
+});
+
+// ─── semNenhumaDestas ─────────────────────────────────────────────────
+//
+// "Quais lojas estão sem desconto E sem leve mais por menos?" A armadilha
+// natural é responder com a união das duas listas em vez da interseção — e
+// aí a resposta vira metade da base, que é o mesmo ruído do aviso de "3
+// descontos" por outro caminho.
+
+test("loja sem nenhuma das duas aparece", () => {
+  const r = semNenhumaDestas([loja("A", [])], ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r.map((x) => x.cliente), ["A"]);
+});
+
+test("basta UMA das duas no ar para a loja sair da lista", () => {
+  const so_desconto = loja("A", [{ tipo: "desconto", inicio: h(-1), fim: h(50) }]);
+  const so_leve = loja("B", [{ tipo: "leve_mais", inicio: h(-1), fim: h(50) }]);
+  const r = semNenhumaDestas([so_desconto, so_leve], ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r, [], "quem tem uma das duas não está descoberto");
+});
+
+test("promoção de outro tipo não cobre — combo não é desconto nem leve mais", () => {
+  const r = semNenhumaDestas(
+    [loja("A", [{ tipo: "combo", inicio: h(-1), fim: h(50) },
+                { tipo: "flash_sale", inicio: h(-1), fim: h(2) }])],
+    ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r.map((x) => x.cliente), ["A"]);
+});
+
+test("promoção vencida não conta como cobertura", () => {
+  // A Shopee é consultada de 6 em 6 horas: uma que acabou nesse meio-tempo
+  // ainda vem na lista. Dizer que está tudo certo aqui é o erro caro.
+  const r = semNenhumaDestas(
+    [loja("A", [{ tipo: "desconto", inicio: h(-50), fim: h(-1) },
+                { tipo: "leve_mais", inicio: h(-50), fim: h(-2) }])],
+    ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r.map((x) => x.cliente), ["A"]);
+});
+
+test("promoção que ainda não começou não conta como cobertura", () => {
+  const r = semNenhumaDestas(
+    [loja("A", [{ tipo: "desconto", inicio: h(24), fim: h(96) }])],
+    ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r.map((x) => x.cliente), ["A"]);
+});
+
+test("separa as lojas certas numa base misturada", () => {
+  const r = semNenhumaDestas([
+    loja("A", []),                                                  // nenhuma
+    loja("B", [{ tipo: "desconto", inicio: h(-1), fim: h(50) }]),    // tem desconto
+    loja("C", [{ tipo: "leve_mais", inicio: h(-1), fim: h(50) }]),   // tem leve mais
+    loja("D", [{ tipo: "cupom", inicio: h(-1), fim: h(50) }]),       // só cupom
+    loja("E", [{ tipo: "desconto", inicio: h(-50), fim: h(-1) }]),   // desconto vencido
+  ], ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r.map((x) => x.cliente).sort(), ["A", "D", "E"]);
+});
+
+test("sem tipos pedidos devolve lista vazia, não a base inteira", () => {
+  // Chamar sem tipos é erro de quem chamou. Devolver TODA a base como
+  // "descoberta" faria o erro parecer um achado.
+  assert.deepEqual(semNenhumaDestas([loja("A", [])], [], AGORA), []);
+  assert.deepEqual(semNenhumaDestas([loja("A", [])], null, AGORA), []);
+});
+
+test("lista de lojas vazia não quebra", () => {
+  assert.deepEqual(semNenhumaDestas(null, ["desconto"], AGORA), []);
+});
+
+test("loja sem registro de ferramentas não é avaliada", () => {
+  // Quem não sincronizou não pode ser acusado de estar sem promoção: a lista
+  // que chega aqui é a das lojas COM registro.
+  const r = semNenhumaDestas([], ["desconto", "leve_mais"], AGORA);
+  assert.deepEqual(r, []);
 });

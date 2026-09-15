@@ -11,6 +11,9 @@
 //
 // cliente.html entra na lista porque ele importa ./js/drive.js direto (é um
 // módulo standalone, não passa pelo app.html) e o **/*.js tem cache de 7 dias.
+// relatorio-cliente.html entrou pelo mesmo motivo, no dia em que passou a
+// importar ./js/prazos.js: ele também é servido direto, e uma referência sem
+// carimbo é código velho na máquina de quem já visitou o site.
 //
 // Rodar:  node ferramentas/carimbar-versao.js
 
@@ -19,7 +22,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 
 const RAIZ = path.resolve(import.meta.dirname, "..");
-const ARQUIVOS = ["app.html", "cliente.html"];
+const ARQUIVOS = ["app.html", "cliente.html", "relatorio-cliente.html"];
 
 const hashDe = (arquivoJs) => {
   const caminho = path.join(RAIZ, arquivoJs);

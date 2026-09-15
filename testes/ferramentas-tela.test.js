@@ -123,3 +123,42 @@ test("o bloco de prints vazio não empurra o diagnóstico para baixo", () => {
   assert.match(app, /\.an:has\(\.an-vazio\)\{padding:12px 15px\}/);
   assert.match(app, /\.an:has\(\.an-vazio\) \.an-sub\{display:none\}/);
 });
+
+// ─── Sem desconto e sem leve mais por menos ───────────────────────────
+//
+// A pergunta da operação: quais lojas não têm NENHUMA das duas ferramentas
+// que puxam o anúncio na busca. O que se guarda aqui é que a tela pergunta
+// isso ao módulo de regras, e não a uma segunda conta escrita à mão.
+
+test("a aba usa a regra do módulo, não uma cópia da conta", () => {
+  assert.match(rel, /import \{ semNenhumaDestas \} from "\.\/js\/prazos\.js/,
+    "a tela voltou a calcular por conta própria");
+  assert.match(rel, /semNenhumaDestas\(docs, \["desconto", "leve_mais"\], agora\)/);
+});
+
+test("a tela separa quem não tem nenhuma das duas de quem tem uma só", () => {
+  // Juntar os dois casos na mesma lista dá o alarme de quem está descoberto
+  // para quem está metade coberto — e quem lê passa a tratar tudo como rotina.
+  assert.match(rel, /desconto e sem leve mais por menos/);
+  assert.match(rel, /Falta só uma das duas/);
+  assert.match(rel, /const soSemLeve = /);
+  assert.match(rel, /const soSemDesc = /);
+});
+
+test("a tela não promete saber quais ANÚNCIOS estão de fora", () => {
+  // A Shopee informa as campanhas da loja, não os itens dentro delas. Escrever
+  // "anúncios sem promoção" aqui seria prometer um dado que não temos.
+  assert.match(rel, /não quais anúncios estão dentro delas/,
+    "o limite do dado precisa estar escrito onde alguém vá mexer");
+});
+
+// ─── O carimbo de versão ──────────────────────────────────────────────
+
+test("o relatório entrou na lista de arquivos carimbados", () => {
+  // Ele passou a importar js/prazos.js. Import sem carimbo, com cache de 7
+  // dias, é código velho na máquina de quem já visitou o site — já quebrou a
+  // tela de importação uma vez assim.
+  const carimbador = fs.readFileSync(path.join(raiz, "ferramentas/carimbar-versao.js"), "utf8");
+  assert.match(carimbador, /const ARQUIVOS = \[[^\]]*"relatorio-cliente\.html"/);
+  assert.match(rel, /from "\.\/js\/prazos\.js\?v=[a-f0-9]+"/, "o import está sem carimbo");
+});
